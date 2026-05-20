@@ -78,5 +78,8 @@
     "papaparse": "^5.4.1",
     "tslint": "^5.20.1",
     "tslint-microsoft-contrib": "6.2.0"
+  },
+  "overrides": {
+    "ajv": "^8.0.0"
   }
 }
