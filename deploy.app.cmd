@@ -78,10 +78,10 @@ IF !ERRORLEVEL! NEQ 0 goto error
 echo Restoring npm packages (this can take several minutes)
 pushd "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp"
 
-call :ExecuteCmd npm install --no-audit --legacy-peer-deps
+call :ExecuteCmd npm install --no-audit
 IF !ERRORLEVEL! NEQ 0 (
     echo First attempt failed, retrying once
-    call :ExecuteCmd npm install --no-audit --legacy-peer-deps
+    call :ExecuteCmd npm install --no-audit
 )
 popd
 IF !ERRORLEVEL! NEQ 0 goto error
