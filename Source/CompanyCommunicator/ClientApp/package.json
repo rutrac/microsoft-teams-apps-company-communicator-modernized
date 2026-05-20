@@ -75,15 +75,6 @@
     "@types/react-redux": "^7.1.33",
     "@types/react-router-dom": "^5.3.3",
     "@types/redux": "^3.6.31",
-    "papaparse": "^5.4.1",
-    "tslint": "^5.20.1",
-    "tslint-microsoft-contrib": "6.2.0"
-  },
-  "overrides": {
-    "ajv": "^8.0.0",
-    "fork-ts-checker-webpack-plugin": {
-      "ajv-keywords": "^5.0.0",
-      "schema-utils": "^3.0.0"
-    }
+    "papaparse": "^5.4.1"
   }
 }
