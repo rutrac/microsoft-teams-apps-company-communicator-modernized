@@ -14,10 +14,26 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
     /// </summary>
     public class SendingNotificationDataEntity : ITableEntity
     {
+        /// <summary>
+        /// Gets or sets the entity's partition key.
+        /// </summary>
         public string PartitionKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's row key.
+        /// </summary>
         public string RowKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's timestamp.
+        /// </summary>
         public global::System.DateTimeOffset? Timestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's ETag.
+        /// </summary>
         public global::Azure.ETag ETag { get; set; }
+
         /// <summary>
         /// Gets or sets the notification id.
         /// </summary>
