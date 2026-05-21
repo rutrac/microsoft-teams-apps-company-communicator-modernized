@@ -98,7 +98,7 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
         this.getAppSettings().then(() => {
             setCardTarget(this.card, this.targetingEnabled);
             if ('id' in params) {
-                let id = params['id'];
+                let id = Number(params['id'] as string);
                 this.getItem(id).then(() => {
                     getConsentSummaries(id).then((response) => {
                         this.setState({
