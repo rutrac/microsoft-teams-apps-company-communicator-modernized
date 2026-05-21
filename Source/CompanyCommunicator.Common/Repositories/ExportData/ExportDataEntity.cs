@@ -1,4 +1,4 @@
-// <copyright file="ExportDataEntity.cs" company="Microsoft">
+﻿// <copyright file="ExportDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,8 +12,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportDat
     /// Export notification entity class.
     /// This entity holds all of the information about export.
     /// </summary>
-    public class ExportDataEntity : TableEntity
+    public class ExportDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets the file name for the export data.
         /// </summary>

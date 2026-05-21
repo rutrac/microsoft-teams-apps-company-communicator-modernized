@@ -1,4 +1,4 @@
-// <copyright file="GlobalSendingNotificationDataEntity.cs" company="Microsoft">
+﻿// <copyright file="GlobalSendingNotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,8 +12,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
     /// Entity that holds metadata for all sending operations.
     /// This data is shared by all sending functions for all notifications.
     /// </summary>
-    public class GlobalSendingNotificationDataEntity : TableEntity
+    public class GlobalSendingNotificationDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets a DateTime that sending of a notification can be retried/resumed.
         /// This is used to trigger a delay for all notifications if the bot is

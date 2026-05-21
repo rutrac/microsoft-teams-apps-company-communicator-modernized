@@ -1,4 +1,4 @@
-// <copyright file="SentNotificationDataEntity.cs" company="Microsoft">
+﻿// <copyright file="SentNotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -13,8 +13,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotif
     /// This entity holds all of the information about a recipient and the results for
     /// a notification having been sent to that recipient.
     /// </summary>
-    public class SentNotificationDataEntity : TableEntity
+    public class SentNotificationDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// This value is to be used when the entity is first initialized and stored and does
         /// not yet have a valid status code from a response for an attempt at sending the
