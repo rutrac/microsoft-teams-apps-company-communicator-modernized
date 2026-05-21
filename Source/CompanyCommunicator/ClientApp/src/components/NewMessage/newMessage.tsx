@@ -261,7 +261,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                             channelId: this.state.channelId
                         })
                     });
-                    this.getGroupData(id).then(() => {
+                    this.getGroupData(Number(id)).then(() => {
                         const selectedGroups = this.makeDropdownItems(this.state.groups);
                         this.setState({
                             selectedGroups: selectedGroups
