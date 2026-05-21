@@ -1,4 +1,4 @@
-// <copyright file="UsersSyncEntity.cs" company="Microsoft">
+﻿// <copyright file="UsersSyncEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -10,8 +10,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     /// <summary>
     /// Users sync information.
     /// </summary>
-    public class UsersSyncEntity : TableEntity
+    public class UsersSyncEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets the entity value.
         /// </summary>

@@ -1,4 +1,4 @@
-// <copyright file="NotificationDataEntity.cs" company="Microsoft">
+﻿// <copyright file="NotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -19,8 +19,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
     /// It holds the data for the content of the notification.
     /// It holds the data for the recipients of the notification.
     /// </summary>
-    public class NotificationDataEntity : TableEntity
+    public class NotificationDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets the id of the notification.
         /// </summary>

@@ -1,4 +1,4 @@
-// <copyright file="ChannelDataEntity.cs" company="Microsoft">
+﻿// <copyright file="ChannelDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -11,8 +11,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ChannelDa
     /// Group Association data entity class.
     /// This entity holds the information about a group association with channels in teams.
     /// </summary>
-    public class ChannelDataEntity : TableEntity
+    public class ChannelDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets the channel id to where the group is associated.
         /// </summary>

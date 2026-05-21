@@ -1,4 +1,4 @@
-// <copyright file="UserDataEntity.cs" company="Microsoft">
+﻿// <copyright file="UserDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -10,8 +10,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
     /// <summary>
     /// User data entity class.
     /// </summary>
-    public class UserDataEntity : TableEntity
+    public class UserDataEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+        public global::Azure.ETag ETag { get; set; }
         /// <summary>
         /// Gets or sets the user's name.
         /// </summary>
