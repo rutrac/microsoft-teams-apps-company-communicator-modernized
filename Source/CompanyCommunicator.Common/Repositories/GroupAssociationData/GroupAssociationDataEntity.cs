@@ -5,7 +5,7 @@
 
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.GroupAssociationData
 {
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
 
     /// <summary>
     /// Group Association data entity class.

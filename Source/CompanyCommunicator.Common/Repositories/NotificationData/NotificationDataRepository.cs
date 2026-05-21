@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;

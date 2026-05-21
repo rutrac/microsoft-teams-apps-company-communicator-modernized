@@ -9,7 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.GroupAsso
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 

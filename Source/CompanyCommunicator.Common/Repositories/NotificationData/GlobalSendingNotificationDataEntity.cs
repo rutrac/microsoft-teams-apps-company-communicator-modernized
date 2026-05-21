@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData
 {
     using System;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
 
     /// <summary>
     /// Entity that holds metadata for all sending operations.

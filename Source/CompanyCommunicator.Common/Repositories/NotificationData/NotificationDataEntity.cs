@@ -7,7 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
 {
     using System;
     using System.Collections.Generic;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Newtonsoft.Json;
 

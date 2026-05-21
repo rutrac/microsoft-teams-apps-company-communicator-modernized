@@ -10,7 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Builder.Teams;
     using Microsoft.Bot.Schema;

@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData
 {
     using System;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
 
     /// <summary>
     /// Sent notification entity class.

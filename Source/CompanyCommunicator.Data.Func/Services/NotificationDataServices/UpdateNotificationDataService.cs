@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
     using System;
     using System.Net.Http;
     using System.Threading.Tasks;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Azure.WebJobs.Extensions.DurableTask;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
