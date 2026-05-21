@@ -5,7 +5,7 @@
 
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData
 {
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
 
     /// <summary>
     /// Teams data entity class.

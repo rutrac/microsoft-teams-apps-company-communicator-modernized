@@ -1,4 +1,4 @@
-﻿// <copyright file="BaseRepository.cs" company="Microsoft">
+// <copyright file="BaseRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -11,8 +11,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Data.Tables;
-    using Azure.Identity;
+    using global::Azure.Data.Tables;
+    using global::Azure.Identity;
     using Microsoft.Extensions.Logging;
 
     /// <summary>

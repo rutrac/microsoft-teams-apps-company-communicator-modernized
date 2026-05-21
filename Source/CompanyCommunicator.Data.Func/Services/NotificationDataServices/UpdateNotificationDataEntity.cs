@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.NotificationDataServices
 {
     using System;
-    using Azure.Data.Tables;
+    using global::Azure.Data.Tables;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
 
     /// <summary>
