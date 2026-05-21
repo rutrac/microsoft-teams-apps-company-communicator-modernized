@@ -340,4 +340,6 @@ ASALocalRun/
 .mfractor/
 /Source/CompanyCommunicator/Properties/ServiceDependencies/m365x257948-cc - Web Deploy
 /patches
-/Manifest
+/Manifest/manifest.json
+/Manifest/*.zip
+Deployment/armparams.runtime.json
