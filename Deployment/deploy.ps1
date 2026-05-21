@@ -617,13 +617,21 @@ function DeployARMTemplate {
                 --subscription $parameters.subscriptionId.Value `
                 --repo-url $parameters.gitRepoUrl.Value `
                 --branch $parameters.gitBranch.Value `
-                --manual-integration | Out-Null
-            if ($LASTEXITCODE -ne 0) {
+                --manual-integration 2>&1 | Out-Null
+            # az CLI bug: returns exit code 1 when the API responds 200 OK (instead of 201/202).
+            # Verify actual state via ARM API rather than trusting $LASTEXITCODE.
+            $scVerify = az webapp deployment source show `
+                --name $appService `
+                --resource-group $parameters.resourceGroupName.Value `
+                --subscription $parameters.subscriptionId.Value `
+                -o json 2>$null | ConvertFrom-Json
+            if (-not $scVerify -or -not $scVerify.repoUrl) {
                 [Console]::ResetColor()
                 WriteE -message "Failed to configure source control on $appService"
                 CollectARMDeploymentLogs
                 Throw "ERROR: Source control configuration failed on $appService"
             }
+            WriteS -message "Source control verified on $appService (repo: $($scVerify.repoUrl))"
         }
         WriteI -message "Source control configured. Waiting for initial code sync to finish (this can take a while for the bot app due to npm/dotnet build)..."
         $appserviceCodeSyncSuccess = WaitForCodeDeploymentSync $appServicesNames.Clone()

@@ -101,7 +101,7 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
         });
 
         if ('id' in params) {
-            let id = params['id'];
+            let id = Number(params['id'] as string);
             this.getItem(id).then(() => {
                 this.setState({
                     loader: false

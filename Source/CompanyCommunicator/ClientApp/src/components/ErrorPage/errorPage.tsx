@@ -13,7 +13,7 @@ const ErrorPage: React.FunctionComponent<RouteComponentProps> = props => {
     function parseErrorMessage(): string {
         const params = props.match.params;
         if ('id' in params) {
-            const id = params['id'];
+            const id = params['id'] as string;
             if (id === "401") {
                 return t("UnauthorizedErrorMessage");
             } else if (id === "403") {

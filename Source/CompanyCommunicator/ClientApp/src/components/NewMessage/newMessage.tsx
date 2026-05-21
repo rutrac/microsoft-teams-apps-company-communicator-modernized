@@ -241,8 +241,8 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
             setCardTarget(this.card, this.targetingEnabled);
             this.getTeamList().then(() => {
                 if ('id' in params) {
-                    let id = params['id'];
-                    this.getItem(id).then(() => {
+                    let id = params['id'] as string;
+                    this.getItem(Number(id)).then(() => {
                         const selectedTeams = this.makeDropdownItemList(this.state.selectedTeams, this.state.teams);
                         const selectedRosters = this.makeDropdownItemList(this.state.selectedRosters, this.state.teams);
                         this.setState({
