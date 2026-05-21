@@ -42,7 +42,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
                     UserDataTableNames.AllUsersDeltaLinkRowKey);
                 return response.Value?.Value;
             }
-            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            catch (global::Azure.RequestFailedException ex) when (ex.Status == 404)
             {
                 return null;
             }
