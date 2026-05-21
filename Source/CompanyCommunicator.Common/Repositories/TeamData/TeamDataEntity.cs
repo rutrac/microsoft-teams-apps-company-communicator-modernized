@@ -1,11 +1,11 @@
-﻿// <copyright file="TeamDataEntity.cs" company="Microsoft">
+// <copyright file="TeamDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
 
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData
 {
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Teams data entity class.

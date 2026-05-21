@@ -26,6 +26,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         public string StorageAccountConnectionString { get; set; }
 
         /// <summary>
+        /// Gets or sets the storage account name (used for managed-identity authentication).
+        /// When set, the repository uses DefaultAzureCredential instead of a connection string.
+        /// </summary>
+        public string StorageAccountName { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the table should be created
         /// if it does not already exist.
         /// </summary>

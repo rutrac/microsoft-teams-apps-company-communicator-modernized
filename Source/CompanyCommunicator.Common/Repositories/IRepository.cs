@@ -8,19 +8,19 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Base repository Interface.
     /// </summary>
     /// <typeparam name="T">Entity class type.</typeparam>
     public interface IRepository<T>
-        where T : TableEntity, new()
+        where T : class, ITableEntity, new()
     {
         /// <summary>
-        /// Gets cloud table instance.
+        /// Gets the Azure Data Tables client instance.
         /// </summary>
-        public CloudTable Table { get; }
+        public TableClient Table { get; }
 
         /// <summary>
         /// Create or update an entity in the table storage.
@@ -82,7 +82,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         /// <param name="count">The max number of desired entities.</param>
         /// <param name="token">The continuation token.</param>
         /// <returns>All data entities and continuation token.</returns>
-        Task<(IEnumerable<T>, TableContinuationToken)> GetPagedAsync(string partition = null, int? count = null, TableContinuationToken token = null);
+        Task<(IEnumerable<T>, string)> GetPagedAsync(string partition = null, int? count = null, string token = null);
 
         /// <summary>
         /// Get filtered data entities by date time from the table storage.

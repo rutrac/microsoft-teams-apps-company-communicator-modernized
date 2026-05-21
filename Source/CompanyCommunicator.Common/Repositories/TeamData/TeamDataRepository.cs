@@ -1,4 +1,4 @@
-﻿// <copyright file="TeamDataRepository.cs" company="Microsoft">
+// <copyright file="TeamDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -26,7 +26,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: TeamDataTableNames.TableName,
                   defaultPartitionKey: TeamDataTableNames.TeamDataPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)

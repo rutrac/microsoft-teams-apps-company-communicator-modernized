@@ -1,11 +1,11 @@
-﻿// <copyright file="UserDataEntity.cs" company="Microsoft">
+// <copyright file="UserDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
 
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
 {
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// User data entity class.

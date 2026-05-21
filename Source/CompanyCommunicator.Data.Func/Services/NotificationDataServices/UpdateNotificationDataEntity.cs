@@ -1,4 +1,4 @@
-﻿// <copyright file="UpdateNotificationDataEntity.cs" company="Microsoft">
+// <copyright file="UpdateNotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.NotificationDataServices
 {
     using System;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
 
     /// <summary>

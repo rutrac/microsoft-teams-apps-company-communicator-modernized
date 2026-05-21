@@ -1,4 +1,4 @@
-﻿// <copyright file="NotificationDataRepository.cs" company="Microsoft">
+// <copyright file="NotificationDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
@@ -30,7 +30,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
             TableRowKeyGenerator tableRowKeyGenerator)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: NotificationDataTableNames.TableName,
                   defaultPartitionKey: NotificationDataTableNames.DraftNotificationsPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)
@@ -44,7 +44,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <inheritdoc/>
         public async Task<IEnumerable<NotificationDataEntity>> GetAllDraftNotificationsAsync()
         {
-            string strFilter = TableQuery.GenerateFilterConditionForBool("IsScheduled", QueryComparisons.Equal, false);
+            string strFilter = "IsScheduled eq false";
             var result = await this.GetWithFilterAsync(strFilter, NotificationDataTableNames.DraftNotificationsPartition);
 
             return result;
@@ -57,9 +57,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <returns>A <see cref="Task{TResult}"/> representing the result of the asynchronous operation.</returns>
         public async Task<IEnumerable<NotificationDataEntity>> GetChannelScheduledNotificationsAsync(string channelId)
         {
-            string strFilter1 = TableQuery.GenerateFilterConditionForBool("IsScheduled", QueryComparisons.Equal, true);
-            string strFilter2 = TableQuery.GenerateFilterCondition("ChannelId", QueryComparisons.Equal, channelId);
-            string strFilter = TableQuery.CombineFilters(strFilter1, TableOperators.And, strFilter2);
+            string strFilter1 = "IsScheduled eq true";
+            string strFilter2 = $"ChannelId eq '{channelId}'";
+            string strFilter = $"({strFilter1}) and ({strFilter2})";
 
             var result = await this.GetWithFilterAsync(strFilter, NotificationDataTableNames.DraftNotificationsPartition);
 
@@ -73,9 +73,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <returns>A <see cref="Task{TResult}"/> representing the result of the asynchronous operation.</returns>
         public async Task<IEnumerable<NotificationDataEntity>> GetChannelDraftNotificationsAsync(string channelId)
         {
-            string strFilter1 = TableQuery.GenerateFilterConditionForBool("IsScheduled", QueryComparisons.Equal, false);
-            string strFilter2 = TableQuery.GenerateFilterCondition("ChannelId", QueryComparisons.Equal, channelId);
-            string strFilter = TableQuery.CombineFilters(strFilter1, TableOperators.And, strFilter2);
+            string strFilter1 = "IsScheduled eq false";
+            string strFilter2 = $"ChannelId eq '{channelId}'";
+            string strFilter = $"({strFilter1}) and ({strFilter2})";
 
             var result = await this.GetWithFilterAsync(strFilter, NotificationDataTableNames.DraftNotificationsPartition);
 
@@ -88,7 +88,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <returns>All scheduled notification entities.</returns>
         public async Task<IEnumerable<NotificationDataEntity>> GetAllScheduledNotificationsAsync()
         {
-            string strFilter = TableQuery.GenerateFilterConditionForBool("IsScheduled", QueryComparisons.Equal, true);
+            string strFilter = "IsScheduled eq true";
             var result = await this.GetWithFilterAsync(strFilter, NotificationDataTableNames.DraftNotificationsPartition);
 
             return result;
@@ -101,9 +101,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         public async Task<IEnumerable<NotificationDataEntity>> GetAllPendingScheduledNotificationsAsync()
         {
             DateTime now = DateTime.UtcNow;
-            string filter1 = TableQuery.GenerateFilterConditionForBool("IsScheduled", QueryComparisons.Equal, true);
-            string filter2 = TableQuery.GenerateFilterConditionForDate("ScheduledDate", QueryComparisons.LessThanOrEqual, now);
-            string filter = TableQuery.CombineFilters(filter1, TableOperators.And, filter2);
+            string filter1 = "IsScheduled eq true";
+            string filter2 = $"ScheduledDate le datetime'{now:o}'";
+            string filter = $"({filter1}) and ({filter2})";
 
             var result = await this.GetWithFilterAsync(filter, NotificationDataTableNames.DraftNotificationsPartition);
 
@@ -121,7 +121,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <inheritdoc/>
         public async Task<IEnumerable<NotificationDataEntity>> GetMostRecentChannelSentNotificationsAsync(string channelId)
         {
-            string strFilter = TableQuery.GenerateFilterCondition("ChannelId", QueryComparisons.Equal, channelId);
+            string strFilter = $"ChannelId eq '{channelId}'";
 
             var result = await this.GetWithFilterAsync(strFilter, NotificationDataTableNames.SentNotificationsPartition, 20);
 

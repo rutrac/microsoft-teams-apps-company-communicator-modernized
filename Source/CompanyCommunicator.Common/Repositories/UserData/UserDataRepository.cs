@@ -1,4 +1,4 @@
-﻿// <copyright file="UserDataRepository.cs" company="Microsoft">
+// <copyright file="UserDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -6,7 +6,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
@@ -25,7 +25,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: UserDataTableNames.TableName,
                   defaultPartitionKey: UserDataTableNames.UserDataPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)
@@ -37,10 +37,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
         {
             try
             {
-                var operation = TableOperation.Retrieve<UsersSyncEntity>(UserDataTableNames.UsersSyncDataPartition, UserDataTableNames.AllUsersDeltaLinkRowKey);
-                var result = await this.Table.ExecuteAsync(operation);
-                var entity = result.Result as UsersSyncEntity;
-                return entity?.Value;
+                var response = await this.Table.GetEntityAsync<UsersSyncEntity>(
+                    UserDataTableNames.UsersSyncDataPartition,
+                    UserDataTableNames.AllUsersDeltaLinkRowKey);
+                return response.Value?.Value;
+            }
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            {
+                return null;
             }
             catch (Exception ex)
             {
@@ -66,8 +70,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData
 
             try
             {
-                var operation = TableOperation.InsertOrReplace(entity);
-                await this.Table.ExecuteAsync(operation);
+                await this.Table.UpsertEntityAsync(entity, TableUpdateMode.Replace);
             }
             catch (Exception ex)
             {

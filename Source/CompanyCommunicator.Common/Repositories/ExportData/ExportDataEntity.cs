@@ -1,4 +1,4 @@
-﻿// <copyright file="ExportDataEntity.cs" company="Microsoft">
+// <copyright file="ExportDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData
 {
     using System;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Export notification entity class.

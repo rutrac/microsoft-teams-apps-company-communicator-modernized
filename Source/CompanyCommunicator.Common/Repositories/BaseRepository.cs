@@ -10,7 +10,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure;
+    using Azure.Data.Tables;
+    using Azure.Identity;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -18,7 +20,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     /// </summary>
     /// <typeparam name="T">Entity class type.</typeparam>
     public abstract class BaseRepository<T> : IRepository<T>
-        where T : TableEntity, new()
+        where T : class, ITableEntity, new()
     {
         /// <summary>
         /// Maximum length of error and warning messages to save in the entity.
@@ -33,22 +35,23 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         /// Initializes a new instance of the <see cref="BaseRepository{T}"/> class.
         /// </summary>
         /// <param name="logger">The logging service.</param>
-        /// <param name="storageAccountConnectionString">The storage account connection string.</param>
+        /// <param name="storageAccountName">The storage account name (used with managed identity).</param>
         /// <param name="tableName">The name of the table in Azure Table Storage.</param>
         /// <param name="defaultPartitionKey">Default partition key value.</param>
         /// <param name="ensureTableExists">Flag to ensure the table is created if it doesn't exist.</param>
         public BaseRepository(
             ILogger logger,
-            string storageAccountConnectionString,
+            string storageAccountName,
             string tableName,
             string defaultPartitionKey,
             bool ensureTableExists)
         {
             this.Logger = logger;
 
-            var storageAccount = CloudStorageAccount.Parse(storageAccountConnectionString);
-            var tableClient = storageAccount.CreateCloudTableClient();
-            this.Table = tableClient.GetTableReference(tableName);
+            var serviceClient = new TableServiceClient(
+                new Uri($"https://{storageAccountName}.table.core.windows.net"),
+                new DefaultAzureCredential());
+            this.Table = serviceClient.GetTableClient(tableName);
             this.defaultPartitionKey = defaultPartitionKey;
 
             if (ensureTableExists)
@@ -58,7 +61,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         }
 
         /// <inheritdoc/>
-        public CloudTable Table { get; }
+        public TableClient Table { get; }
 
         /// <summary>
         /// Gets the logger service.
@@ -70,8 +73,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         {
             try
             {
-                var operation = TableOperation.InsertOrReplace(entity);
-                await this.Table.ExecuteAsync(operation);
+                await this.Table.UpsertEntityAsync(entity, TableUpdateMode.Replace);
             }
             catch (Exception ex)
             {
@@ -85,8 +87,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         {
             try
             {
-                var operation = TableOperation.InsertOrMerge(entity);
-                await this.Table.ExecuteAsync(operation);
+                await this.Table.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             }
             catch (Exception ex)
             {
@@ -100,17 +101,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         {
             try
             {
-                var partitionKey = entity.PartitionKey;
-                var rowKey = entity.RowKey;
-                entity = await this.GetAsync(partitionKey, rowKey);
-                if (entity == null)
-                {
-                    throw new KeyNotFoundException(
-                        $"Not found in table storage. PartitionKey = {partitionKey}, RowKey = {rowKey}");
-                }
-
-                var operation = TableOperation.Delete(entity);
-                await this.Table.ExecuteAsync(operation);
+                await this.Table.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All);
             }
             catch (Exception ex)
             {
@@ -124,9 +115,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         {
             try
             {
-                var operation = TableOperation.Retrieve<T>(partitionKey, rowKey);
-                var result = await this.Table.ExecuteAsync(operation);
-                return result.Result as T;
+                var response = await this.Table.GetEntityAsync<T>(partitionKey, rowKey);
+                return response.Value;
+            }
+            catch (RequestFailedException ex) when (ex.Status == 404)
+            {
+                return null;
             }
             catch (Exception ex)
             {
@@ -142,8 +136,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
             {
                 var partitionKeyFilter = this.GetPartitionKeyFilter(partition);
                 var combinedFilter = this.CombineFilters(filter, partitionKeyFilter);
-                var query = new TableQuery<T>().Where(combinedFilter);
-                var entities = await this.ExecuteQueryAsync(query, count);
+                var entities = await this.ExecuteQueryAsync(combinedFilter, count);
                 return entities;
             }
             catch (Exception ex)
@@ -158,8 +151,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         {
             try
             {
-                var query = new TableQuery<T>().Where(filter);
-                var entities = await this.ExecuteQueryAsync(query);
+                var entities = await this.ExecuteQueryAsync(filter);
                 return entities;
             }
             catch (Exception ex)
@@ -175,8 +167,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
             try
             {
                 var partitionKeyFilter = this.GetPartitionKeyFilter(partition);
-                var query = new TableQuery<T>().Where(partitionKeyFilter);
-                var entities = await this.ExecuteQueryAsync(query, count);
+                var entities = await this.ExecuteQueryAsync(partitionKeyFilter, count);
                 return entities;
             }
             catch (Exception ex)
@@ -187,31 +178,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         }
 
         /// <inheritdoc/>
-        public async Task<(IEnumerable<T>, TableContinuationToken)> GetPagedAsync(string partition = null, int? count = null, TableContinuationToken token = null)
+        public async Task<(IEnumerable<T>, string)> GetPagedAsync(string partition = null, int? count = null, string token = null)
         {
             var partitionKeyFilter = this.GetPartitionKeyFilter(partition);
-            var query = new TableQuery<T>().Where(partitionKeyFilter);
-            query.TakeCount = count;
-            TableQuerySegment<T> seg;
-            if (token == null)
+            var pageable = this.Table.QueryAsync<T>(partitionKeyFilter, maxPerPage: count).AsPages(token);
+            await using var enumerator = pageable.GetAsyncEnumerator();
+            if (await enumerator.MoveNextAsync())
             {
-                seg = await this.Table.ExecuteQuerySegmentedAsync<T>(query, null);
-                return (seg.Results, seg.ContinuationToken);
+                var page = enumerator.Current;
+                return (page.Values, page.ContinuationToken);
             }
 
-            seg = await this.Table.ExecuteQuerySegmentedAsync<T>(query, token);
-            return (seg.Results, seg.ContinuationToken);
+            return (Enumerable.Empty<T>(), null);
         }
 
         /// <inheritdoc/>
         public async Task<IEnumerable<T>> GetAllLessThanDateTimeAsync(DateTime dateTime)
         {
-            var filterByDate = TableQuery.GenerateFilterConditionForDate("Timestamp", QueryComparisons.LessThanOrEqual, dateTime);
-
-            var query = new TableQuery<T>().Where(filterByDate);
-
-            var entities = await this.ExecuteQueryAsync(query);
-
+            var filterByDate = $"Timestamp le datetime'{dateTime:o}'";
+            var entities = await this.ExecuteQueryAsync(filterByDate);
             return entities;
         }
 
@@ -219,19 +204,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
         public async IAsyncEnumerable<IEnumerable<T>> GetStreamsAsync(string partition = null, int? count = null)
         {
             var partitionKeyFilter = this.GetPartitionKeyFilter(partition);
-
-            var query = new TableQuery<T>().Where(partitionKeyFilter);
-            query.TakeCount = count;
-
-            TableContinuationToken token = null;
-            TableQuerySegment<T> seg = await this.Table.ExecuteQuerySegmentedAsync<T>(query, token);
-            token = seg.ContinuationToken;
-            yield return seg;
-            while (token != null)
+            await foreach (var page in this.Table.QueryAsync<T>(partitionKeyFilter, maxPerPage: count).AsPages())
             {
-                seg = await this.Table.ExecuteQuerySegmentedAsync<T>(query, token);
-                token = seg.ContinuationToken;
-                yield return seg;
+                yield return page.Values;
             }
         }
 
@@ -250,13 +225,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
                         break;
                     }
 
-                    var batchOperation = new TableBatchOperation();
+                    var actions = new List<TableTransactionAction>();
                     for (var j = lowerBound; j <= upperBound; j++)
                     {
-                        batchOperation.InsertOrMerge(array[j]);
+                        actions.Add(new TableTransactionAction(TableTransactionActionType.UpsertMerge, array[j]));
                     }
 
-                    await this.Table.ExecuteBatchAsync(batchOperation);
+                    await this.Table.SubmitTransactionAsync(actions);
                 }
             }
             catch (Exception ex)
@@ -279,13 +254,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
                     break;
                 }
 
-                var batchOperation = new TableBatchOperation();
+                var actions = new List<TableTransactionAction>();
                 for (var j = lowerBound; j <= upperBound; j++)
                 {
-                    batchOperation.Delete(array[j]);
+                    actions.Add(new TableTransactionAction(TableTransactionActionType.Delete, array[j], ETag.All));
                 }
 
-                await this.Table.ExecuteBatchAsync(batchOperation);
+                await this.Table.SubmitTransactionAsync(actions);
             }
         }
 
@@ -301,10 +276,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
                 var rowKeysFilter = string.Empty;
                 foreach (var rowKey in rowKeys)
                 {
-                    var singleRowKeyFilter = TableQuery.GenerateFilterCondition(
-                        nameof(TableEntity.RowKey),
-                        QueryComparisons.Equal,
-                        rowKey);
+                    var singleRowKeyFilter = $"RowKey eq '{rowKey}'";
 
                     if (string.IsNullOrWhiteSpace(rowKeysFilter))
                     {
@@ -312,7 +284,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
                     }
                     else
                     {
-                        rowKeysFilter = TableQuery.CombineFilters(rowKeysFilter, TableOperators.Or, singleRowKeyFilter);
+                        rowKeysFilter = $"({rowKeysFilter}) or ({singleRowKeyFilter})";
                     }
                 }
 
@@ -340,45 +312,34 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
                 return filter1;
             }
 
-            return TableQuery.CombineFilters(filter1, TableOperators.And, filter2);
+            return $"({filter1}) and ({filter2})";
         }
 
         private string GetPartitionKeyFilter(string partition)
         {
-            var filter = TableQuery.GenerateFilterCondition(
-                nameof(TableEntity.PartitionKey),
-                QueryComparisons.Equal,
-                string.IsNullOrWhiteSpace(partition) ? this.defaultPartitionKey : partition);
-            return filter;
+            var key = string.IsNullOrWhiteSpace(partition) ? this.defaultPartitionKey : partition;
+            return $"PartitionKey eq '{key}'";
         }
 
-        private async Task<IList<T>> ExecuteQueryAsync(
-            TableQuery<T> query,
-            int? count = null,
-            CancellationToken ct = default)
+        private async Task<IList<T>> ExecuteQueryAsync(string filter, int? count = null)
         {
-            query.TakeCount = count;
-
             try
             {
                 var result = new List<T>();
-                TableContinuationToken token = null;
-
-                do
+                await foreach (var entity in this.Table.QueryAsync<T>(filter, maxPerPage: count))
                 {
-                    TableQuerySegment<T> seg = await this.Table.ExecuteQuerySegmentedAsync<T>(query, token);
-                    token = seg.ContinuationToken;
-                    result.AddRange(seg);
+                    result.Add(entity);
+                    if (count.HasValue && result.Count >= count.Value)
+                    {
+                        break;
+                    }
                 }
-                while (token != null
-                    && !ct.IsCancellationRequested
-                    && (count == null || result.Count < count.Value));
 
                 return result;
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                Console.WriteLine(e.Message);
+                this.Logger.LogError(e, e.Message);
                 throw;
             }
         }
