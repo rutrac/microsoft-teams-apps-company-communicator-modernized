@@ -53,7 +53,7 @@ export interface IMessage {
     isImportant?: boolean;
     reads?: string;
     csvUsers: string;
-    buttonTrackingClicks: string;
+    buttonTrackingClicks?: string;
 }
 
 export interface IStatusState {
