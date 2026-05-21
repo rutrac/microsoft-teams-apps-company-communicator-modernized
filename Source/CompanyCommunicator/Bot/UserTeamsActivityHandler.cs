@@ -10,7 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Builder.Teams;
     using Microsoft.Bot.Schema;
@@ -89,7 +89,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                 var originalActivityId = turnContext.Activity.ReplyToId;
 
                 // performs a search to get the activityid that was saved by the send function
-                string filterQuery = TableQuery.GenerateFilterCondition("ActivityId", QueryComparisons.Equal, originalActivityId);
+                string filterQuery = $"ActivityId eq '{originalActivityId}'";
                 var result = await this.sentNotificationDataRepository.GetWithFilterWithoutPartitionAsync(filterQuery);
                 SentNotificationDataEntity sentNotificationDataEntity = result?.FirstOrDefault();
                 string notificationId = sentNotificationDataEntity?.PartitionKey;

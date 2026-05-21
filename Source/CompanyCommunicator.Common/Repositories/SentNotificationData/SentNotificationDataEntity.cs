@@ -1,4 +1,4 @@
-﻿// <copyright file="SentNotificationDataEntity.cs" company="Microsoft">
+// <copyright file="SentNotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData
 {
     using System;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Sent notification entity class.

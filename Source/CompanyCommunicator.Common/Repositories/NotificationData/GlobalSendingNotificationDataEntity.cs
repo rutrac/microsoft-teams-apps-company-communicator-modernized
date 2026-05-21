@@ -1,4 +1,4 @@
-﻿// <copyright file="GlobalSendingNotificationDataEntity.cs" company="Microsoft">
+// <copyright file="GlobalSendingNotificationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData
 {
     using System;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Entity that holds metadata for all sending operations.

@@ -1,4 +1,4 @@
-﻿// <copyright file="AggregateSentNotificationDataService.cs" company="Microsoft">
+// <copyright file="AggregateSentNotificationDataService.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,7 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
 
@@ -38,49 +38,21 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
             string notificationId,
             ILogger log)
         {
-            var partitionKeyFilter = TableQuery.GenerateFilterCondition(
-                nameof(TableEntity.PartitionKey),
-                QueryComparisons.Equal,
-                notificationId);
-
+            // PartitionKey eq notificationId AND DeliveryStatus ne 'null'
             // The SentNotificationDataEntity.DeliveryStatus property's default value is null.
-            // After finished processing a recipient, the send function sets the property to one of the following values, which indicates the delivery status.
-            //   Succeeded,
-            //   Failed,
-            //   RecipientNotFound,
-            //   Throttled,
-            //   etc.
-            // The notNullStatusFilter finds out the delivery statuses for all the processed recipients.
-            var notNullStatusFilter = TableQuery.GenerateFilterCondition(
-                nameof(SentNotificationDataEntity.DeliveryStatus),
-                QueryComparisons.NotEqual,
-                "null");
-
-            // Create the complete query where:
-            // PartitionKey eq notificationId AND DeliveryStatus ne null
-            var completeFilter = TableQuery.CombineFilters(partitionKeyFilter, TableOperators.And, notNullStatusFilter);
-            var query = new TableQuery<SentNotificationDataEntity>().Where(completeFilter);
+            // After finished processing a recipient, the send function sets the property to one of the following
+            // values, which indicates the delivery status: Succeeded, Failed, RecipientNotFound, Throttled, etc.
+            var filter = $"(PartitionKey eq '{notificationId}') and (DeliveryStatus ne 'null')";
 
             try
             {
                 var aggregatedResults = new AggregatedSentNotificationDataResults();
 
-                TableContinuationToken currentContinuationToken = null;
-
-                do
+                await foreach (var sentNotification in this.sentNotificationDataRepository.Table
+                    .QueryAsync<SentNotificationDataEntity>(filter))
                 {
-                    // Make the query to the data table and update the continuation token in order to continue to paginate the results.
-                    TableQuerySegment<SentNotificationDataEntity> resultSegment = await this.sentNotificationDataRepository.Table
-                        .ExecuteQuerySegmentedAsync<SentNotificationDataEntity>(query, currentContinuationToken);
-                    currentContinuationToken = resultSegment.ContinuationToken;
-
-                    // Aggregate the results.
-                    foreach (var sentNotification in resultSegment)
-                    {
-                        aggregatedResults.UpdateAggregatedResults(sentNotification);
-                    }
+                    aggregatedResults.UpdateAggregatedResults(sentNotification);
                 }
-                while (currentContinuationToken != null);
 
                 return aggregatedResults;
             }

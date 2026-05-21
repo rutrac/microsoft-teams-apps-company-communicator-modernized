@@ -109,6 +109,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                 {
                     repositoryOptions.StorageAccountConnectionString =
                         configuration.GetValue<string>("StorageAccountConnectionString");
+                    repositoryOptions.StorageAccountName =
+                        configuration.GetValue<string>("StorageAccountName");
 
                     // Setting this to true because the main application should ensure that all
                     // tables exist.

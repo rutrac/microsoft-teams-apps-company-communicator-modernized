@@ -1,4 +1,4 @@
-﻿// <copyright file="GroupAssociationDataRepository.cs" company="Microsoft">
+// <copyright file="GroupAssociationDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ChannelDa
     using System;
     using System.Linq;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
@@ -27,7 +27,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ChannelDa
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                 logger,
-                storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                storageAccountName: repositoryOptions.Value.StorageAccountName,
                 tableName: ChannelDataTableNames.TableName,
                 defaultPartitionKey: ChannelDataTableNames.ChannelDataPartition,
                 ensureTableExists: repositoryOptions.Value.EnsureTableExists)
@@ -44,7 +44,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ChannelDa
                 ChannelTitle = string.Empty,
             };
 
-            var strFilter = TableQuery.GenerateFilterCondition("ChannelId", QueryComparisons.Equal, channelId);
+            var strFilter = $"ChannelId eq '{channelId}'";
 
             var result = await this.GetWithFilterAsync(strFilter, ChannelDataTableNames.ChannelDataPartition);
 

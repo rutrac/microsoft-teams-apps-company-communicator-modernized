@@ -1,4 +1,4 @@
-﻿// <copyright file="SentNotificationDataRepository.cs" company="Microsoft">
+// <copyright file="SentNotificationDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -26,7 +26,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotif
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: SentNotificationDataTableNames.TableName,
                   defaultPartitionKey: SentNotificationDataTableNames.DefaultPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)
@@ -36,11 +36,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotif
         /// <inheritdoc/>
         public async Task EnsureSentNotificationDataTableExistsAsync()
         {
-            var exists = await this.Table.ExistsAsync();
-            if (!exists)
-            {
-                await this.Table.CreateAsync();
-            }
+            await this.Table.CreateIfNotExistsAsync();
         }
 
         /// <inheritdoc/>

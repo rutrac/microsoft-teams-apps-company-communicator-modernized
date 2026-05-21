@@ -1,4 +1,4 @@
-﻿// <copyright file="UpdateNotificationDataService.cs" company="Microsoft">
+// <copyright file="UpdateNotificationDataService.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
     using System;
     using System.Net.Http;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
     using Microsoft.Azure.WebJobs.Extensions.DurableTask;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
@@ -109,8 +109,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
                     }
                 }
 
-                var operation = TableOperation.InsertOrMerge(notificationDataEntityUpdate);
-                await this.notificationDataRepository.Table.ExecuteAsync(operation);
+                await this.notificationDataRepository.Table.UpsertEntityAsync(notificationDataEntityUpdate, TableUpdateMode.Merge);
 
                 return notificationDataEntityUpdate;
             }

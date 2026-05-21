@@ -1,4 +1,4 @@
-﻿// <copyright file="ExportDataRepository.cs" company="Microsoft">
+// <copyright file="ExportDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -24,7 +24,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportDat
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: ExportDataTableName.TableName,
                   defaultPartitionKey: ExportDataTableName.DefaultPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)
@@ -34,11 +34,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportDat
         /// <inheritdoc/>
         public async Task EnsureExportDataTableExistsAsync()
         {
-            var exists = await this.Table.ExistsAsync();
-            if (!exists)
-            {
-                await this.Table.CreateAsync();
-            }
+            await this.Table.CreateIfNotExistsAsync();
         }
     }
 }

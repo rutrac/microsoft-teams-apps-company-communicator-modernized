@@ -1,11 +1,11 @@
-﻿// <copyright file="GroupAssociationDataEntity.cs" company="Microsoft">
+// <copyright file="GroupAssociationDataEntity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
 
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.GroupAssociationData
 {
-    using Microsoft.Azure.Cosmos.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Group Association data entity class.

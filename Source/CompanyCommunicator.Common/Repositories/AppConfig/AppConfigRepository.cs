@@ -1,4 +1,4 @@
-﻿// <copyright file="AppConfigRepository.cs" company="Microsoft">
+// <copyright file="AppConfigRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -24,7 +24,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: AppConfigTableName.TableName,
                   defaultPartitionKey: AppConfigTableName.SettingsPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)

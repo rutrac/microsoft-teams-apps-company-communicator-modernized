@@ -1,4 +1,4 @@
-﻿// <copyright file="SendingNotificationDataRepository.cs" company="Microsoft">
+// <copyright file="SendingNotificationDataRepository.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -23,7 +23,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
             IOptions<RepositoryOptions> repositoryOptions)
             : base(
                   logger,
-                  storageAccountConnectionString: repositoryOptions.Value.StorageAccountConnectionString,
+                  storageAccountName: repositoryOptions.Value.StorageAccountName,
                   tableName: NotificationDataTableNames.TableName,
                   defaultPartitionKey: NotificationDataTableNames.SendingNotificationsPartition,
                   ensureTableExists: repositoryOptions.Value.EnsureTableExists)
