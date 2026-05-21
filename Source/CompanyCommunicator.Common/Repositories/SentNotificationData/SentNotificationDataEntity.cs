@@ -15,10 +15,26 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotif
     /// </summary>
     public class SentNotificationDataEntity : ITableEntity
     {
+        /// <summary>
+        /// Gets or sets the entity's partition key.
+        /// </summary>
         public string PartitionKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's row key.
+        /// </summary>
         public string RowKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's timestamp.
+        /// </summary>
         public global::System.DateTimeOffset? Timestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's ETag.
+        /// </summary>
         public global::Azure.ETag ETag { get; set; }
+
         /// <summary>
         /// This value is to be used when the entity is first initialized and stored and does
         /// not yet have a valid status code from a response for an attempt at sending the
