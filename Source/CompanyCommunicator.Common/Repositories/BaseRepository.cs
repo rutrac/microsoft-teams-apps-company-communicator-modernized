@@ -10,7 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
+    using global::Azure;
     using global::Azure.Data.Tables;
     using global::Azure.Identity;
     using Microsoft.Extensions.Logging;
