@@ -71,6 +71,16 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
         });
     }
 
+    public componentDidUpdate(prevProps: ConfigProps, prevState: IConfigState) {
+        // When loading completes, tell Teams whether Save is allowed
+        if (prevState.loading && !this.state.loading) {
+            const canSave = !this.targetingEnabled ||
+                this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
+            microsoftTeams.settings.setValidityState(canSave);
+        }
+    }
+    }
+
     public render(): JSX.Element {
         return (
             <div className="configContainer">
@@ -110,8 +120,6 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
         // check if targeting is enabled
         if (this.targetingEnabled) {
             if (isMaster) {
-                //enables the teams save button if the user is master admin
-                microsoftTeams.settings.setValidityState(true);
                 return (
                     <div>
                         <h3>{this.localize("TargetingConfig")}</h3>
@@ -131,8 +139,6 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
             }
 
         } else {
-            //enables the teams save button when targeting is not enabled
-            microsoftTeams.settings.setValidityState(true);
             return (
                 <div>
                     <h3>{this.localize("ConfigSave")}</h3>
