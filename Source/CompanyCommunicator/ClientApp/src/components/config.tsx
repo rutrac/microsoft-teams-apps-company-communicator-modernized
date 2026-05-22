@@ -79,7 +79,6 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
             microsoftTeams.settings.setValidityState(canSave);
         }
     }
-    }
 
     public render(): JSX.Element {
         return (
