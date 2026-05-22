@@ -47,6 +47,6 @@
   ],
   "webApplicationInfo": {
     "id": "<<botId>>",
-    "resource": "api://<<appDomain>>"
+    "resource": "api://<<appDomain>>/<<botId>>"
   }
 }
