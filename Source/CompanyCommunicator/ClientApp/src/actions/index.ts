@@ -6,7 +6,7 @@ import {
     getAppSettings, getSentNotifications, getChannelSentNotifications, getDraftNotifications,
     getChannelDraftNotifications, getChannelScheduledNotifications, getScheduledNotifications
 } from '../apis/messageListApi';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app } from "@microsoft/teams-js";
 
 type Notification = {
     createdDateTime: string,
@@ -37,11 +37,7 @@ async function getTargetingEnabled() {
 
 //function to return the Teams Channel ID
 function getTeamsChannelId(): any {
-    return new Promise((resolve) => {
-        microsoftTeams.getContext(context => {
-            resolve(context.channelId);
-        });
-    });
+    return app.getContext().then(context => context.channel?.id);
 }
 
 //select a message

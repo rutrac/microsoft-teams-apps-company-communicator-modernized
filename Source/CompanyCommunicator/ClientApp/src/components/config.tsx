@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { RouteComponentProps } from 'react-router-dom';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, pages } from "@microsoft/teams-js";
 import { getBaseUrl } from '../configVariables';
 import { getAppSettings } from "../apis/messageListApi";
 import { Loader, Label } from '@fluentui/react-northstar';
@@ -41,12 +41,11 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
         }
     }
 
-    public componentDidMount() {
-        const setState = this.setState.bind(this);
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
 
-        microsoftTeams.settings.registerOnSaveHandler((saveEvent) => {
-            microsoftTeams.settings.setSettings({
+        pages.config.registerOnSaveHandler((saveEvent) => {
+            pages.config.setConfig({
                 entityId: "Company_Communicator_App",
                 contentUrl: this.state.url,
                 suggestedDisplayName: "Company Communicator",
@@ -55,32 +54,27 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
         });
 
         // get teams context variables and store in the state
-        microsoftTeams.getContext(context => {
-            setState({
-                channelId: context.channelId,
-                channelName: context.channelName,
-                teamName: context.teamName,
-                userPrincipalName: context.userPrincipalName
-            });
+        const context = await app.getContext();
+        this.setState({
+            channelId: context.channel?.id,
+            channelName: context.channel?.displayName,
+            teamName: context.team?.displayName,
+            userPrincipalName: context.user?.userPrincipalName,
         });
 
-        // get the app settings and based on the targeting configuration and user id 
+        // get the app settings and based on the targeting configuration and user id
         // decides if the save is enabled or not
-        this.getAppSettings().then(() => {
-            setState({ loading: false });
-        });
+        await this.getAppSettings();
+        this.setState({ loading: false });
     }
 
     public componentDidUpdate(prevProps: ConfigProps, prevState: IConfigState) {
         // When loading completes, tell Teams whether Save is allowed.
-        // We call setValidityState multiple times with increasing delays because Teams web
-        // (SDK v1.x) can miss the first call if the postMessage handshake isn't complete yet.
+        // app.initialize() is awaited in componentDidMount so the SDK is ready by the time this fires.
         if (prevState.loading && !this.state.loading) {
             const canSave = !this.targetingEnabled ||
                 this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
-            microsoftTeams.settings.setValidityState(canSave);
-            setTimeout(() => microsoftTeams.settings.setValidityState(canSave), 500);
-            setTimeout(() => microsoftTeams.settings.setValidityState(canSave), 1500);
+            pages.config.setValidityState(canSave);
         }
     }
 

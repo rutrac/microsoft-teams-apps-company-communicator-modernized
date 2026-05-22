@@ -7,7 +7,7 @@ import Messages from '../Messages/messages';
 import DraftMessages from '../DraftMessages/draftMessages';
 import ScheduledMessages from '../ScheduledMessages/ScheduledMessages';
 import './tabContainer.scss';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import { getBaseUrl } from '../../configVariables';
 import { Accordion, Button, Flex, Label } from '@fluentui/react-northstar';
 import { getDraftMessagesList, getScheduledMessagesList } from '../../actions';
@@ -15,16 +15,6 @@ import { getAppSettings } from "../../apis/messageListApi";
 import { connect } from 'react-redux';
 import { TFunction } from "i18next";
 
-
-interface ITaskInfo {
-    title?: string;
-    height?: number;
-    width?: number;
-    url?: string;
-    card?: string;
-    fallbackUrl?: string;
-    completionBotId?: string;
-}
 
 export interface ITaskInfoProps extends WithTranslation {
     getDraftMessagesList?: any;
@@ -61,27 +51,24 @@ class TabContainer extends React.Component<ITaskInfoProps, ITabContainerState> {
         this.escFunction = this.escFunction.bind(this);
     }
 
-    public componentDidMount() {
-        const setState = this.setState.bind(this);
-
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
         //- Handle the Esc key
         document.addEventListener("keydown", this.escFunction, false);
 
-        // get the app settings and based on the targeting configuration and user id 
+        // get the app settings and based on the targeting configuration and user id
         // decides if the save is enabled or not
         this.getAppSettings().then(() => {
-            setState({ loading: false });
+            this.setState({ loading: false });
         });
 
         // get teams context variables and store in the state
-        microsoftTeams.getContext(context => {
-            setState({
-                channelId: context.channelId,
-                channelName: context.channelName,
-                teamName: context.teamName,
-                userPrincipalName: context.userPrincipalName
-            });
+        const context = await app.getContext();
+        this.setState({
+            channelId: context.channel?.id,
+            channelName: context.channel?.displayName,
+            teamName: context.team?.displayName,
+            userPrincipalName: context.user?.userPrincipalName,
         });
     }
 
@@ -91,7 +78,7 @@ class TabContainer extends React.Component<ITaskInfoProps, ITabContainerState> {
 
     public escFunction(event: any) {
         if (event.keyCode === 27 || (event.key === "Escape")) {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         }
     }
 
@@ -149,35 +136,29 @@ class TabContainer extends React.Component<ITaskInfoProps, ITabContainerState> {
     }
 
     public onNewMessage = () => {
-        let taskInfo: ITaskInfo = {
-            url: this.state.url,
-            title: this.localize("NewMessage"),
-            height: 530,
-            width: 1000,
-            fallbackUrl: this.state.url,
-        }
-
-        let submitHandler = (err: any, result: any) => {
+        let submitHandler = (_result: any) => {
             this.props.getDraftMessagesList();
             this.props.getScheduledMessagesList();
             
         };
 
-        microsoftTeams.tasks.startTask(taskInfo, submitHandler);
+        dialog.url.open({
+            url: this.state.url,
+            title: this.localize("NewMessage"),
+            size: { height: 530, width: 1000 },
+            fallbackUrl: this.state.url,
+        }, submitHandler);
     }
 
     public ManageGroups = () => {
         var strUrl = getBaseUrl() + "/managegroups?locale={locale}";
 
-        let taskInfo: ITaskInfo = {
+        dialog.url.open({
             url: strUrl,
             title: this.localize("ManageGroups"),
-            height: 530,
-            width: 1000,
+            size: { height: 530, width: 1000 },
             fallbackUrl: strUrl,
-        }
-
-        microsoftTeams.tasks.startTask(taskInfo);
+        });
     }
 
     // get the app configuration values and set targeting mode from app settings
