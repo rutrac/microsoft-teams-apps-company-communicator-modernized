@@ -131,7 +131,7 @@ export const cancelSentNotification = async (id: number): Promise<any> => {
 
 export const getAppSettings = async (): Promise<any> => {
     let url = baseAxiosUrl + "/settings";
-    return await axios.get(url);
+    return await axios.get(url, true, false);
 }
 
 export const getConsentSummaries = async (id: number): Promise<any> => {
