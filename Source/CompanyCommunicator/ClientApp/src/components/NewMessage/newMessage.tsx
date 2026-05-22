@@ -7,7 +7,7 @@ import { withTranslation, WithTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar'
 import { TrashCanIcon, AddIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar'
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app } from "@microsoft/teams-js";
 import Resizer from 'react-image-file-resizer';
 import Papa from "papaparse";
 import './newMessage.scss';
@@ -201,7 +201,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
     }
 
     public async componentDidMount() {
-        microsoftTeams.initialize();
+        await app.initialize();
 
         //- Handle the Esc key
         document.addEventListener("keydown", this.escFunction, false);
@@ -220,20 +220,18 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
         }
 
         // get teams context variables and store in the state
-        microsoftTeams.getContext(context => {
-            this.setState({
-                channelId: context.channelId,
-                channelName: context.channelName,
-                teamName: context.teamName,
-                userPrincipalName: context.userPrincipalName
-            });
+        const context = await app.getContext();
+        this.setState({
+            channelId: context.channel?.id,
+            channelName: context.channel?.displayName,
+            teamName: context.team?.displayName,
+            userPrincipalName: context.user?.userPrincipalName,
+        });
 
-            //get the channel configuration from the database
-            this.GetChannelInfo(context.channelId).then(() => {
-                setCardTargetImage(this.card, this.state.channelImage);
-                setCardTargetTitle(this.card, this.state.channelTitle);
-
-            });
+        //get the channel configuration from the database
+        this.GetChannelInfo(context.channel?.id).then(() => {
+            setCardTargetImage(this.card, this.state.channelImage);
+            setCardTargetTitle(this.card, this.state.channelTitle);
         });
 
         this.getAppSettings().then(() => {
@@ -280,9 +278,9 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                             let link = this.state.btnLink;
                             adaptiveCard.onExecuteAction = function (action) { window.open(link, '_blank'); };
                         }
-                        microsoftTeams.getContext(context => {
+                        app.getContext().then(ctx => {
                             this.setState({
-                                channelId: context.channelId,
+                                channelId: ctx.channel?.id,
                             });
                         });
                     })

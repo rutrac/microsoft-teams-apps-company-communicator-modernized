@@ -6,7 +6,7 @@ import { connect } from 'react-redux';
 import { withTranslation, WithTranslation } from "react-i18next";
 import { Menu, MoreIcon } from '@fluentui/react-northstar';
 import { getBaseUrl } from '../../configVariables';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import { duplicateDraftNotification, cancelSentNotification } from '../../apis/messageListApi';
 import { selectMessage, getMessagesList, getDraftMessagesList } from '../../actions';
 import { TFunction } from "i18next";
@@ -24,16 +24,6 @@ export interface OverflowState {
     menuOpen: boolean;
 }
 
-export interface ITaskInfo {
-    title?: string;
-    height?: number;
-    width?: number;
-    url?: string;
-    card?: string;
-    fallbackUrl?: string;
-    completionBotId?: string;
-}
-
 class Overflow extends React.Component<OverflowProps, OverflowState> {
     readonly localize: TFunction;
     constructor(props: OverflowProps) {
@@ -44,8 +34,8 @@ class Overflow extends React.Component<OverflowProps, OverflowState> {
         };
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
     }
 
     public render(): JSX.Element {
@@ -117,16 +107,14 @@ class Overflow extends React.Component<OverflowProps, OverflowState> {
     }
 
     private onOpenTaskModule = (event: any, url: string, title: string) => {
-        let taskInfo: ITaskInfo = {
+        let submitHandler = (_result: any) => {
+        };
+        dialog.url.open({
             url: url,
             title: title,
-            height: 530,
-            width: 1000,
+            size: { height: 530, width: 1000 },
             fallbackUrl: url,
-        };
-        let submitHandler = (err: any, result: any) => {
-        };
-        microsoftTeams.tasks.startTask(taskInfo, submitHandler);
+        }, submitHandler);
     }
 
     private duplicateDraftMessage = async (id: number) => {

@@ -8,22 +8,12 @@ import { connect } from 'react-redux';
 import { withTranslation, WithTranslation } from "react-i18next";
 import { initializeIcons } from 'office-ui-fabric-react';
 import { Loader, List, Flex, Text } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import { getAppSettings } from "../../apis/messageListApi";
 import { selectMessage, getScheduledMessagesList, getDraftMessagesList, getMessagesList } from '../../actions';
 import { getBaseUrl } from '../../configVariables';
 import Overflow from '../OverFlow/scheduledMessageOverflow';
 import { TFunction } from "i18next";
-
-export interface ITaskInfo {
-    title?: string;
-    height?: number;
-    width?: number;
-    url?: string;
-    card?: string;
-    fallbackUrl?: string;
-    completionBotId?: string;
-}
 
 export interface IMessage {
     id: string;
@@ -75,13 +65,12 @@ class ScheduledMessages extends React.Component<IMessageProps, IMessageState> {
         };
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
-        microsoftTeams.getContext((context) => {
-            this.setState({
-                teamsTeamId: context.teamId,
-                teamsChannelId: context.channelId,
-            });
+    public async componentDidMount() {
+        await app.initialize();
+        const context = await app.getContext();
+        this.setState({
+            teamsTeamId: context.team?.internalId,
+            teamsChannelId: context.channel?.id,
         });
         
         this.props.getScheduledMessagesList();
@@ -195,15 +184,7 @@ class ScheduledMessages extends React.Component<IMessageProps, IMessageState> {
     private onOpenTaskModule = (event: any, url: string, title: string) => {
         if (this.isOpenTaskModuleAllowed) {
             this.isOpenTaskModuleAllowed = false;
-            let taskInfo: ITaskInfo = {
-                url: url,
-                title: title,
-                height: 530,
-                width: 1000,
-                fallbackUrl: url,
-            }
-
-            let submitHandler = (err: any, result: any) => {
+            let submitHandler = (_result: any) => {
                 this.props.getScheduledMessagesList().then(() => {
                         this.props.getDraftMessagesList();
                         this.props.getMessagesList();
@@ -211,7 +192,12 @@ class ScheduledMessages extends React.Component<IMessageProps, IMessageState> {
                 });
             };
 
-            microsoftTeams.tasks.startTask(taskInfo, submitHandler);
+            dialog.url.open({
+                url: url,
+                title: title,
+                size: { height: 530, width: 1000 },
+                fallbackUrl: url,
+            }, submitHandler);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿import { ArrowRightIcon, TrashCanIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar';
 import { Button, Dropdown, Flex, Image, Layout, Label, List, Text, Loader, Input } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import { TFunction } from "i18next";
 import * as React from 'react';
 import { withTranslation, WithTranslation } from "react-i18next";
@@ -93,26 +93,23 @@ class ManageGroups extends React.Component<IManageGroupsProps, formState> {
         this.handleImageSelection = this.handleImageSelection.bind(this);
     }
 
-    public componentDidMount() {
-        const setState = this.setState.bind(this);
-
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
         document.addEventListener("keydown", this.escFunction, false);
 
-        microsoftTeams.getContext(context => {
-            setState({
-                channelId: context.channelId,
-                channelName: context.channelName,
-                teamName: context.teamName,
-                userPrincipalName: context.userPrincipalName
-            });
-
-            //get all associated groups and set the allGroups and allGroupsNum state
-            this.getAllGroupsAssociated();
-
-            //get the channel configuration from the database
-            this.GetChannelInfo(context.channelId);
+        const context = await app.getContext();
+        this.setState({
+            channelId: context.channel?.id,
+            channelName: context.channel?.displayName,
+            teamName: context.team?.displayName,
+            userPrincipalName: context.user?.userPrincipalName,
         });
+
+        //get all associated groups and set the allGroups and allGroupsNum state
+        this.getAllGroupsAssociated();
+
+        //get the channel configuration from the database
+        this.GetChannelInfo(context.channel?.id);
 
     }
 
@@ -135,7 +132,7 @@ class ManageGroups extends React.Component<IManageGroupsProps, formState> {
 
     public escFunction(event: any) {
         if (event.keyCode === 27 || (event.key === "Escape")) {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         }
     }
 
@@ -283,7 +280,7 @@ class ManageGroups extends React.Component<IManageGroupsProps, formState> {
 
         //update the channel configuration and submit the task 
         this.UpdateChannelConfig(draftChannel).then(() => {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         });
     }
 

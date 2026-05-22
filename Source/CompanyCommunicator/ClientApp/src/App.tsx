@@ -11,7 +11,7 @@ import StatusTaskModule from './components/StatusTaskModule/statusTaskModule';
 import './App.scss';
 import { Provider, teamsTheme, teamsDarkTheme, teamsHighContrastTheme } from '@fluentui/react-northstar'
 import SendConfirmationTaskModule from './components/SendConfirmationTaskModule/sendConfirmationTaskModule';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app } from "@microsoft/teams-js";
 import { TeamsThemeContext, getContext, ThemeStyle } from 'msteams-ui-components-react';
 import ErrorPage from "./components/ErrorPage/errorPage";
 import SignInPage from "./components/SignInPage/signInPage";
@@ -35,17 +35,16 @@ class App extends React.Component<{}, IAppState> {
         }
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
-        microsoftTeams.getContext((context) => {
-            let theme = context.theme || "";
-            this.updateTheme(theme);
-            this.setState({
-                theme: theme
-            });
+    public async componentDidMount() {
+        await app.initialize();
+        const context = await app.getContext();
+        let theme = context.app?.theme || "";
+        this.updateTheme(theme);
+        this.setState({
+            theme: theme
         });
 
-        microsoftTeams.registerOnThemeChangeHandler((theme) => {
+        app.registerOnThemeChangeHandler((theme) => {
             this.updateTheme(theme);
             this.setState({
                 theme: theme,

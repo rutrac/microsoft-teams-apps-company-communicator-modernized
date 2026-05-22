@@ -7,7 +7,7 @@ import React from 'react';
 import { connect } from 'react-redux';
 import { withTranslation, WithTranslation } from "react-i18next";
 import { Menu, MoreIcon } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 
 import { getBaseUrl } from '../../configVariables';
 import { selectMessage, getMessagesList, getScheduledMessagesList, getDraftMessagesList } from '../../actions';
@@ -30,16 +30,6 @@ export interface OverflowState {
     menuOpen: boolean;
 }
 
-export interface ITaskInfo {
-    title?: string;
-    height?: number;
-    width?: number;
-    url?: string;
-    card?: string;
-    fallbackUrl?: string;
-    completionBotId?: string;
-}
-
 class Overflow extends React.Component<OverflowProps, OverflowState> {
     readonly localize: TFunction;
     constructor(props: OverflowProps) {
@@ -52,13 +42,12 @@ class Overflow extends React.Component<OverflowProps, OverflowState> {
         };
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
-        microsoftTeams.getContext((context) => {
-            this.setState({
-                teamsTeamId: context.teamId,
-                teamsChannelId: context.channelId,
-            });
+    public async componentDidMount() {
+        await app.initialize();
+        const context = await app.getContext();
+        this.setState({
+            teamsTeamId: context.team?.internalId,
+            teamsChannelId: context.channel?.id,
         });
     }
 
@@ -156,21 +145,18 @@ class Overflow extends React.Component<OverflowProps, OverflowState> {
     }
 
     private onOpenTaskModule = (event: any, url: string, title: string) => {
-        let taskInfo: ITaskInfo = {
-            url: url,
-            title: title,
-            height: 530,
-            width: 1000,
-            fallbackUrl: url,
-        };
-
-        let submitHandler = (err: any, result: any) => {
+        let submitHandler = (_result: any) => {
             this.props.getScheduledMessagesList().then(() => {
                 this.props.getMessagesList();
             });
         };
 
-        microsoftTeams.tasks.startTask(taskInfo, submitHandler);
+        dialog.url.open({
+            url: url,
+            title: title,
+            size: { height: 530, width: 1000 },
+            fallbackUrl: url,
+        }, submitHandler);
     }
 
     private duplicateDraftMessage = async (id: number) => {

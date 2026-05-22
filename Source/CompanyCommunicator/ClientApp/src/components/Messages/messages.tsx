@@ -6,7 +6,7 @@ import { connect } from 'react-redux';
 import { withTranslation, WithTranslation } from "react-i18next";
 import { TooltipHost } from 'office-ui-fabric-react';
 import { Loader, List, Flex, Text, AcceptIcon, CloseIcon, ExclamationCircleIcon, ExclamationTriangleIcon } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 
 import { selectMessage, getMessagesList, getDraftMessagesList } from '../../actions';
 import { getBaseUrl } from '../../configVariables';
@@ -14,16 +14,6 @@ import Overflow from '../OverFlow/sentMessageOverflow';
 import './messages.scss';
 import { TFunction } from "i18next";
 import { formatNumber } from '../../i18n';
-
-export interface ITaskInfo {
-    title?: string;
-    height?: number;
-    width?: number;
-    url?: string;
-    card?: string;
-    fallbackUrl?: string;
-    completionBotId?: string;
-}
 
 export interface IMessage {
     title: string;
@@ -61,8 +51,8 @@ class Messages extends React.Component<IMessageProps, IMessageState> {
         this.escFunction = this.escFunction.bind(this);
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
         this.props.getMessagesList();
         document.addEventListener("keydown", this.escFunction, false);
         this.interval = setInterval(() => {
@@ -247,26 +237,23 @@ class Messages extends React.Component<IMessageProps, IMessageState> {
 
     private escFunction = (event: any) => {
         if (event.keyCode === 27 || (event.key === "Escape")) {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         }
     }
 
     public onOpenTaskModule = (event: any, url: string, title: string) => {
         if (this.isOpenTaskModuleAllowed) {
             this.isOpenTaskModuleAllowed = false;
-            let taskInfo: ITaskInfo = {
-                url: url,
-                title: title,
-                height: 530,
-                width: 1000,
-                fallbackUrl: url,
-            }
-
-            let submitHandler = (err: any, result: any) => {
+            let submitHandler = (_result: any) => {
                 this.isOpenTaskModuleAllowed = true;
             };
 
-            microsoftTeams.tasks.startTask(taskInfo, submitHandler);
+            dialog.url.open({
+                url: url,
+                title: title,
+                size: { height: 530, width: 1000 },
+                fallbackUrl: url,
+            }, submitHandler);
         }
     }
 }
