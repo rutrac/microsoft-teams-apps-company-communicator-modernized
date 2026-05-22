@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import React, { useEffect } from "react";
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, authentication } from "@microsoft/teams-js";
 
 const SignInSimpleEnd: React.FunctionComponent = () => {
     // Parse hash parameters into key-value pairs
@@ -18,19 +18,21 @@ const SignInSimpleEnd: React.FunctionComponent = () => {
     }
 
     useEffect(() => {
-        microsoftTeams.initialize();
-
-        const hashParams: any = getHashParameters();
-        if (hashParams["error"]) {
-            // Authentication/authorization failed
-            microsoftTeams.authentication.notifyFailure(hashParams["error"]);
-        } else if (hashParams["id_token"]) {
-            // Success
-            microsoftTeams.authentication.notifySuccess();
-        } else {
-            // Unexpected condition: hash does not contain error or access_token parameter
-            microsoftTeams.authentication.notifyFailure("UnexpectedFailure");
-        }
+        const init = async () => {
+            await app.initialize();
+            const hashParams: any = getHashParameters();
+            if (hashParams["error"]) {
+                // Authentication/authorization failed
+                authentication.notifyFailure(hashParams["error"]);
+            } else if (hashParams["id_token"]) {
+                // Success
+                authentication.notifySuccess();
+            } else {
+                // Unexpected condition: hash does not contain error or access_token parameter
+                authentication.notifyFailure("UnexpectedFailure");
+            }
+        };
+        init();
     });
 
     return (
