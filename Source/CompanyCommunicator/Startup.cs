@@ -230,7 +230,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
         {
             app.UseExceptionHandler(applicationBuilder => this.HandleGlobalException(applicationBuilder));
 
-            app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseSpaStaticFiles();
 
