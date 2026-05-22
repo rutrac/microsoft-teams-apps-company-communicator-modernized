@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import React, { useEffect } from "react";
-import { authentication } from "@microsoft/teams-js";
+import { app, authentication } from "@microsoft/teams-js";
 
 const SignInSimpleEnd: React.FunctionComponent = () => {
     // Parse hash parameters into key-value pairs
@@ -18,10 +18,13 @@ const SignInSimpleEnd: React.FunctionComponent = () => {
     }
 
     useEffect(() => {
-        // Do NOT await app.initialize() here — in Teams SDK v2 the auth popup
-        // context does not complete the initialization handshake, causing a hang.
-        // authentication.notifySuccess/Failure communicate via postMessage and
-        // do not require app.initialize() to have resolved first.
+        // Teams SDK v2 requires app.initialize() to have been called (not necessarily
+        // completed) before authentication.notifySuccess/Failure will work — the call
+        // sets initializeCalled=true synchronously which the SDK checks internally.
+        // We do NOT await it: in the auth popup context Teams does not send the
+        // initialization handshake back, so awaiting would hang indefinitely.
+        app.initialize().catch(() => { /* ignore — expected to hang/fail in popup context */ });
+
         const hashParams: any = getHashParameters();
         if (hashParams["error"]) {
             // Authentication/authorization failed
@@ -30,7 +33,7 @@ const SignInSimpleEnd: React.FunctionComponent = () => {
             // Success
             authentication.notifySuccess();
         } else {
-            // Unexpected condition: hash does not contain error or access_token parameter
+            // Unexpected condition: hash does not contain error or id_token parameter
             authentication.notifyFailure("UnexpectedFailure");
         }
     }, []);
