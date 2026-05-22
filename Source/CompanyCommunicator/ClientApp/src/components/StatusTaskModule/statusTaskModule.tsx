@@ -100,7 +100,7 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
         });
 
         if ('id' in params) {
-            let id = Number(params['id'] as string);
+            let id = params['id'] as string;
             this.getItem(id).then(() => {
                 this.setState({
                     loader: false
@@ -132,7 +132,7 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
         }
     }
 
-    private getItem = async (id: number) => {
+    private getItem = async (id: string | number) => {
         try {
             const response = await getSentNotification(id);
             response.data.sendingDuration = formatDuration(response.data.sendingStartedDate, response.data.sentDate);
