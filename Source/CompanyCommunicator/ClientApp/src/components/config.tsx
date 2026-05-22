@@ -72,11 +72,15 @@ class Configuration extends React.Component<ConfigProps, IConfigState> {
     }
 
     public componentDidUpdate(prevProps: ConfigProps, prevState: IConfigState) {
-        // When loading completes, tell Teams whether Save is allowed
+        // When loading completes, tell Teams whether Save is allowed.
+        // We call setValidityState multiple times with increasing delays because Teams web
+        // (SDK v1.x) can miss the first call if the postMessage handshake isn't complete yet.
         if (prevState.loading && !this.state.loading) {
             const canSave = !this.targetingEnabled ||
                 this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
             microsoftTeams.settings.setValidityState(canSave);
+            setTimeout(() => microsoftTeams.settings.setValidityState(canSave), 500);
+            setTimeout(() => microsoftTeams.settings.setValidityState(canSave), 1500);
         }
     }
 
