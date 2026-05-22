@@ -62,8 +62,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Authentication
         /// <returns>Indicate if a upn is valid or not.</returns>
         private bool IsValidUpn(AuthorizationHandlerContext context)
         {
-            var claim = context.User?.Claims?.FirstOrDefault(p => p.Type == ClaimTypes.Upn);
-            var upn = claim?.Value;
+            // Microsoft.Identity.Web disables inbound claim mapping, so v2 tokens store the UPN
+            // under the raw JWT claim name "upn" rather than the long-form ClaimTypes.Upn.
+            // Also fall back to "preferred_username" for accounts that lack a "upn" claim.
+            var upn = context.User?.FindFirst(ClaimTypes.Upn)?.Value
+                ?? context.User?.FindFirst("upn")?.Value
+                ?? context.User?.FindFirst("preferred_username")?.Value;
+
             if (string.IsNullOrWhiteSpace(upn))
             {
                 return false;
