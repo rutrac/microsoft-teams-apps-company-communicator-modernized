@@ -9,7 +9,7 @@ import { RouteComponentProps } from 'react-router-dom';
 import * as AdaptiveCards from "adaptivecards";
 import { TooltipHost } from 'office-ui-fabric-react';
 import { Loader, List, Image, Button, DownloadIcon, AcceptIcon, Flex } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
     setCardAuthor, setCardBtns
@@ -91,13 +91,12 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
         };
     }
 
-    public componentDidMount() {
+    public async componentDidMount() {
         let params = this.props.match.params;
-        microsoftTeams.initialize();
-        microsoftTeams.getContext((context) => {
-            this.setState({
-                teamId: context.teamId,
-            });
+        await app.initialize();
+        const context = await app.getContext();
+        this.setState({
+            teamId: context.team?.internalId,
         });
 
         if ('id' in params) {
@@ -303,7 +302,7 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
     }
 
     private onClose = () => {
-        microsoftTeams.tasks.submitTask();
+        dialog.url.submit();
     }
 
     private onExport = async () => {

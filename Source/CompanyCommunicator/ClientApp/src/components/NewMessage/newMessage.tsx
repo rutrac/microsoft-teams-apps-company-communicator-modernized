@@ -7,7 +7,7 @@ import { withTranslation, WithTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar'
 import { TrashCanIcon, AddIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar'
-import { app } from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 import Resizer from 'react-image-file-resizer';
 import Papa from "papaparse";
 import './newMessage.scss';
@@ -1404,11 +1404,11 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
 
         if (this.state.exists) {
             this.editDraftMessage(draftMessage).then(() => {
-                microsoftTeams.tasks.submitTask();
+                dialog.url.submit();
             });
         } else {
             this.postDraftMessage(draftMessage).then(() => {
-                microsoftTeams.tasks.submitTask();
+                dialog.url.submit();
             });
         }
     }
@@ -1431,7 +1431,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
 
     public escFunction(event: any) {
         if (event.keyCode === 27 || (event.key === "Escape")) {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         }
     }
 

@@ -6,7 +6,7 @@ import { RouteComponentProps } from 'react-router-dom';
 import { withTranslation, WithTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Loader, Button, Text, List, Image, Flex } from '@fluentui/react-northstar';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { app, dialog } from "@microsoft/teams-js";
 
 import './sendConfirmationTaskModule.scss';
 import { getDraftNotification, getConsentSummaries, sendDraftNotification, getAppSettings } from '../../apis/messageListApi';
@@ -90,8 +90,8 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
         };
     }
 
-    public componentDidMount() {
-        microsoftTeams.initialize();
+    public async componentDidMount() {
+        await app.initialize();
 
         let params = this.props.match.params;
 
@@ -206,7 +206,7 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
         let spanner = document.getElementsByClassName("sendingLoader");
         spanner[0].classList.remove("hiddenLoader");
         sendDraftNotification(this.state.message).then(() => {
-            microsoftTeams.tasks.submitTask();
+            dialog.url.submit();
         });
     }
 
