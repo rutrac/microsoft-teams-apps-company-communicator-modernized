@@ -240,7 +240,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
             this.getTeamList().then(() => {
                 if ('id' in params) {
                     let id = params['id'] as string;
-                    this.getItem(Number(id)).then(() => {
+                    this.getItem(id).then(() => {
                         const selectedTeams = this.makeDropdownItemList(this.state.selectedTeams, this.state.teams);
                         const selectedRosters = this.makeDropdownItemList(this.state.selectedRosters, this.state.teams);
                         this.setState({
@@ -259,7 +259,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                             channelId: this.state.channelId
                         })
                     });
-                    this.getGroupData(Number(id)).then(() => {
+                    this.getGroupData(id).then(() => {
                         const selectedGroups = this.makeDropdownItems(this.state.groups);
                         this.setState({
                             selectedGroups: selectedGroups
@@ -553,7 +553,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
         });
     }
 
-    private getGroupData = async (id: number) => {
+    private getGroupData = async (id: string | number) => {
         try {
             const response = await getGroups(id);
             this.setState({
@@ -565,7 +565,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
         }
     }
 
-    private getItem = async (id: number) => {
+    private getItem = async (id: string | number) => {
         try {
 
             const response = await getDraftNotification(id);

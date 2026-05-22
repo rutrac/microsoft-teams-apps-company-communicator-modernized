@@ -41,7 +41,7 @@ export const verifyGroupAccess = async (): Promise<any> => {
     return await axios.get(url, false);
 }
 
-export const getGroups = async (id: number): Promise<any> => {
+export const getGroups = async (id: string | number): Promise<any> => {
     let url = baseAxiosUrl + "/groupdata/" + id;
     return await axios.get(url);
 }
@@ -56,12 +56,12 @@ export const exportNotification = async(payload: {}): Promise<any> => {
     return await axios.put(url, payload);
 }
 
-export const getSentNotification = async (id: number): Promise<any> => {
+export const getSentNotification = async (id: string | number): Promise<any> => {
     let url = baseAxiosUrl + "/sentnotifications/" + id;
     return await axios.get(url);
 }
 
-export const getDraftNotification = async (id: number): Promise<any> => {
+export const getDraftNotification = async (id: string | number): Promise<any> => {
     let url = baseAxiosUrl + "/draftnotifications/" + id;
     return await axios.get(url);
 }
@@ -134,7 +134,7 @@ export const getAppSettings = async (): Promise<any> => {
     return await axios.get(url, true, false);
 }
 
-export const getConsentSummaries = async (id: number): Promise<any> => {
+export const getConsentSummaries = async (id: string | number): Promise<any> => {
     let url = baseAxiosUrl + "/draftnotifications/consentSummaries/" + id;
     return await axios.get(url);
 }

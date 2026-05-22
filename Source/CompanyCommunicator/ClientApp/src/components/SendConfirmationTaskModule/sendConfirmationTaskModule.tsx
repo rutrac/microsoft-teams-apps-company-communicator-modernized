@@ -55,7 +55,7 @@ export interface IStatusState {
     rosterNames: string[];
     groupNames: string[];
     allUsers: boolean;
-    messageId: number;
+    messageId: string | number;
 }
 
 class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskModuleProps, IStatusState> {
@@ -98,7 +98,7 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
         this.getAppSettings().then(() => {
             setCardTarget(this.card, this.targetingEnabled);
             if ('id' in params) {
-                let id = Number(params['id'] as string);
+                let id = params['id'] as string;
                 this.getItem(id).then(() => {
                     getConsentSummaries(id).then((response) => {
                         this.setState({
@@ -148,7 +148,7 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
         });
     }
 
-    private getItem = async (id: number) => {
+    private getItem = async (id: string | number) => {
         try {
             const response = await getDraftNotification(id);
             this.setState({
