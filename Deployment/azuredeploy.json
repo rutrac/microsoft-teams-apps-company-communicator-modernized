@@ -251,6 +251,38 @@
         "description": "A GUID used to identify the role assignment. This is Default value."
       }
     },
+    "storageTableWebAppRoleNameGuid": {
+      "defaultValue": "48ef6ad1-cb0e-461d-b001-804d25bc438d",
+      "minLength": 1,
+      "type": "String",
+      "metadata": {
+        "description": "A GUID used to identify the Storage Table Data Contributor role assignment for the web app."
+      }
+    },
+    "storageTablePrepFuncRoleNameGuid": {
+      "defaultValue": "77745e43-1448-4bca-b007-f75733f14600",
+      "minLength": 1,
+      "type": "String",
+      "metadata": {
+        "description": "A GUID used to identify the Storage Table Data Contributor role assignment for the prep function."
+      }
+    },
+    "storageTableSendFuncRoleNameGuid": {
+      "defaultValue": "720d25fe-8d59-4f28-a71c-0ef90f8d4a84",
+      "minLength": 1,
+      "type": "String",
+      "metadata": {
+        "description": "A GUID used to identify the Storage Table Data Contributor role assignment for the send function."
+      }
+    },
+    "storageTableDataFuncRoleNameGuid": {
+      "defaultValue": "5b5d5f05-964f-48ba-bb2e-6f6e9db46915",
+      "minLength": 1,
+      "type": "String",
+      "metadata": {
+        "description": "A GUID used to identify the Storage Table Data Contributor role assignment for the data function."
+      }
+    },
     "ImageUploadBlobStorage": {
       "defaultValue": false,
       "type": "bool",
@@ -310,8 +342,6 @@
     "frontDoorEndpointName": "[parameters('baseResourceName')]",
     "frontDoorOriginGroupName": "originGroup1",
     "frontDoorOriginName": "origin1",
-    "frontDoorRuleSetName": "apiRedirectRuleSet",
-    "frontDoorApiRedirectRuleName": "redirectApiToOrigin",
     "frontDoorRouteName": "defaultRoute",
     "ProactivelyInstallUserApp": "[parameters('ProactivelyInstallUserApp')]",
     "UserAppExternalId": "[parameters('UserAppExternalId')]",
@@ -319,6 +349,7 @@
     "i18n:SupportedCultures": "[parameters('SupportedCultures')]",
     "AzureserviceBusDataOwner": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '090c5cfd-751d-490a-894a-3ce6f1109419')]",
     "StorageBlobDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+    "StorageTableDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
     "keyvaultName": "[concat(variables('botAppName'), 'vault')]",
     "keyVaultUrl": "[concat('https://',variables('keyvaultName'), '.vault.azure.net')]",
     "subscriptionTenantId": "[subscription().tenantId]",
@@ -583,7 +614,7 @@
         "hostNamesDisabled": false,
         "containerSize": 0,
         "dailyMemoryTimeQuota": 0,
-        "httpsOnly": true,
+        "httpsOnly": false,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
@@ -675,7 +706,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": true,
+        "httpsOnly": false,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
@@ -750,7 +781,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": true,
+        "httpsOnly": false,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
@@ -819,7 +850,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": true,
+        "httpsOnly": false,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
@@ -1169,6 +1200,66 @@
       }
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[parameters('storageTableWebAppRoleNameGuid')]",
+      "scope": "[concat('Microsoft.Storage/storageAccounts', '/', variables('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('botAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('StorageTableDataContributor')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('botAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[parameters('storageTablePrepFuncRoleNameGuid')]",
+      "scope": "[concat('Microsoft.Storage/storageAccounts', '/', variables('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('prepFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('StorageTableDataContributor')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('prepFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[parameters('storageTableSendFuncRoleNameGuid')]",
+      "scope": "[concat('Microsoft.Storage/storageAccounts', '/', variables('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('sendFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('StorageTableDataContributor')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('sendFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[parameters('storageTableDataFuncRoleNameGuid')]",
+      "scope": "[concat('Microsoft.Storage/storageAccounts', '/', variables('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('dataFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('StorageTableDataContributor')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('dataFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
       "type": "Microsoft.Cdn/profiles",
       "apiVersion": "2024-02-01",
       "name": "[variables('frontDoorName')]",
@@ -1236,54 +1327,6 @@
       }
     },
     {
-      "type": "Microsoft.Cdn/profiles/ruleSets",
-      "apiVersion": "2024-02-01",
-      "name": "[concat(variables('frontDoorName'), '/', variables('frontDoorRuleSetName'))]",
-      "condition": "[variables('useFrontDoor')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Cdn/profiles', variables('frontDoorName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Cdn/profiles/ruleSets/rules",
-      "apiVersion": "2024-02-01",
-      "name": "[concat(variables('frontDoorName'), '/', variables('frontDoorRuleSetName'), '/', variables('frontDoorApiRedirectRuleName'))]",
-      "condition": "[variables('useFrontDoor')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Cdn/profiles/ruleSets', variables('frontDoorName'), variables('frontDoorRuleSetName'))]"
-      ],
-      "properties": {
-        "order": 1,
-        "matchProcessingBehavior": "Stop",
-        "conditions": [
-          {
-            "name": "UrlPath",
-            "parameters": {
-              "typeName": "DeliveryRuleUrlPathMatchConditionParameters",
-              "operator": "BeginsWith",
-              "negateCondition": false,
-              "matchValues": [ "api/" ],
-              "transforms": [ "Lowercase" ]
-            }
-          }
-        ],
-        "actions": [
-          {
-            "name": "UrlRedirect",
-            "parameters": {
-              "typeName": "DeliveryRuleUrlRedirectActionParameters",
-              "redirectType": "PermanentRedirect",
-              "destinationProtocol": "Https",
-              "customHostname": "[variables('botAppDomain')]",
-              "customPath": "",
-              "customQueryString": "",
-              "customFragment": ""
-            }
-          }
-        ]
-      }
-    },
-    {
       "type": "Microsoft.Cdn/profiles/afdEndpoints/routes",
       "apiVersion": "2024-02-01",
       "name": "[concat(variables('frontDoorName'), '/', variables('frontDoorEndpointName'), '/', variables('frontDoorRouteName'))]",
@@ -1291,19 +1334,12 @@
       "dependsOn": [
         "[resourceId('Microsoft.Cdn/profiles/afdEndpoints', variables('frontDoorName'), variables('frontDoorEndpointName'))]",
         "[resourceId('Microsoft.Cdn/profiles/originGroups', variables('frontDoorName'), variables('frontDoorOriginGroupName'))]",
-        "[resourceId('Microsoft.Cdn/profiles/originGroups/origins', variables('frontDoorName'), variables('frontDoorOriginGroupName'), variables('frontDoorOriginName'))]",
-        "[resourceId('Microsoft.Cdn/profiles/ruleSets', variables('frontDoorName'), variables('frontDoorRuleSetName'))]",
-        "[resourceId('Microsoft.Cdn/profiles/ruleSets/rules', variables('frontDoorName'), variables('frontDoorRuleSetName'), variables('frontDoorApiRedirectRuleName'))]"
+        "[resourceId('Microsoft.Cdn/profiles/originGroups/origins', variables('frontDoorName'), variables('frontDoorOriginGroupName'), variables('frontDoorOriginName'))]"
       ],
       "properties": {
         "originGroup": {
           "id": "[resourceId('Microsoft.Cdn/profiles/originGroups', variables('frontDoorName'), variables('frontDoorOriginGroupName'))]"
         },
-        "ruleSets": [
-          {
-            "id": "[resourceId('Microsoft.Cdn/profiles/ruleSets', variables('frontDoorName'), variables('frontDoorRuleSetName'))]"
-          }
-        ],
         "supportedProtocols": [ "Https" ],
         "patternsToMatch": [ "/*" ],
         "forwardingProtocol": "HttpsOnly",
