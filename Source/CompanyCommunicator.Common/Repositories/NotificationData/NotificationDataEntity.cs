@@ -7,6 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
 {
     using System;
     using System.Collections.Generic;
+    using System.Runtime.Serialization;
     using global::Azure.Data.Tables;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Newtonsoft.Json;
@@ -137,6 +138,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <summary>
         /// Gets or sets Teams audience collection.
         /// </summary>
+        [IgnoreDataMember]
         public IEnumerable<string> Teams
         {
             get => JsonConvert.DeserializeObject<IEnumerable<string>>(this.TeamsInString.IsNullOrEmpty() ? "[]" : this.TeamsInString);
@@ -155,6 +157,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <summary>
         /// Gets or sets the team ids of the Rosters audience collection.
         /// </summary>
+        [IgnoreDataMember]
         public IEnumerable<string> Rosters
         {
             get => JsonConvert.DeserializeObject<IEnumerable<string>>(this.RostersInString.IsNullOrEmpty() ? "[]" : this.RostersInString);
@@ -173,6 +176,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.Notificat
         /// <summary>
         /// Gets or sets the team ids of the Groups audience collection.
         /// </summary>
+        [IgnoreDataMember]
         public IEnumerable<string> Groups
         {
             get => JsonConvert.DeserializeObject<IEnumerable<string>>(this.GroupsInString.IsNullOrEmpty() ? "[]" : this.GroupsInString);
