@@ -18,24 +18,33 @@ const SignInSimpleEnd: React.FunctionComponent = () => {
     }
 
     useEffect(() => {
-        // Teams SDK v2 requires app.initialize() to have been called (not necessarily
-        // completed) before authentication.notifySuccess/Failure will work — the call
-        // sets initializeCalled=true synchronously which the SDK checks internally.
-        // We do NOT await it: in the auth popup context Teams does not send the
-        // initialization handshake back, so awaiting would hang indefinitely.
-        app.initialize().catch(() => { /* ignore — expected to hang/fail in popup context */ });
+        const run = async () => {
+            // Race app.initialize() against a 2s timeout.
+            // In Teams web the popup opener IS the Teams client, so the handshake
+            // may complete normally. In contexts where it hangs (no handshake response),
+            // the timeout fires and we proceed anyway so notifySuccess/Failure still run.
+            try {
+                await Promise.race([
+                    app.initialize(),
+                    new Promise<void>(resolve => setTimeout(resolve, 2000)),
+                ]);
+            } catch {
+                // ignore — we proceed regardless
+            }
 
-        const hashParams: any = getHashParameters();
-        if (hashParams["error"]) {
-            // Authentication/authorization failed
-            authentication.notifyFailure(hashParams["error"]);
-        } else if (hashParams["id_token"]) {
-            // Success
-            authentication.notifySuccess();
-        } else {
-            // Unexpected condition: hash does not contain error or id_token parameter
-            authentication.notifyFailure("UnexpectedFailure");
-        }
+            const hashParams: any = getHashParameters();
+            if (hashParams["error"]) {
+                // Authentication/authorization failed
+                authentication.notifyFailure(hashParams["error"]);
+            } else if (hashParams["id_token"]) {
+                // Success
+                authentication.notifySuccess();
+            } else {
+                // Unexpected condition: hash does not contain error or id_token parameter
+                authentication.notifyFailure("UnexpectedFailure");
+            }
+        };
+        run();
     }, []);
 
     return (
