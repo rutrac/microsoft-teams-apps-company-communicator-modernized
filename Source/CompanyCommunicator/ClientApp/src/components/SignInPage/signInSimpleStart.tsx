@@ -8,17 +8,23 @@ import { getAuthenticationConsentMetadata } from '../../apis/messageListApi';
 const SignInSimpleStart: React.FunctionComponent = () => {
     useEffect(() => {
         const init = async () => {
-            await app.initialize();
-            const context = await app.getContext();
             const windowLocationOriginDomain = window.location.origin.replace("https://", "");
-            const login_hint = context.user?.loginHint ?? context.user?.userPrincipalName ?? "";
+            let login_hint = "";
+            try {
+                // loginHint is optional — if getContext times out in the popup, proceed without it
+                await app.initialize();
+                const context = await app.getContext();
+                login_hint = context.user?.loginHint ?? context.user?.userPrincipalName ?? "";
+            } catch {
+                // continue without login_hint
+            }
 
             getAuthenticationConsentMetadata(windowLocationOriginDomain, login_hint).then(result => {
                 window.location.assign(result.data);
             });
         };
         init();
-    });
+    }, []);
 
     return (
         <></>
