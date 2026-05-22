@@ -16,8 +16,28 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
     /// unexpected data from the existing database row e.g. not setting TotalMessageCount for this
     /// entity will not result in the value being set to 0 in the database by mistake.
     /// </summary>
-    public class UpdateNotificationDataEntity : TableEntity
+    public class UpdateNotificationDataEntity : ITableEntity
     {
+        /// <summary>
+        /// Gets or sets the entity's partition key.
+        /// </summary>
+        public string PartitionKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's row key.
+        /// </summary>
+        public string RowKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's timestamp.
+        /// </summary>
+        public global::System.DateTimeOffset? Timestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the entity's ETag.
+        /// </summary>
+        public global::Azure.ETag ETag { get; set; }
+
         /// <summary>
         /// Gets or sets the number of recipients who have received the notification successfully.
         /// </summary>
