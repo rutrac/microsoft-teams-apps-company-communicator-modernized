@@ -118,7 +118,9 @@ export class AxiosJWTDecorator {
             // When getAuthToken fails, redirect to sign-in so the user can grant consent.
             console.error("Error from getAuthToken: ", error);
             window.location.href = `/signin?locale=${i18n.language}`;
-            throw error;
+            // Return a never-resolving promise so the outer try/catch in get/post/etc.
+            // never fires handleError() (which would override this navigation with /errorpage).
+            return new Promise<AxiosRequestConfig>(() => {});
         }
     }
 }
