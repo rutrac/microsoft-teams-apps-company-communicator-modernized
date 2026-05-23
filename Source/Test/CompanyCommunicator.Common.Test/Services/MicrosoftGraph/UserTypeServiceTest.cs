@@ -1,4 +1,4 @@
-﻿// <copyright file="UserTypeServiceTest.cs" company="Microsoft">
+// <copyright file="UserTypeServiceTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -11,8 +11,10 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
     using System.Threading.Tasks;
     using FluentAssertions;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Moq;
     using Xunit;
@@ -85,7 +87,7 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
         {
             // Arrange
             var serviceContext = this.GetUserTypeService();
-            var userData = new UserDataEntity() { AadId = "userId", UserType = UserType.Member };
+            var userData = new UserDataEntity() { AadId = "userId", UserType = CcUserType.Member };
 
             // Act
             Func<Task> task = async () => await serviceContext.UpdateUserTypeForExistingUserAsync(userData, null);
@@ -105,7 +107,7 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
             // Arrange
             var serviceContext = this.GetUserTypeService();
             var userData = new UserDataEntity() { AadId = "userId", UserType = null };
-            var userType = UserType.Member;
+            var userType = CcUserType.Member;
 
             // Act
             Func<Task> task = async () => await serviceContext.UpdateUserTypeForExistingUserAsync(userData, userType);
@@ -145,8 +147,8 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
             var serviceContext = this.GetUserTypeService();
             IEnumerable<UserDataEntity> userDataEntities = new List<UserDataEntity>()
             {
-                new UserDataEntity() { AadId = "1", UserType = UserType.Member },
-                new UserDataEntity() { AadId = "2", UserType = UserType.Member },
+                new UserDataEntity() { AadId = "1", UserType = CcUserType.Member },
+                new UserDataEntity() { AadId = "2", UserType = CcUserType.Member },
             };
 
             // Act
@@ -168,12 +170,12 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
             var serviceContext = this.GetUserTypeService();
             IEnumerable<UserDataEntity> userDataEntities = new List<UserDataEntity>()
             {
-                new UserDataEntity() { AadId = "1", UserType = UserType.Member },
+                new UserDataEntity() { AadId = "1", UserType = CcUserType.Member },
                 new UserDataEntity() { AadId = "2", UserType = null },
             };
             var users = new List<User>()
             {
-                new User() { Id = "2", UserType = UserType.Member },
+                new User() { Id = "2", UserType = CcUserType.Member },
             };
 
             this.usersService
@@ -203,7 +205,7 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
             };
             var users = new List<User>()
             {
-                new User() { Id = "1", UserType = UserType.Member },
+                new User() { Id = "1", UserType = CcUserType.Member },
             };
 
             this.usersService

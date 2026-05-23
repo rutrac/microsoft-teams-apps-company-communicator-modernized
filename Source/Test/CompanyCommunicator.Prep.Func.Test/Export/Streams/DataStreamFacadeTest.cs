@@ -1,4 +1,4 @@
-﻿// <copyright file="DataStreamFacadeTest.cs" company="Microsoft">
+// <copyright file="DataStreamFacadeTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -13,11 +13,15 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Streams
     using FluentAssertions;
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Model;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams;
@@ -274,12 +278,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Streams
             // Arrange
             var activityInstance = this.GetDataStreamFacadeInstance();
             var userDataList = new List<User>();
-            var error = new Graph.Error()
-            {
-                Code = HttpStatusCode.Forbidden.ToString(),
-                Message = "UnAuthorized",
-            };
-            var forbiddenException = new ServiceException(error, null, HttpStatusCode.Forbidden);
+            var forbiddenException = new ODataError() { ResponseStatusCode = (int)HttpStatusCode.Forbidden };
 
             this.sentNotificationDataRepository
                 .Setup(x => x.GetStreamsAsync(this.notificationId, null))
@@ -351,12 +350,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Streams
                 .Returns(this.sentNotificationDataWithErrorList.ToAsyncEnumerable());
             this.userDataRepository
                 .Setup(x => x.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync(new UserDataEntity() { UserType = UserType.Member });
+                .ReturnsAsync(new UserDataEntity() { UserType = CcUserType.Member });
             var sendNotificationData = this.sentNotificationDataWithErrorList.Select(x => x.Where(y => y.RowKey == "RowKey").FirstOrDefault()).FirstOrDefault();
             this.usersService
                 .Setup(x => x.GetBatchByUserIds(It.IsAny<IEnumerable<IEnumerable<string>>>()))
                 .ReturnsAsync(userDataList);
-            string userType = UserType.Member;
+            string userType = CcUserType.Member;
             var localizedString = new LocalizedString(userType, userType);
             this.localizer.Setup(_ => _[userType]).Returns(localizedString);
 
@@ -367,7 +366,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Streams
             // Assert
             Assert.Null(userData.Name);
             Assert.Null(userData.Upn);
-            Assert.Equal(userData.UserType, UserType.Member);
+            Assert.Equal(userData.UserType, CcUserType.Member);
         }
 
         /// <summary>
@@ -586,17 +585,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Streams
             this.sentNotificationDataRepository
                 .Setup(x => x.GetStreamsAsync(this.notificationId, null))
                 .Returns(this.sentNotificationDataList.ToAsyncEnumerable());
-            var serviceException = new ServiceException(null, null, HttpStatusCode.Unauthorized);
+            var forbiddenException = new ODataError() { ResponseStatusCode = (int)HttpStatusCode.Unauthorized };
             this.usersService
                 .Setup(x => x.GetBatchByUserIds(It.IsAny<IEnumerable<IEnumerable<string>>>()))
-                .ThrowsAsync(serviceException);
+                .ThrowsAsync(forbiddenException);
 
             // Act
             var userDataStream = activityInstance.GetUserDataStreamAsync(this.notificationId, this.notificationStatus);
             Func<Task> task = async () => await userDataStream.ForEachAsync(x => x.ToList());
 
             // Assert
-            await task.Should().ThrowAsync<ServiceException>();
+            await task.Should().ThrowAsync<ODataError>();
         }
 
         private TeamDataEntity GetTeamDataEntity()

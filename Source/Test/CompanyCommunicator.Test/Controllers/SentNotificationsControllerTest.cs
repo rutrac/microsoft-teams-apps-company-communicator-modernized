@@ -1,4 +1,4 @@
-﻿// <copyright file="SentNotificationsControllerTest.cs" company="Microsoft">
+// <copyright file="SentNotificationsControllerTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -19,6 +19,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Test.Controllers
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;

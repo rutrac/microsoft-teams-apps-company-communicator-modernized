@@ -5,23 +5,28 @@
 
 namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Mock
 {
-    using System.Net.Http;
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Graph;
+    using Microsoft.Kiota.Abstractions.Authentication;
 
     /// <summary>
-    /// Mocking Authentication Provider.
+    /// Mocking Authentication Provider (IAccessTokenProvider for Kiota/Graph v5).
     /// </summary>
-    public class MockAuthenticationHelper : IAuthenticationProvider
+    public class MockAuthenticationHelper : IAccessTokenProvider
     {
-        /// <summary>
-        /// Mock authenticate request.
-        /// </summary>
-        /// <param name="request">Represents a HttpRequestMessage.</param>
-        /// <returns>asynchronous operation.</returns>
-        public Task AuthenticateRequestAsync(HttpRequestMessage request)
+        /// <inheritdoc/>
+        public AllowedHostsValidator AllowedHostsValidator { get; } =
+            new AllowedHostsValidator(new[] { "graph.microsoft.com" });
+
+        /// <inheritdoc/>
+        public Task<string> GetAuthorizationTokenAsync(
+            Uri uri,
+            Dictionary<string, object>? additionalAuthenticationContext = null,
+            CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult("fake-token");
         }
     }
 }

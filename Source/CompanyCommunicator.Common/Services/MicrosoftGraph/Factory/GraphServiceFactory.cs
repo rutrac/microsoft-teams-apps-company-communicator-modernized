@@ -13,14 +13,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     /// </summary>
     public class GraphServiceFactory : IGraphServiceFactory
     {
-        private readonly IGraphServiceClient serviceClient;
+        private readonly GraphServiceClient serviceClient;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GraphServiceFactory"/> class.
         /// </summary>
         /// <param name="serviceClient">V1 Graph service client.</param>
         public GraphServiceFactory(
-            IGraphServiceClient serviceClient)
+            GraphServiceClient serviceClient)
         {
             this.serviceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
         }

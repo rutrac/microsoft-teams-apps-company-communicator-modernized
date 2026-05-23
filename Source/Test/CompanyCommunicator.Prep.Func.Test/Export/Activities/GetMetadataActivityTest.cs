@@ -1,4 +1,4 @@
-﻿// <copyright file="GetMetadataActivityTest.cs" company="Microsoft">
+// <copyright file="GetMetadataActivityTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -14,6 +14,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Activit
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
@@ -157,14 +159,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Activit
             var notificationDataEntity = this.GetNotificationDataEntity();
             var exportDataEntity = this.GetExportDataEntity();
             var user = this.GetUser();
-            var serviceException = new ServiceException(null, null, HttpStatusCode.Unauthorized);
+            var serviceException = new ODataError() { ResponseStatusCode = (int)HttpStatusCode.Unauthorized };
             this.usersService.Setup(x => x.GetUserAsync(It.IsAny<string>())).ThrowsAsync(serviceException);
 
             // Act
             Func<Task> task = async () => await getMetadataActivityInstance.GetMetadataActivityAsync((notificationDataEntity, exportDataEntity));
 
             // Assert
-            await task.Should().ThrowAsync<ServiceException>();
+            await task.Should().ThrowAsync<ODataError>();
         }
 
         /// <summary>
@@ -183,7 +185,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.Export.Activit
             string key = "AdminConsentError";
             var localizedString = new LocalizedString(key, key);
             this.localizer.Setup(_ => _[key]).Returns(localizedString);
-            var serviceException = new ServiceException(null, null, HttpStatusCode.Forbidden);
+            var serviceException = new ODataError() { ResponseStatusCode = (int)HttpStatusCode.Forbidden };
             this.usersService.Setup(x => x.GetUserAsync(It.IsAny<string>())).ThrowsAsync(serviceException);
 
             // Act

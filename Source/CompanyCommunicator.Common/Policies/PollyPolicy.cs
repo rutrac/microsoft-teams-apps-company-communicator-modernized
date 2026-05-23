@@ -7,7 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Policies
 {
     using System;
     using System.Net;
-    using Microsoft.Graph;
+    using Microsoft.Graph.Models.ODataErrors;
     using Polly;
     using Polly.Contrib.WaitAndRetry;
     using Polly.Retry;
@@ -29,8 +29,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Policies
             // Only Handling 502 Bad Gateway Exception
             // Other exception such as 429, 503, 504 is handled by default by Graph SDK.
             return Policy
-                .Handle<ServiceException>(e =>
-                e.StatusCode == HttpStatusCode.BadGateway)
+                .Handle<ODataError>(e =>
+                e.ResponseStatusCode == (int)HttpStatusCode.BadGateway)
                 .WaitAndRetryAsync(delay);
         }
     }

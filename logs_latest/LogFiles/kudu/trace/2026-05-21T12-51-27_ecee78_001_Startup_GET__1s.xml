@@ -1,0 +1,3 @@
+<step title="Startup Request" date="2026-05-21T12:51:27.067" instance="ecee78" url="/" method="GET" type="request" pid="4872,2,8" ScmType="None" SCM_DO_BUILD_DURING_DEPLOYMENT="true" SCM_COMMAND_IDLE_TIMEOUT="7200" >
+  <step title="Cleanup Xml Logs" date="2026-05-21T12:51:27.407" /><!-- duration: 267ms -->
+</step><!-- duration: 687ms -->

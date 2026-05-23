@@ -1,4 +1,4 @@
-﻿// <copyright file="DraftNotificationsControllerTest.cs" company="Microsoft">
+// <copyright file="DraftNotificationsControllerTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -26,6 +26,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Test.Controllers
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData;

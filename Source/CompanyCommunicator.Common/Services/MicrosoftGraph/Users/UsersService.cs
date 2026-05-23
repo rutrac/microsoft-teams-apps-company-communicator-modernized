@@ -1,4 +1,4 @@
-﻿// <copyright file="UsersService.cs" company="Microsoft">
+// <copyright file="UsersService.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,6 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     using System.Text;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -21,13 +22,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     {
         private const string TeamsLicenseId = "57ff2da0-773e-42df-b2af-ffb7a2317929";
 
-        private readonly IGraphServiceClient graphServiceClient;
+        private readonly GraphServiceClient graphServiceClient;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="UsersService"/> class.
         /// </summary>
         /// <param name="graphServiceClient">graph service client.</param>
-        internal UsersService(IGraphServiceClient graphServiceClient)
+        internal UsersService(GraphServiceClient graphServiceClient)
         {
             this.graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
         }
@@ -41,23 +42,21 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             var users = new List<User>();
-            var batches = this.GetBatchRequest(userIdsByGroups);
+            var batches = this.GetBatchRequests(userIdsByGroups);
             foreach (var batchRequestContent in batches)
             {
                 var response = await this.graphServiceClient
                     .Batch
-                    .Request()
-                    .WithMaxRetry(GraphConstants.MaxRetry)
                     .PostAsync(batchRequestContent);
 
-                Dictionary<string, HttpResponseMessage> responses = await response.GetResponsesAsync();
+                var responses = await response.GetResponsesAsync();
 
                 foreach (string key in responses.Keys)
                 {
                     HttpResponseMessage httpResponse = default;
                     try
                     {
-                        httpResponse = await response.GetResponseByIdAsync(key);
+                        httpResponse = responses[key];
                         if (httpResponse == null)
                         {
                             throw new ArgumentNullException(nameof(httpResponse));
@@ -77,21 +76,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 
                         users.AddRange(userstemp);
                     }
-                    catch (HttpRequestException httpRequestException)
-                    {
-                        var error = new Error
-                        {
-                            Code = httpResponse.StatusCode.ToString(),
-                            Message = httpResponse.ReasonPhrase,
-                        };
-                        throw new ServiceException(error, httpResponse.Headers, httpResponse.StatusCode, httpRequestException.InnerException);
-                    }
                     finally
                     {
-                        if (httpResponse != null)
-                        {
-                            httpResponse.Dispose();
-                        }
+                        httpResponse?.Dispose();
                     }
                 }
             }
@@ -103,83 +90,64 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
         public async IAsyncEnumerable<IEnumerable<User>> GetUsersAsync(string filter = null)
         {
             var graphResult = await this.graphServiceClient
-                    .Users
-                    .Request()
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .Filter(filter)
-                    .Select(user => new
-                    {
-                        user.Id,
-                        user.DisplayName,
-                        user.UserPrincipalName,
-                    })
-                    .GetAsync();
-            yield return graphResult.CurrentPage;
-            while (graphResult.NextPageRequest != null)
+                .Users
+                .GetAsync(req =>
+                {
+                    req.QueryParameters.Filter = filter;
+                    req.QueryParameters.Select = new[] { "id", "displayName", "userPrincipalName" };
+                });
+
+            yield return graphResult.Value;
+
+            while (graphResult.OdataNextLink != null)
             {
-                graphResult = await graphResult.NextPageRequest.GetAsync();
-                yield return graphResult.CurrentPage;
+                graphResult = await this.graphServiceClient.Users.WithUrl(graphResult.OdataNextLink).GetAsync();
+                yield return graphResult.Value;
             }
         }
 
         /// <inheritdoc/>
         public async Task<User> GetUserAsync(string userId)
         {
-            var graphResult = await this.graphServiceClient
-                    .Users[userId]
-                    .Request()
-                    .Select(user => new
-                    {
-                        user.Id,
-                        user.DisplayName,
-                        user.UserPrincipalName,
-                        user.UserType,
-                    })
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync();
-            return graphResult;
+            return await this.graphServiceClient
+                .Users[userId]
+                .GetAsync(req =>
+                {
+                    req.QueryParameters.Select = new[] { "id", "displayName", "userPrincipalName", "userType" };
+                });
         }
 
         /// <inheritdoc/>
         public async Task<(IEnumerable<User>, string)> GetAllUsersAsync(string deltaLink = null)
         {
             var users = new List<User>();
-            IUserDeltaCollectionPage collectionPage;
+            Microsoft.Graph.Users.Delta.DeltaGetResponse deltaResponse;
+
             if (string.IsNullOrEmpty(deltaLink))
             {
-                collectionPage = await this.graphServiceClient
+                deltaResponse = await this.graphServiceClient
                     .Users
-                    .Delta()
-                    .Request()
-                    .Select("id, displayName, userPrincipalName, userType")
-                    .Top(GraphConstants.MaxPageSize)
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync();
+                    .Delta
+                    .GetAsync(req =>
+                    {
+                        req.QueryParameters.Select = new[] { "id", "displayName", "userPrincipalName", "userType" };
+                        req.QueryParameters.Top = GraphConstants.MaxPageSize;
+                    });
             }
             else
             {
-                collectionPage = new UserDeltaCollectionPage();
-                collectionPage.InitializeNextPageRequest(this.graphServiceClient, deltaLink);
-                collectionPage = await collectionPage
-                    .NextPageRequest
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync();
+                deltaResponse = await this.graphServiceClient.Users.Delta.WithUrl(deltaLink).GetAsync();
             }
 
-            users.AddRange(collectionPage);
+            users.AddRange(deltaResponse.Value);
 
-            while (collectionPage.NextPageRequest != null)
+            while (deltaResponse.OdataNextLink != null)
             {
-                collectionPage = await collectionPage
-                    .NextPageRequest
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync();
-
-                users.AddRange(collectionPage);
+                deltaResponse = await this.graphServiceClient.Users.Delta.WithUrl(deltaResponse.OdataNextLink).GetAsync();
+                users.AddRange(deltaResponse.Value);
             }
 
-            collectionPage.AdditionalData.TryGetValue("@odata.deltaLink", out object delta);
-            return (users, delta as string);
+            return (users, deltaResponse.OdataDeltaLink);
         }
 
         /// <inheritdoc/>
@@ -193,24 +161,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             var licenseCollection = await this.graphServiceClient
                 .Users[userId]
                 .LicenseDetails
-                .Request()
-                .Top(GraphConstants.MaxPageSize)
-                .WithMaxRetry(GraphConstants.MaxRetry)
-                .GetAsync();
+                .GetAsync(req =>
+                {
+                    req.QueryParameters.Top = GraphConstants.MaxPageSize;
+                });
 
-            if (this.HasTeamsLicense(licenseCollection))
+            if (this.HasTeamsLicense(licenseCollection.Value))
             {
                 return true;
             }
 
-            while (licenseCollection.NextPageRequest != null)
+            while (licenseCollection.OdataNextLink != null)
             {
-                licenseCollection = await licenseCollection
-                    .NextPageRequest
-                    .WithMaxRetry(GraphConstants.MaxRetry)
+                licenseCollection = await this.graphServiceClient
+                    .Users[userId]
+                    .LicenseDetails
+                    .WithUrl(licenseCollection.OdataNextLink)
                     .GetAsync();
 
-                if (this.HasTeamsLicense(licenseCollection))
+                if (this.HasTeamsLicense(licenseCollection.Value))
                 {
                     return true;
                 }
@@ -235,12 +204,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             return filterUserIds.ToString();
         }
 
-        private IEnumerable<BatchRequestContent> GetBatchRequest(IEnumerable<IEnumerable<string>> userIdsByGroups)
+        private IEnumerable<BatchRequestContent> GetBatchRequests(IEnumerable<IEnumerable<string>> userIdsByGroups)
         {
             var batches = new List<BatchRequestContent>();
             int maxNoBatchItems = 20;
 
-            var batchRequestContent = new BatchRequestContent();
+            var batchRequestContent = new BatchRequestContent(this.graphServiceClient);
             int requestId = 1;
 
             foreach (var userIds in userIdsByGroups)
@@ -256,13 +225,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
                 }
 
                 var filterUserIds = this.GetUserIdFilter(userIds);
-                var httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, $"https://graph.microsoft.com/v1.0/users?$filter={filterUserIds}&$select=id,displayName,userPrincipalName,userType");
-                batchRequestContent.AddBatchRequestStep(new BatchRequestStep(requestId.ToString(), httpRequestMessage));
+                var requestInfo = this.graphServiceClient.Users.ToGetRequestInformation(req =>
+                {
+                    req.QueryParameters.Filter = filterUserIds;
+                    req.QueryParameters.Select = new[] { "id", "displayName", "userPrincipalName", "userType" };
+                });
+                batchRequestContent.AddBatchRequestStepAsync(requestInfo, requestId.ToString()).GetAwaiter().GetResult();
 
                 if (batchRequestContent.BatchRequestSteps.Count() % maxNoBatchItems == 0)
                 {
                     batches.Add(batchRequestContent);
-                    batchRequestContent = new BatchRequestContent();
+                    batchRequestContent = new BatchRequestContent(this.graphServiceClient);
                 }
 
                 requestId++;
@@ -276,9 +249,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             return batches;
         }
 
-        private bool HasTeamsLicense(IUserLicenseDetailsCollectionPage licenseCollection)
+        private bool HasTeamsLicense(IEnumerable<Microsoft.Graph.Models.LicenseDetails> licenses)
         {
-            foreach (var license in licenseCollection)
+            foreach (var license in licenses)
             {
                 if (license.ServicePlans == null)
                 {

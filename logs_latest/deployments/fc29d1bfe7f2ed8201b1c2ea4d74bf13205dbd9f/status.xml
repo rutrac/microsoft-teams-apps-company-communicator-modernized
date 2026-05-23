@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>fc29d1bfe7f2ed8201b1c2ea4d74bf13205dbd9f</id>
+  <author>Rui Tracanas</author>
+  <deployer>GitHub</deployer>
+  <authorEmail>rutrac@microsoft.com</authorEmail>
+  <message>fix: resolve GraphServiceClient DI ambiguous constructor error
+
+DI container cannot choose between GraphServiceClient(IAuthenticationProvider)
+and GraphServiceClient(HttpClient). Use explicit factory to pick the
+IAuthenticationProvider constructor, matching the registered GraphTokenProvider.
+</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2026-05-22T19:43:07.3877781Z</lastSuccessEndTime>
+  <receivedTime>2026-05-22T19:34:14.1323255Z</receivedTime>
+  <startTime>2026-05-22T19:34:14.257263Z</startTime>
+  <endTime>2026-05-22T19:43:07.3877781Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>False</is_readonly>
+  <project_type>CUSTOM DEPLOYMENT</project_type>
+  <vsproject_id></vsproject_id>
+</deployment>

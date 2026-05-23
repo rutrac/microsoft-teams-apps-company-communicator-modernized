@@ -223,7 +223,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             }
             catch (ServiceException exception)
             {
-                switch (exception.StatusCode)
+                switch ((HttpStatusCode)exception.ResponseStatusCode)
                 {
                     case HttpStatusCode.Conflict:
                         // Note: application is already installed, we should fetch conversation id for this user.
@@ -255,10 +255,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             }
             catch (ServiceException exception)
             {
-                var errorMessage = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, exception.StatusCode, exception.Message);
+                var errorMessage = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, (HttpStatusCode)exception.ResponseStatusCode, exception.Message);
                 log.LogError(exception, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
-                var exceptionDetails = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, exception.StatusCode, exception.ToString());
+                var exceptionDetails = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, (HttpStatusCode)exception.ResponseStatusCode, exception.ToString());
                 await this.sentNotificationDataRepository.SaveExceptionInSentNotificationDataEntityAsync(notificationId, recipient?.RecipientId, exceptionDetails);
                 return string.Empty;
             }

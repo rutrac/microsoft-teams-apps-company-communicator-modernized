@@ -1,4 +1,4 @@
-﻿// <copyright file="DataStreamFacade.cs" company="Microsoft">
+// <copyright file="DataStreamFacade.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,6 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
     using System.Threading.Tasks;
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
@@ -102,7 +103,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
                 }
                 catch (ServiceException serviceException)
                 {
-                    if (serviceException.StatusCode != HttpStatusCode.Forbidden)
+                    if ((HttpStatusCode)serviceException.ResponseStatusCode != HttpStatusCode.Forbidden)
                     {
                         throw;
                     }

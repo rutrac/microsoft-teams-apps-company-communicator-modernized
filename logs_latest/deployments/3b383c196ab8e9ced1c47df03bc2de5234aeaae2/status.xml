@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>3b383c196ab8e9ced1c47df03bc2de5234aeaae2</id>
+  <author>Rui Tracanas</author>
+  <deployer>GitHub</deployer>
+  <authorEmail>rutrac@microsoft.com</authorEmail>
+  <message>fix: migrate remaining 5 files to Teams JS SDK v2 (missed in previous commit)
+</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2026-05-22T12:46:02.8704865Z</lastSuccessEndTime>
+  <receivedTime>2026-05-22T12:37:38.9941937Z</receivedTime>
+  <startTime>2026-05-22T12:37:39.3854611Z</startTime>
+  <endTime>2026-05-22T12:46:02.8704865Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>False</is_readonly>
+  <project_type>CUSTOM DEPLOYMENT</project_type>
+  <vsproject_id></vsproject_id>
+</deployment>

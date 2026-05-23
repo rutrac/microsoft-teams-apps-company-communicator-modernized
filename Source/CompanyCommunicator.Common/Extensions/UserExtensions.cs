@@ -7,7 +7,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions
 {
     using System;
     using Microsoft.Graph;
-    using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using Microsoft.Graph.Models;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
 
     /// <summary>
     /// Extensions for User Ids.
@@ -26,7 +27,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions
                 throw new ArgumentNullException(nameof(userPrincipalName));
             }
 
-            return userPrincipalName.ToLower().Contains("#ext#") ? UserType.Guest : UserType.Member;
+            return userPrincipalName.ToLower().Contains("#ext#") ? CcUserType.Guest : CcUserType.Member;
         }
 
         /// <summary>

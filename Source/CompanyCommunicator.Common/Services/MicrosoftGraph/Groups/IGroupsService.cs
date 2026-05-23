@@ -8,6 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
 
     /// <summary>
     /// Interface for Groups Service.

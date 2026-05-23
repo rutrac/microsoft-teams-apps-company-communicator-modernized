@@ -1,4 +1,4 @@
-﻿// <copyright file="GroupDataControllerTest.cs" company="Microsoft">
+// <copyright file="GroupDataControllerTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,6 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Test.Controllers
     using FluentAssertions;
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
     using Microsoft.Teams.Apps.CompanyCommunicator.Controllers;

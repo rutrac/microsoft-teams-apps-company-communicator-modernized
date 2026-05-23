@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>d60ccabb4c7c34d00254418f8c9270d967e25087</id>
+  <author>Rui Tracanas</author>
+  <deployer>GitHub</deployer>
+  <authorEmail>rutrac@microsoft.com</authorEmail>
+  <message>fix: call app.initialize() non-awaited in signInSimpleEnd to satisfy SDK v2 initializeCalled check before notifySuccess
+</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2026-05-22T15:05:20.094273Z</lastSuccessEndTime>
+  <receivedTime>2026-05-22T14:57:01.6669249Z</receivedTime>
+  <startTime>2026-05-22T14:57:01.8547856Z</startTime>
+  <endTime>2026-05-22T15:05:20.094273Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>False</is_readonly>
+  <project_type>CUSTOM DEPLOYMENT</project_type>
+  <vsproject_id></vsproject_id>
+</deployment>
