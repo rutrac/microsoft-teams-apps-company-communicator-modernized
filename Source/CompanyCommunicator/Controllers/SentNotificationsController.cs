@@ -602,9 +602,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
 
                 await this.appSettingsService.SetUserAppIdAsync(appId);
             }
-            catch (ServiceException exception)
+            catch (Exception exception)
             {
-                // Failed to fetch app id.
+                // Failed to fetch app id (may be a Graph SDK version conflict at runtime).
                 this.logger.LogError(exception, $"Failed to get catalog app id. Error message: {exception.Message}.");
             }
         }
