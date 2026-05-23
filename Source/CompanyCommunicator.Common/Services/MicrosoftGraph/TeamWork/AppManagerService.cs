@@ -1,4 +1,4 @@
-﻿// <copyright file="AppManagerService.cs" company="Microsoft">
+// <copyright file="AppManagerService.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -10,6 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Policies;
 
     /// <summary>
@@ -17,14 +18,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     /// </summary>
     internal class AppManagerService : IAppManagerService
     {
-        private readonly IGraphServiceClient graphServiceClient;
+        private readonly GraphServiceClient graphServiceClient;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AppManagerService"/> class.
         /// </summary>
         /// <param name="graphServiceClient">V1 Graph service client.</param>
         internal AppManagerService(
-            IGraphServiceClient graphServiceClient)
+            GraphServiceClient graphServiceClient)
         {
             this.graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
         }
@@ -55,9 +56,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .Request()
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .AddAsync(userScopeTeamsAppInstallation));
+                    .PostAsync(userScopeTeamsAppInstallation));
         }
 
         /// <inheritdoc/>
@@ -73,7 +72,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
                 throw new ArgumentNullException(nameof(teamId));
             }
 
-            var userScopeTeamsAppInstallation = new TeamsAppInstallation()
+            var teamsAppInstallation = new TeamsAppInstallation()
             {
                 AdditionalData = new Dictionary<string, object>()
                 {
@@ -85,9 +84,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             await retryPolicy.ExecuteAsync(async () =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .Request()
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .AddAsync(userScopeTeamsAppInstallation));
+                    .PostAsync(teamsAppInstallation));
         }
 
         /// <inheritdoc/>
@@ -105,16 +102,16 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
             var pagedApps = await retryPolicy.ExecuteAsync(async () =>
-                 await this.graphServiceClient.Users[userId]
+                await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .Request()
-                    .Expand("teamsApp")
-                    .Filter($"teamsApp/id eq '{appId}'")
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync());
+                    .GetAsync(req =>
+                    {
+                        req.QueryParameters.Expand = new[] { "teamsApp" };
+                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                    }));
 
-            return pagedApps.CurrentPage.Any();
+            return pagedApps?.Value?.Any() ?? false;
         }
 
         /// <inheritdoc/>
@@ -134,13 +131,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             var pagedApps = await retryPolicy.ExecuteAsync(async () =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .Request()
-                    .Expand("teamsApp")
-                    .Filter($"teamsApp/id eq '{appId}'")
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync());
+                    .GetAsync(req =>
+                    {
+                        req.QueryParameters.Expand = new[] { "teamsApp" };
+                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                    }));
 
-            return pagedApps.CurrentPage.Any();
+            return pagedApps?.Value?.Any() ?? false;
         }
 
         /// <inheritdoc/>
@@ -161,13 +158,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .Request()
-                    .Expand("teamsApp")
-                    .Filter($"teamsApp/id eq '{appId}'")
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync());
+                    .GetAsync(req =>
+                    {
+                        req.QueryParameters.Expand = new[] { "teamsApp" };
+                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                    }));
 
-            return collection?.FirstOrDefault().Id;
+            return collection?.Value?.FirstOrDefault()?.Id;
         }
 
         /// <inheritdoc/>
@@ -187,13 +184,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             var collection = await retryPolicy.ExecuteAsync(async () =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .Request()
-                    .Expand("teamsApp")
-                    .Filter($"teamsApp/id eq '{appId}'")
-                    .WithMaxRetry(GraphConstants.MaxRetry)
-                    .GetAsync());
+                    .GetAsync(req =>
+                    {
+                        req.QueryParameters.Expand = new[] { "teamsApp" };
+                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                    }));
 
-            return collection?.FirstOrDefault().Id;
+            return collection?.Value?.FirstOrDefault()?.Id;
         }
     }
 }

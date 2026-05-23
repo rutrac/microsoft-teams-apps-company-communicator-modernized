@@ -1,4 +1,4 @@
-﻿// <copyright file="SyncAllUsersActivity.cs" company="Microsoft">
+// <copyright file="SyncAllUsersActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -15,12 +15,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Recipients;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend.Extensions;
@@ -147,14 +149,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             }
             catch (ServiceException serviceException)
             {
-                if (serviceException.StatusCode == HttpStatusCode.BadRequest)
+                if ((HttpStatusCode)serviceException.ResponseStatusCode == HttpStatusCode.BadRequest)
                 {
                     // this case is to handle expired delta link.
                     throw new InvalidOperationException();
                 }
                 else
                 {
-                    var errorMessage = this.localizer.GetString("FailedToGetAllUsersFormat", serviceException.StatusCode, serviceException.Message);
+                    var errorMessage = this.localizer.GetString("FailedToGetAllUsersFormat", (HttpStatusCode)serviceException.ResponseStatusCode, serviceException.Message);
                     await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                     throw serviceException;
                 }
@@ -176,7 +178,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             }
 
             // skip Guest users.
-            if (string.Equals(user.GetUserType(), UserType.Guest, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(user.GetUserType(), CcUserType.Guest, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

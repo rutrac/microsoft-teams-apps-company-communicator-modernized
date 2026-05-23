@@ -1,4 +1,4 @@
-﻿// <copyright file="GetMetadataActivity.cs" company="Microsoft">
+// <copyright file="GetMetadataActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -12,6 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using Microsoft.Azure.WebJobs.Extensions.DurableTask;
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
@@ -67,7 +68,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
             }
             catch (ServiceException serviceException)
             {
-                if (serviceException.StatusCode != HttpStatusCode.Forbidden)
+                if ((HttpStatusCode)serviceException.ResponseStatusCode != HttpStatusCode.Forbidden)
                 {
                     throw serviceException;
                 }

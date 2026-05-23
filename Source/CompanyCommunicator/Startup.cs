@@ -201,9 +201,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
             services.AddSecretsProvider(keyVaultUrl);
 
             // Add microsoft graph services.
-            services.AddScoped<IAuthenticationProvider, GraphTokenProvider>();
-            services.AddScoped<IGraphServiceClient>(sp =>
-                new GraphServiceClient(sp.GetRequiredService<IAuthenticationProvider>()));
+            services.AddScoped<GraphTokenProvider>();
+            services.AddScoped<GraphServiceClient>(sp =>
+                new GraphServiceClient(
+                    new Microsoft.Kiota.Abstractions.Authentication.BaseBearerTokenAuthenticationProvider(
+                        sp.GetRequiredService<GraphTokenProvider>())));
             services.AddScoped<IGraphServiceFactory, GraphServiceFactory>();
             services.AddScoped<IGroupsService>(sp => sp.GetRequiredService<IGraphServiceFactory>().GetGroupsService());
             services.AddScoped<IAppCatalogService>(sp => sp.GetRequiredService<IGraphServiceFactory>().GetAppCatalogService());

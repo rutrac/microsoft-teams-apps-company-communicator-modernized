@@ -8,7 +8,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     using System;
     using System.Linq;
     using System.Threading.Tasks;
-
     using Microsoft.Graph;
 
     /// <summary>
@@ -16,13 +15,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     /// </summary>
     internal class AppCatalogService : IAppCatalogService
     {
-        private readonly IGraphServiceClient graphServiceClient;
+        private readonly GraphServiceClient graphServiceClient;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AppCatalogService"/> class.
         /// </summary>
         /// <param name="graphServiceClient">Graph service client.</param>
-        internal AppCatalogService(IGraphServiceClient graphServiceClient)
+        internal AppCatalogService(GraphServiceClient graphServiceClient)
         {
             this.graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
         }
@@ -38,12 +37,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             var apps = await this.graphServiceClient
                 .AppCatalogs
                 .TeamsApps
-                .Request()
-                .Header(Common.Constants.PermissionTypeKey, GraphPermissionType.Delegate.ToString())
-                .Filter($"distributionMethod eq 'organization' and externalId eq '{externalId}'")
-                .GetAsync();
+                .GetAsync(req =>
+                {
+                    req.QueryParameters.Filter = $"distributionMethod eq 'organization' and externalId eq '{externalId}'";
+                });
 
-            return apps?.FirstOrDefault()?.Id;
+            return apps?.Value?.FirstOrDefault()?.Id;
         }
     }
 }

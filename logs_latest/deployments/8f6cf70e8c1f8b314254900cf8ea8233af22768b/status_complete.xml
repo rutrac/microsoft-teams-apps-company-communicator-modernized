@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>8f6cf70e8c1f8b314254900cf8ea8233af22768b</id>
+  <author>Rui Tracanas</author>
+  <deployer>GitHub</deployer>
+  <authorEmail>rutrac@microsoft.com</authorEmail>
+  <message>fix: remove UseHttpsRedirection - HTTPS is enforced at AFD layer, not in app
+</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2026-05-22T18:06:06.4368272Z</lastSuccessEndTime>
+  <receivedTime>2026-05-22T17:58:16.013597Z</receivedTime>
+  <startTime>2026-05-22T17:58:16.1732014Z</startTime>
+  <endTime>2026-05-22T18:06:06.4368272Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>False</is_readonly>
+  <project_type>CUSTOM DEPLOYMENT</project_type>
+  <vsproject_id></vsproject_id>
+</deployment>

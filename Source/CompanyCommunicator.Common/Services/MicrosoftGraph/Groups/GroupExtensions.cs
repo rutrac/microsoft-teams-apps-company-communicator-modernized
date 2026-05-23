@@ -7,6 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 {
     using System;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
 
     /// <summary>
     /// Group Extension.

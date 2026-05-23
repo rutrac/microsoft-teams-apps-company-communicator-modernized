@@ -10,6 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;

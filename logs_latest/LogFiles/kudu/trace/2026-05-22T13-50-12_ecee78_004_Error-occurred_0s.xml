@@ -1,0 +1,12 @@
+<step title="Error occurred" date="2026-05-22T13:50:12.530" instance="ecee78" type="error" text="GetLogEntryDetails() at C:\__w\1\s\Kudu.Core\Deployment\StructuredTextLogger.cs:104: The process cannot access the file &apos;C:\home\site\deployments\a1763d70a5adf899387bebbc3f6228f6fa867083\log.log&apos; because it is being used by another process." stackTrace="   at System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+   at System.IO.FileStream.Init(String path, FileMode mode, FileAccess access, Int32 rights, Boolean useRights, FileShare share, Int32 bufferSize, FileOptions options, SECURITY_ATTRIBUTES secAttrs, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+   at System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share, Int32 bufferSize, FileOptions options, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+   at System.IO.StreamReader..ctor(String path, Encoding encoding, Boolean detectEncodingFromByteOrderMarks, Int32 bufferSize, Boolean checkHost)
+   at System.IO.StreamReader..ctor(String path, Encoding encoding)
+   at System.IO.File.InternalReadAllLines(String path, Encoding encoding)
+   at System.IO.File.ReadAllLines(String path)
+   at System.IO.Abstractions.FileWrapper.ReadAllLines(String path)
+   at Kudu.Core.Infrastructure.FileSystemHelpers.ReadAllLines(String path)
+   at Kudu.Core.Deployment.StructuredTextLogger.GetLogEntryDetails(String entryId)" >
+  <step title="Cleanup Xml Logs" date="2026-05-22T13:50:12.577" /><!-- duration: 20ms -->
+</step><!-- duration: 78ms -->

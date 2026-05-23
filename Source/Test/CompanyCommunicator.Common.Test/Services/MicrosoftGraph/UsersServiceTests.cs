@@ -11,9 +11,11 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
     using System.Threading.Tasks;
     using FluentAssertions;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
+    using Microsoft.Kiota.Abstractions.Authentication;
+    using Microsoft.Kiota.Http.HttpClientLibrary;
     using Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Mock;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
-    using Moq;
     using Xunit;
 
     /// <summary>
@@ -28,8 +30,9 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
         public void CreateInstance_AllParameters_ShouldBeSuccess()
         {
             // Arrange
-            Mock<IGraphServiceClient> graphServiceClientMock = new Mock<IGraphServiceClient>();
-            Action action = () => new UsersService(graphServiceClientMock.Object);
+            Action action = () => new UsersService(
+                new GraphServiceClient(
+                    new BaseBearerTokenAuthenticationProvider(new MockAuthenticationHelper())));
 
             // Act and Assert.
             action.Should().NotThrow();
@@ -210,7 +213,10 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Services.Microsoft
                 },
             });
 
-            GraphServiceClient client = new GraphServiceClient(new MockAuthenticationHelper(), mockHttpProvider);
+            var httpClient = new System.Net.Http.HttpClient(mockHttpProvider);
+            var authProvider = new BaseBearerTokenAuthenticationProvider(new MockAuthenticationHelper());
+            var adapter = new HttpClientRequestAdapter(authProvider, httpClient: httpClient);
+            GraphServiceClient client = new GraphServiceClient(adapter);
             return new UsersService(client);
         }
     }

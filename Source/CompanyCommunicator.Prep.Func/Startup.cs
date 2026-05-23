@@ -1,4 +1,4 @@
-﻿// <copyright file="Startup.cs" company="Microsoft">
+// <copyright file="Startup.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -176,12 +176,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
 
             builder.Services.AddConfidentialClient(useClientCertificates);
 
-            builder.Services.AddSingleton<IAuthenticationProvider, MsalAuthenticationProvider>();
+            builder.Services.AddSingleton<MsalAuthenticationProvider>();
 
             // Add Graph Clients.
-            builder.Services.AddSingleton<IGraphServiceClient>(
+            builder.Services.AddSingleton<GraphServiceClient>(
                 serviceProvider =>
-                new GraphServiceClient(serviceProvider.GetRequiredService<IAuthenticationProvider>()));
+                new GraphServiceClient(
+                    new Microsoft.Kiota.Abstractions.Authentication.BaseBearerTokenAuthenticationProvider(
+                        serviceProvider.GetRequiredService<MsalAuthenticationProvider>())));
 
             // Add Service Factory
             builder.Services.AddSingleton<IGraphServiceFactory, GraphServiceFactory>();

@@ -1,4 +1,4 @@
-﻿// <copyright file="GroupsService.cs" company="Microsoft">
+// <copyright file="GroupsService.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -10,6 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
 
     /// <summary>
@@ -17,13 +18,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     /// </summary>
     internal class GroupsService : IGroupsService
     {
-        private readonly IGraphServiceClient graphServiceClient;
+        private readonly GraphServiceClient graphServiceClient;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GroupsService"/> class.
         /// </summary>
         /// <param name="graphServiceClient">graph service client.</param>
-        internal GroupsService(IGraphServiceClient graphServiceClient)
+        internal GroupsService(GraphServiceClient graphServiceClient)
         {
             this.graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
         }
@@ -43,12 +44,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             {
                 var group = await this.graphServiceClient
                                 .Groups[id]
-                                .Request()
-                                .WithMaxRetry(this.MaxRetry)
-                                .Select(gr => new { gr.Id, gr.Mail, gr.DisplayName, gr.Visibility, })
-                                .Header(Common.Constants.PermissionTypeKey, GraphPermissionType.Delegate.ToString())
-                                .GetAsync();
-                yield return group;
+                                .GetAsync(req =>
+                                {
+                                    req.QueryParameters.Select = new[]
+                                    {
+                                        "id", "mail", "displayName", "visibility",
+                                    };
+                                });
+                if (group != null)
+                {
+                    yield return group;
+                }
             }
         }
 
@@ -85,41 +91,28 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             return groupList;
         }
 
-        /// <summary>
-        /// Search M365 groups, distribution groups, security groups based on query and visibilty.
-        /// </summary>
-        /// <param name="query">query param.</param>
-        /// <param name="resultCount">page size.</param>
-        /// <param name="includeHiddenMembership">boolean to filter hidden membership.</param>
-        /// <returns>list of group.</returns>
         private async Task<List<Group>> SearchM365GroupsAsync(string query, int resultCount, bool includeHiddenMembership = false)
         {
             string filterQuery = $"groupTypes/any(c:c+eq+'Unified') and mailEnabled eq true and (startsWith(mail,'{query}') or startsWith(displayName,'{query}'))";
-            var groupsPaged = await this.SearchAsync(filterQuery, resultCount);
+            var groupsPaged = await this.SearchInternalAsync(filterQuery, resultCount);
             if (includeHiddenMembership)
             {
-                return groupsPaged.CurrentPage.ToList();
+                return groupsPaged?.Value?.ToList() ?? new List<Group>();
             }
 
-            var groupList = groupsPaged.CurrentPage.
-                                        Where(group => !group.IsHiddenMembership()).
-                                        ToList();
-            while (groupsPaged.NextPageRequest != null && groupList.Count() < resultCount)
+            var groupList = groupsPaged?.Value?
+                .Where(group => !group.IsHiddenMembership())
+                .ToList() ?? new List<Group>();
+
+            while (groupsPaged?.OdataNextLink != null && groupList.Count() < resultCount)
             {
-                groupsPaged = await groupsPaged.NextPageRequest.GetAsync();
-                groupList.AddRange(groupsPaged.CurrentPage.
-                          Where(group => !group.IsHiddenMembership()));
+                groupsPaged = await this.graphServiceClient.Groups.WithUrl(groupsPaged.OdataNextLink).GetAsync();
+                groupList.AddRange(groupsPaged?.Value?.Where(group => !group.IsHiddenMembership()) ?? Enumerable.Empty<Group>());
             }
 
             return groupList.Take(resultCount).ToList();
         }
 
-        /// <summary>
-        /// Search Distribution Groups based on query.
-        /// </summary>
-        /// <param name="query">query param.</param>
-        /// <param name="resultCount">total page size.</param>
-        /// <returns>list of distribution group.</returns>
         private async Task<IEnumerable<Group>> AddDistributionGroupAsync(string query, int resultCount)
         {
             if (resultCount == 0)
@@ -128,26 +121,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             string filterforDL = $"mailEnabled eq true and (startsWith(mail,'{query}') or startsWith(displayName,'{query}'))";
-            var distributionGroups = await this.SearchAsync(filterforDL, resultCount);
+            var distributionGroups = await this.SearchInternalAsync(filterforDL, resultCount);
 
-            // Filtering the result only for distribution groups.
-            var distributionGroupList = distributionGroups.CurrentPage.
-                                                           Where(dg => dg.GroupTypes.IsNullOrEmpty()).ToList();
-            while (distributionGroups.NextPageRequest != null && distributionGroupList.Count() < resultCount)
+            var distributionGroupList = distributionGroups?.Value?
+                .Where(dg => dg.GroupTypes.IsNullOrEmpty()).ToList() ?? new List<Group>();
+
+            while (distributionGroups?.OdataNextLink != null && distributionGroupList.Count() < resultCount)
             {
-                distributionGroups = await distributionGroups.NextPageRequest.GetAsync();
-                distributionGroupList.AddRange(distributionGroups.CurrentPage.Where(dg => dg.GroupTypes.IsNullOrEmpty()));
+                distributionGroups = await this.graphServiceClient.Groups.WithUrl(distributionGroups.OdataNextLink).GetAsync();
+                distributionGroupList.AddRange(distributionGroups?.Value?.Where(dg => dg.GroupTypes.IsNullOrEmpty()) ?? Enumerable.Empty<Group>());
             }
 
             return distributionGroupList.Take(resultCount);
         }
 
-        /// <summary>
-        /// Search Security Groups based on query.
-        /// </summary>
-        /// <param name="query">query param.</param>
-        /// <param name="resultCount">total page size.</param>
-        /// <returns>list of security group.</returns>
         private async Task<IEnumerable<Group>> AddSecurityGroupAsync(string query, int resultCount)
         {
             if (resultCount == 0)
@@ -156,34 +143,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             string filterforSG = $"mailEnabled eq false and securityEnabled eq true and startsWith(displayName,'{query}')";
-            var sgGroups = await this.SearchAsync(filterforSG, resultCount);
-            return sgGroups.CurrentPage.Take(resultCount);
+            var sgGroups = await this.SearchInternalAsync(filterforSG, resultCount);
+            return sgGroups?.Value?.Take(resultCount) ?? Enumerable.Empty<Group>();
         }
 
-        /// <summary>
-        /// Search M365 groups,sistribution groups, security groups based on query.
-        /// </summary>
-        /// <param name="filterQuery">query param.</param>
-        /// <param name="resultCount">page size.</param>
-        /// <returns>graph group collection.</returns>
-        private async Task<IGraphServiceGroupsCollectionPage> SearchAsync(string filterQuery, int resultCount)
+        private async Task<Microsoft.Graph.Models.GroupCollectionResponse> SearchInternalAsync(string filterQuery, int resultCount)
         {
             return await this.graphServiceClient
-                                   .Groups
-                                   .Request()
-                                   .WithMaxRetry(this.MaxRetry)
-                                   .Filter(filterQuery)
-                                   .Select(group => new
-                                   {
-                                       group.Id,
-                                       group.Mail,
-                                       group.DisplayName,
-                                       group.Visibility,
-                                       group.GroupTypes,
-                                   }).
-                                   Top(resultCount)
-                                   .Header(Common.Constants.PermissionTypeKey, GraphPermissionType.Delegate.ToString())
-                                   .GetAsync();
+                .Groups
+                .GetAsync(req =>
+                {
+                    req.QueryParameters.Filter = filterQuery;
+                    req.QueryParameters.Select = new[] { "id", "mail", "displayName", "visibility", "groupTypes" };
+                    req.QueryParameters.Top = resultCount;
+                });
         }
     }
 }

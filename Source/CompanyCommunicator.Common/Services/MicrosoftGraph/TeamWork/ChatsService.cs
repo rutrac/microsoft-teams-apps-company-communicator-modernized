@@ -15,7 +15,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
     /// </summary>
     internal class ChatsService : IChatsService
     {
-        private readonly IGraphServiceClient graphServiceClient;
+        private readonly GraphServiceClient graphServiceClient;
         private readonly IAppManagerService appManagerService;
 
         /// <summary>
@@ -24,7 +24,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
         /// <param name="graphServiceClient">Graph service client.</param>
         /// <param name="appManagerService">App manager service.</param>
         internal ChatsService(
-            IGraphServiceClient graphServiceClient,
+            GraphServiceClient graphServiceClient,
             IAppManagerService appManagerService)
         {
             this.graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
@@ -46,13 +46,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 
             var installationId = await this.appManagerService.GetAppInstallationIdForUserAsync(appId, userId);
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var chat = await retryPolicy.ExecuteAsync(async () => await this.graphServiceClient.Users[userId]
-                .Teamwork
-                .InstalledApps[installationId]
-                .Chat
-                .Request()
-                .WithMaxRetry(GraphConstants.MaxRetry)
-                .GetAsync());
+            var chat = await retryPolicy.ExecuteAsync(async () =>
+                await this.graphServiceClient.Users[userId]
+                    .Teamwork
+                    .InstalledApps[installationId]
+                    .Chat
+                    .GetAsync());
 
             return chat?.Id;
         }

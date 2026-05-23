@@ -1,4 +1,4 @@
-﻿// <copyright file="SyncGroupMembersActivityTest.cs" company="Microsoft">
+// <copyright file="SyncGroupMembersActivityTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -13,11 +13,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
     using Moq;

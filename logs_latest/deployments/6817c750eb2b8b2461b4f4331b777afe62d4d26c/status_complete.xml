@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>6817c750eb2b8b2461b4f4331b777afe62d4d26c</id>
+  <author>Rui Tracanas</author>
+  <deployer>GitHub</deployer>
+  <authorEmail>rutrac@microsoft.com</authorEmail>
+  <message>fix: check raw 'upn' and 'preferred_username' claims for v2 token auth
+
+Microsoft.Identity.Web disables inbound claim mapping by default, so
+JWT v2 token claims are stored under their raw names ('upn', not the
+long-form ClaimTypes.Upn). The UPN check was always failing, causing
+403 for all users including authorized ones.
+</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2026-05-22T19:08:41.682411Z</lastSuccessEndTime>
+  <receivedTime>2026-05-22T18:59:59.9979297Z</receivedTime>
+  <startTime>2026-05-22T19:00:00.2358824Z</startTime>
+  <endTime>2026-05-22T19:08:41.682411Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>False</is_readonly>
+  <project_type>CUSTOM DEPLOYMENT</project_type>
+  <vsproject_id></vsproject_id>
+</deployment>

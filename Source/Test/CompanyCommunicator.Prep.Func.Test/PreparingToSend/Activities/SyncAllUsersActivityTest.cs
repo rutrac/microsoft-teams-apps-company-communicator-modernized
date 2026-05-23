@@ -1,4 +1,4 @@
-﻿// <copyright file="SyncAllUsersActivityTest.cs" company="Microsoft">
+// <copyright file="SyncAllUsersActivityTest.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -14,11 +14,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Recipients;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
@@ -78,14 +81,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
             string deltaLink = "deltaLink";
             IEnumerable<UserDataEntity> userDataResponse = new List<UserDataEntity>()
             {
-               new UserDataEntity() { Name = "user1", UserType = UserType.Member },
-               new UserDataEntity() { Name = "user2", UserType = UserType.Member },
+               new UserDataEntity() { Name = "user1", UserType = CcUserType.Member },
+               new UserDataEntity() { Name = "user2", UserType = CcUserType.Member },
             };
             NotificationDataEntity notification = new NotificationDataEntity()
             {
                 Id = "notificationId1",
             };
-            (IEnumerable<User>, string) tuple = (new List<User>() { new User() { Id = "101", UserType = UserType.Member } }, deltaLink);
+            (IEnumerable<User>, string) tuple = (new List<User>() { new User() { Id = "101", UserType = CcUserType.Member } }, deltaLink);
             this.userDataRepository
                 .Setup(x => x.GetDeltaLinkAsync())
                 .ReturnsAsync(deltaLink);
@@ -134,8 +137,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
             string deltaLink = "deltaLink";
             IEnumerable<UserDataEntity> userDataResponse = new List<UserDataEntity>()
             {
-               new UserDataEntity() { Name = "user1", UserType = UserType.Member },
-               new UserDataEntity() { Name = "user2", UserType = UserType.Guest },
+               new UserDataEntity() { Name = "user1", UserType = CcUserType.Member },
+               new UserDataEntity() { Name = "user2", UserType = CcUserType.Guest },
             };
             NotificationDataEntity notification = new NotificationDataEntity()
             {
@@ -185,8 +188,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
             string deltaLink = "deltaLink";
             IEnumerable<UserDataEntity> userDataResponse = new List<UserDataEntity>()
             {
-               new UserDataEntity() { Name = "user1", UserType = UserType.Member },
-               new UserDataEntity() { Name = "user2", UserType = UserType.Guest },
+               new UserDataEntity() { Name = "user1", UserType = CcUserType.Member },
+               new UserDataEntity() { Name = "user2", UserType = CcUserType.Guest },
             };
             NotificationDataEntity notification = new NotificationDataEntity()
             {
@@ -302,7 +305,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
                 .Setup(x => x.GetAllAsync(It.IsAny<string>(), null))
                 .ReturnsAsync(userDataResponse);
 
-            var serviceException = new ServiceException(null, null, HttpStatusCode.BadRequest);
+            var serviceException = new ODataError() { ResponseStatusCode = (int)HttpStatusCode.BadRequest };
             this.userService.Setup(x => x.GetAllUsersAsync(It.IsAny<string>())).ThrowsAsync(serviceException);
 
             Func<Task> task = async () => await activityContext.RunAsync(notification, this.logger.Object);
@@ -325,7 +328,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
             string deltaLink = "deltaLink";
             IEnumerable<UserDataEntity> userDataResponse = new List<UserDataEntity>()
             {
-               new UserDataEntity() { Name = string.Empty, UserType = UserType.Member },
+               new UserDataEntity() { Name = string.Empty, UserType = CcUserType.Member },
             };
             NotificationDataEntity notification = new NotificationDataEntity()
             {
@@ -382,10 +385,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Test.PreparingToSen
             var activityContext = this.GetSyncAllUsersActivity();
             var userList = new List<UserDataEntity>()
             {
-               new UserDataEntity() { Name = "user1", UserType = UserType.Guest },
+               new UserDataEntity() { Name = "user1", UserType = CcUserType.Guest },
             };
             var notification = new NotificationDataEntity() { Id = "notificationId1" };
-            var tuple = (new List<User>() { new User() { Id = "101", UserType = UserType.Member } }, string.Empty);
+            var tuple = (new List<User>() { new User() { Id = "101", UserType = CcUserType.Member } }, string.Empty);
 
             this.userDataRepository
                 .Setup(x => x.GetDeltaLinkAsync())
