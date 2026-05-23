@@ -346,3 +346,5 @@ Deployment/armparams.runtime.json
 logs_latest/
 Deployment/logs.zip
 Deployment/deploy.ps1.new
+
+Deployment/parameters.json.local
