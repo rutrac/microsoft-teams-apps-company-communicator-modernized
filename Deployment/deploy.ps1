@@ -314,7 +314,19 @@ function CreateAzureADApp {
             if ($updateDecision -eq 0) {
                 WriteI -message "Updating the existing app..."
 
-                az ad app update --id $app.appId --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+                $updateSuccess = $false
+                for ($updateAttempt = 1; $updateAttempt -le 4; $updateAttempt++) {
+                    az ad app update --id $app.appId --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+                    if ($LASTEXITCODE -eq 0) { $updateSuccess = $true; break }
+                    if ($updateAttempt -lt 4) {
+                        WriteW -message "App update timed out. Retrying in 15s ($updateAttempt/4)..."
+                        Start-Sleep -Seconds 15
+                    }
+                }
+                if (-not $updateSuccess) {
+                    WriteE -message "Failed to update Azure AD app '$appName' after 4 attempts."
+                    return $null
+                }
 
                 WriteI -message "Waiting for app update to finish..."
 
@@ -326,8 +338,20 @@ function CreateAzureADApp {
                 return $null
             }
         } else {
-            # Create Azure AD app registration using CLI
-            az ad app create --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+            # Create Azure AD app registration using CLI (with retry for transient Graph API timeouts)
+            $createSuccess = $false
+            for ($createAttempt = 1; $createAttempt -le 4; $createAttempt++) {
+                az ad app create --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+                if ($LASTEXITCODE -eq 0) { $createSuccess = $true; break }
+                if ($createAttempt -lt 4) {
+                    WriteW -message "App creation timed out. Retrying in 15s ($createAttempt/4)..."
+                    Start-Sleep -Seconds 15
+                }
+            }
+            if (-not $createSuccess) {
+                WriteE -message "Failed to create Azure AD app '$appName' after 4 attempts."
+                return $null
+            }
 
             WriteI -message "Waiting for app creation to finish..."
 
