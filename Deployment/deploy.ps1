@@ -188,7 +188,8 @@ function validateresourcenames {
     )
 
     if ($resourceinfo.servicetype -eq "applicationinsights") {
-        if ($null -eq (get-azapplicationinsights | where-object name -eq $resourceinfo.name)) {
+        $aiExists = az monitor app-insights component list --subscription $parameters.subscriptionId.value -o json 2>$null | ConvertFrom-Json | Where-Object { $_.name -eq $resourceinfo.name }
+        if ($null -eq $aiExists) {
             WriteS -message "Application Insights resource ($($resourceinfo.name)) is available."
             return $true
         } else {
@@ -209,14 +210,12 @@ function validateresourcenames {
         }
     }
 }
-# Get access token from the logged-in user.
+# Get access token from the logged-in az CLI session.
 function get-accesstokenfromcurrentuser {
     try {
-        $azcontext = get-azcontext
-        $azprofile = [microsoft.azure.commands.common.authentication.abstractions.azurermprofileprovider]::instance.profile
-        $profileclient = new-object -typename microsoft.azure.commands.resourcemanager.common.rmprofileclient -argumentlist $azprofile
-        $token = $profileclient.acquireaccesstoken($azcontext.subscription.tenantid)
-        ('bearer ' + $token.accesstoken)
+        $token = az account get-access-token --query accessToken -o tsv
+        if ($LASTEXITCODE -ne 0) { throw "az account get-access-token failed" }
+        ('Bearer ' + $token.Trim())
     }
     catch {
         throw
@@ -774,44 +773,17 @@ function GrantAdminConsent {
 }
 
 # Azure AD app update. Assigning Admin-consent,RedirectUris,IdentifierUris,Optionalclaim etc.
+# Rewritten to use az CLI + Microsoft Graph REST API (az rest) instead of the retired AzureAD PS module.
 function ADAppUpdate {
     Param(
         [Parameter(Mandatory = $true)] $appdomainName,
         [Parameter(Mandatory = $true)] $appId
     )
-            $configAppId = $appId
-            $azureDomainBase = $appdomainName
-            $configAppUrl = "https://$azureDomainBase"
-            $RedirectUris = ($configAppUrl + '/signin-simple-end')
-            $IdentifierUris = "api://$azureDomainBase"
-            $appName = $parameters.baseResourceName.Value
-
-    function CreatePreAuthorizedApplication(
-        [string] $applicationIdToPreAuthorize,
-        [string] $scopeId) {
-        $preAuthorizedApplication = New-Object 'Microsoft.Open.MSGraph.Model.PreAuthorizedApplication'
-        $preAuthorizedApplication.AppId = $applicationIdToPreAuthorize
-        $preAuthorizedApplication.DelegatedPermissionIds = @($scopeId)
-        return $preAuthorizedApplication
-    }
-
-    function CreateScope(
-        [string] $value,
-        [string] $userConsentDisplayName,
-        [string] $userConsentDescription,
-        [string] $adminConsentDisplayName,
-        [string] $adminConsentDescription) {
-        $scope = New-Object Microsoft.Open.MsGraph.Model.PermissionScope
-        $scope.Id = New-Guid
-        $scope.Value = $value
-        $scope.UserConsentDisplayName = $userConsentDisplayName
-        $scope.UserConsentDescription = $userConsentDescription
-        $scope.AdminConsentDisplayName = $adminConsentDisplayName
-        $scope.AdminConsentDescription = $adminConsentDescription
-        $scope.IsEnabled = $true
-        $scope.Type = "User"
-        return $scope
-    }
+    $configAppId = $appId
+    $azureDomainBase = $appdomainName
+    $configAppUrl = "https://$azureDomainBase"
+    $RedirectUris = ($configAppUrl + '/signin-simple-end')
+    $IdentifierUris = "api://$azureDomainBase/$configAppId"
 
     # Grant Admin consent
     GrantAdminConsent $configAppId
@@ -822,149 +794,129 @@ function ADAppUpdate {
     # Assigning graph permissions
     az ad app update --id $configAppId --required-resource-accesses './AadAppManifest.json'
 
-    Import-Module AzureAD
+    # Get the object ID (required for Graph API calls; appId and objectId are different)
+    $appObjRaw = az ad app show --id $configAppId | ConvertFrom-Json
+    $applicationObjectId = $appObjRaw.id
 
-    $apps = Get-AzureADApplication -Filter "DisplayName eq '$appName'"
-
-    if (0 -eq $apps.Length) {
-        $app = New-AzureADApplication -DisplayName $appName
-    } else {
-        $app = $apps[0]
-    }
-
-    $applicationObjectId = $app.ObjectId
-
-    $app = Get-AzureADMSApplication -ObjectId $applicationObjectId
+    # Fetch full application object via Graph API
+    $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
 
     # Do nothing if the app has already been configured
-    if ($app.IdentifierUris.Count -gt 0) {
-        WriteS -message "`Graph application is already configured."
+    if ($app.identifierUris.Count -gt 0) {
+        WriteS -message "Graph application is already configured."
         return
     }
     WriteI -message "`nUpdating graph app..."
 
-    #Removing default scope user_impersonation
-    $DEFAULT_SCOPE=$(az ad app show --id $configAppId | jq '.oauth2Permissions[0].isEnabled = false' | jq -r '.oauth2Permissions')
-    $DEFAULT_SCOPE>>scope.json
-    az ad app update --id $configAppId --set oauth2Permissions=@scope.json
-    Remove-Item .\scope.json
-    az ad app update --id $configAppId --remove oauth2Permissions
-
-    #Re-assign app detail after removing default scope user_impersonation
-    $apps = Get-AzureADApplication -Filter "DisplayName eq '$appName'"
-
-    if (0 -eq $apps.Length) {
-        $app = New-AzureADApplication -DisplayName $appName
-    } else {
-        $app = $apps[0]
+    # Disable then remove the default user_impersonation scope (Graph API requires two-step: disable then delete)
+    $existingScopes = $app.api.oauth2PermissionScopes
+    if ($existingScopes.Count -gt 0) {
+        $disabledScopes = $existingScopes | ForEach-Object { $_.isEnabled = $false; $_ }
+        $disablePatch = @{ api = @{ oauth2PermissionScopes = $disabledScopes } } | ConvertTo-Json -Depth 10 -Compress
+        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+            --body $disablePatch --headers "Content-Type=application/json" | Out-Null
+        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+            --body '{"api":{"oauth2PermissionScopes":[]}}' --headers "Content-Type=application/json" | Out-Null
     }
 
-    $applicationObjectId = $app.ObjectId
+    # Set both identifier URIs required for Teams SSO:
+    # - api://domain/appId  (used by Teams SSO v2 token requests via getAuthToken)
+    # - api://domain        (Teams also validates this form; must be registered for AADSTS500011 to not occur)
+    $identifierUriPatch = ('{"identifierUris":["api://' + $azureDomainBase + '","api://' + $azureDomainBase + '/' + $configAppId + '"]}')
+    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+        --body $identifierUriPatch --headers "Content-Type=application/json" | Out-Null
+    WriteI -message "App identifier URIs set (api://domain and api://domain/appId)"
 
-    $app = Get-AzureADMSApplication -ObjectId $applicationObjectId
-
-    # Expose an API
-    $appId = $app.AppId
-
-    az ad app update --id $configAppId --identifier-uris $IdentifierUris
-    WriteI -message "App URI set"
-
-    $configApp = az ad app update --id $configAppId --reply-urls $RedirectUris
+    az ad app update --id $configAppId --web-redirect-uris $RedirectUris
     WriteI -message "App reply-urls set"
 
     az ad app update --id $configAppId --optional-claims './AadOptionalClaims.json'
     WriteI -message "App optionalclaim set."
 
-    # Create access_as_user scope
-    # Add all existing scopes first
-    $scopes = New-Object System.Collections.Generic.List[Microsoft.Open.MsGraph.Model.PermissionScope]
-    $app.Api.Oauth2PermissionScopes | foreach-object { $scopes.Add($_) }
-    $scope = CreateScope -value "access_as_user"  `
-        -userConsentDisplayName "Access the API as the current logged-in user."  `
-        -userConsentDescription "Access the API as the current logged-in user."  `
-        -adminConsentDisplayName "Access the API as the current logged-in user."  `
-        -adminConsentDescription "Access the API as the current logged-in user."
-    $scopes.Add($scope)
-    $app.Api.Oauth2PermissionScopes = $scopes
-    Set-AzureADMSApplication -ObjectId $app.Id -Api $app.Api
+    # Create access_as_user scope via Graph API PATCH
+    $scopeId = (New-Guid).ToString()
+    $newScope = @{
+        id                      = $scopeId
+        value                   = "access_as_user"
+        userConsentDisplayName  = "Access the API as the current logged-in user."
+        userConsentDescription  = "Access the API as the current logged-in user."
+        adminConsentDisplayName = "Access the API as the current logged-in user."
+        adminConsentDescription = "Access the API as the current logged-in user."
+        isEnabled               = $true
+        type                    = "User"
+    }
+    $scopePatch = @{ api = @{ oauth2PermissionScopes = @($newScope) } } | ConvertTo-Json -Depth 10 -Compress
+    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+        --body $scopePatch --headers "Content-Type=application/json" | Out-Null
     WriteI -message "Scope access_as_user added."
 
-    # Authorize Teams mobile/desktop client and Teams web client to access API
-    $preAuthorizedApplications = New-Object 'System.Collections.Generic.List[Microsoft.Open.MSGraph.Model.PreAuthorizedApplication]'
-    $teamsRichClientPreauthorization = CreatePreAuthorizedApplication `
-        -applicationIdToPreAuthorize '1fec8e78-bce4-4aaf-ab1b-5451cc387264' `
-        -scopeId $scope.Id
-    $teamsWebClientPreauthorization = CreatePreAuthorizedApplication `
-        -applicationIdToPreAuthorize '5e3ce6c0-2b1f-4285-8d4b-75ee78787346' `
-        -scopeId $scope.Id
-    $preAuthorizedApplications.Add($teamsRichClientPreauthorization)
-    $preAuthorizedApplications.Add($teamsWebClientPreauthorization)
-    $app = Get-AzureADMSApplication -ObjectId $applicationObjectId
-    $app.Api.PreAuthorizedApplications = $preAuthorizedApplications
-    Set-AzureADMSApplication -ObjectId $app.Id -Api $app.Api
+    # Pre-authorize Teams mobile/desktop and web clients to access the API
+    $preAuthApps = @(
+        @{ appId = '1fec8e78-bce4-4aaf-ab1b-5451cc387264'; delegatedPermissionIds = @($scopeId) }
+        @{ appId = '5e3ce6c0-2b1f-4285-8d4b-75ee78787346'; delegatedPermissionIds = @($scopeId) }
+    )
+    $preAuthPatch = @{ api = @{ preAuthorizedApplications = $preAuthApps } } | ConvertTo-Json -Depth 10 -Compress
+    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+        --body $preAuthPatch --headers "Content-Type=application/json" | Out-Null
     WriteI -message "Teams mobile/desktop and web clients applications pre-authorized."
+
+    # Set requestedAccessTokenVersion = 2 so AAD issues v2 tokens for Teams SSO.
+    # Required because Microsoft.Identity.Web disables inbound claim mapping and expects v2 JWT claim names.
+    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+        --body '{"api":{"requestedAccessTokenVersion":2}}' --headers "Content-Type=application/json" | Out-Null
+    WriteI -message "requestedAccessTokenVersion set to 2 (Teams SSO v2 JWT format)"
 }
 
 # update app name
+# Rewritten to use az CLI directly (AzureAD module lookup was only needed to get the object ID, which is unused here).
 function ADAppUpdateDisplayName{
-	    Param(
+    Param(
         [Parameter(Mandatory = $true)] $appId,
-		[Parameter(Mandatory = $true)] $currentName,
+        [Parameter(Mandatory = $true)] $currentName,
         [Parameter(Mandatory = $true)] $newName
     )
-
-    $apps = Get-AzureADApplication -Filter "DisplayName eq '$currentName'"
-
-    if (0 -eq $apps.Length) {
-        $app = New-AzureADApplication -DisplayName $currentName
-    } else {
-        $app = $apps[0]
-    }
-
-    $applicationObjectId = $app.ObjectId
-
-    $app = Get-AzureADMSApplication -ObjectId $applicationObjectId
-
-    az ad app update --id $appId --set DisplayName=$newName
+    az ad app update --id $appId --display-name $newName
 }
 
-# Removing existing access of app.
+# Removing existing access of app (used on upgrades to reset the authors app before re-configuring).
+# Rewritten to use az CLI + Microsoft Graph REST API instead of the retired AzureAD PS module.
 function FormatAADApp {
     Param(
         [Parameter(Mandatory = $true)] $appId,
         [Parameter(Mandatory = $true)] $appName
     )
 
-    $apps = Get-AzureADApplication -Filter "DisplayName eq '$appName'"
+    # Get the object ID (required for Graph API calls)
+    $appObjRaw = az ad app show --id $appId | ConvertFrom-Json
+    $applicationObjectId = $appObjRaw.id
 
-    if (0 -eq $apps.Length) {
-        $app = New-AzureADApplication -DisplayName $appName
-    } else {
-        $app = $apps[0]
-    }
+    # Fetch full application object via Graph API
+    $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
 
-    $applicationObjectId = $app.ObjectId
-
-    $app = Get-AzureADMSApplication -ObjectId $applicationObjectId
-
-    # Do nothing if the app has already been configured
-    if ($app.IdentifierUris.Count -eq 0) {
-        WriteS -message "`n app already configured."
+    # Do nothing if the app has already been reset
+    if ($app.identifierUris.Count -eq 0) {
+        WriteS -message "App already configured."
         return
     }
 
     WriteI -message "`nUpdating app..."
-    $IdentifierUris = "api://$appId"
 
-    $DEFAULT_SCOPE=$(az ad app show --id $appId | jq '.oauth2Permissions[0].isEnabled = false' | jq -r '.oauth2Permissions')
-    $DEFAULT_SCOPE>>scope.json
-    az ad app update --id $appId --set oauth2Permissions=@scope.json
-    Remove-Item .\scope.json
-    az ad app update --id $appId --remove oauth2Permissions
-    az ad app update --id $appId --set oauth2AllowIdTokenImplicitFlow=false
-    az ad app update --id $appId --remove replyUrls --remove IdentifierUris
-    az ad app update --id $appId --identifier-uris "$IdentifierUris"
-    az ad app update --id $appId --remove IdentifierUris
+    # Disable then remove existing oauth2 permission scopes (two-step required by Graph API)
+    $existingScopes = $app.api.oauth2PermissionScopes
+    if ($existingScopes.Count -gt 0) {
+        $disabledScopes = $existingScopes | ForEach-Object { $_.isEnabled = $false; $_ }
+        $disablePatch = @{ api = @{ oauth2PermissionScopes = $disabledScopes } } | ConvertTo-Json -Depth 10 -Compress
+        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+            --body $disablePatch --headers "Content-Type=application/json" | Out-Null
+        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+            --body '{"api":{"oauth2PermissionScopes":[]}}' --headers "Content-Type=application/json" | Out-Null
+    }
+
+    # Clear implicit grant, redirect URIs, and identifier URIs in one PATCH
+    $resetPatch = '{"web":{"implicitGrantSettings":{"enableIdTokenIssuance":false},"redirectUris":[]},"identifierUris":[]}'
+    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
+        --body $resetPatch --headers "Content-Type=application/json" | Out-Null
+
     az ad app update --id $appId --optional-claims './AadOptionalClaims_Reset.json'
     az ad app update --id $appId --remove requiredResourceAccess
 }
@@ -1018,8 +970,7 @@ function GenerateAppManifestPackage {
 }
 
 function logout {
-    $logOut = az logout
-    $disAzAcc = Disconnect-AzAccount
+    az logout | Out-Null
 }
 
 # ---------------------------------------------------------
@@ -1057,19 +1008,6 @@ function logout {
 # Installing required modules
     WriteI -message "Checking if the required modules are installed..."
     $isAvailable = $true
-    if ((Get-Module -ListAvailable -Name "Az.*")) {
-        WriteI -message "Az module is available."
-    } else {
-        WriteW -message "Az module is missing."
-        $isAvailable = $false
-    }
-
-    if ((Get-Module -ListAvailable -Name "AzureAD")) {
-        WriteI -message "AzureAD module is available."
-    } else {
-        WriteW -message "AzureAD module is missing."
-        $isAvailable = $false
-    }
 
     if ((Get-Module -ListAvailable -Name "WriteAscii")) {
         WriteI -message "WriteAscii module is available."
@@ -1078,24 +1016,21 @@ function logout {
         $isAvailable = $false
     }
 
+    # Az module is only required when useCertificate=true (Key Vault certificate operations).
+    if ((Get-Module -ListAvailable -Name "Az.*")) {
+        WriteI -message "Az module is available."
+    } else {
+        WriteI -message "Az module is not installed. It is only required when useCertificate=true."
+    }
+
     if (-not $isAvailable)
     {
-        $confirmationTitle = WriteI -message "The script requires the following modules to deploy: `n 1.Az module`n 2.AzureAD module `n 3.WriteAscii module`nIf you proceed, the script will install the missing modules."
+        $confirmationTitle = WriteI -message "The script requires the following module to deploy: `n 1.WriteAscii module`nIf you proceed, the script will install the missing module."
         $confirmationQuestion = "Do you want to proceed?"
         $confirmationChoices = "&Yes", "&No" # 0 = Yes, 1 = No
 
         $updateDecision = $Host.UI.PromptForChoice($confirmationTitle, $confirmationQuestion, $confirmationChoices, 1)
             if ($updateDecision -eq 0) {
-                if (-not (Get-Module -ListAvailable -Name "Az.*")) {
-                    WriteI -message "Installing AZ module..."
-                    Install-Module Az -AllowClobber -Scope CurrentUser
-                }
-
-                if (-not (Get-Module -ListAvailable -Name "AzureAD")) {
-                    WriteI -message"Installing AzureAD module..."
-                    Install-Module AzureAD -Scope CurrentUser -Force
-                }
-
                 if (-not (Get-Module -ListAvailable -Name "WriteAscii")) {
                     WriteI -message "Installing WriteAscii module..."
                     Install-Module WriteAscii -Scope CurrentUser -Force
@@ -1123,19 +1058,15 @@ function logout {
     Write-Ascii -InputObject "Company Communicator v5.0" -ForegroundColor Magenta
     WriteI -message "Starting deployment..."
 
-# Initialize connections - Azure Az/CLI/Azure AD
-    WriteI -message "Login with with your Azure subscription account. Launching Azure sign-in window..."
-    Connect-AzAccount -Subscription $parameters.subscriptionId.Value -Tenant $parameters.subscriptionTenantId.value -ErrorAction Stop
+# Initialize connections - Azure CLI
+    WriteI -message "Login with your Azure subscription account. Launching Azure sign-in window..."
     $user = az login --tenant $parameters.subscriptionTenantId.value
     if ($LASTEXITCODE -ne 0) {
         WriteE -message "Login failed for user..."
         EXIT
     }
-
-    WriteI -message "Azure AD sign-in..."
-    $context = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile.DefaultContext
-    $aadToken = [Microsoft.Azure.Commands.Common.Authentication.AzureSession]::Instance.AuthenticationFactory.Authenticate($context.Account, $context.Environment, $context.Tenant.Id.ToString(), $null, [Microsoft.Azure.Commands.Common.Authentication.ShowDialog]::Never, $null, "https://graph.windows.net").AccessToken
-    $ADaccount = Connect-AzureAD -AadAccessToken $aadToken -AccountId $context.Account.Id -TenantId $context.tenant.id -ErrorAction Stop
+    az account set --subscription $parameters.subscriptionId.value | Out-Null
+    # Graph API calls use 'az rest' which reuses this az login session.
     $userAlias = (($user | ConvertFrom-Json) | where {$_.id -eq $parameters.subscriptionId.Value}).user.name
 
 
