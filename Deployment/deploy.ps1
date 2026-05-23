@@ -260,11 +260,20 @@ function IsResourceNameAvailable {
     select-object @{n = 'name'; e = { $name } }, @{n = 'type'; e = { $servicetype } }, @{n = 'available'; e = { $_ | select-object -expandproperty *available } }, reason, message
 }
 
-# To get the Azure AD app detail.
+# To get the Azure AD app detail (with retry for transient Graph API timeouts).
 function GetAzureADApp {
     param ($appName)
-    $app = az ad app list --filter "displayName eq '$appName'" | ConvertFrom-Json
-    return $app
+    $maxAttempts = 4
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $app = az ad app list --filter "displayName eq '$appName'" | ConvertFrom-Json
+        if ($LASTEXITCODE -eq 0) { return $app }
+        if ($attempt -lt $maxAttempts) {
+            WriteW -message "Graph API timeout looking up '$appName'. Retrying in 15s ($attempt/$maxAttempts)..."
+            Start-Sleep -Seconds 15
+        }
+    }
+    WriteE -message "Failed to look up Azure AD app '$appName' after $maxAttempts attempts."
+    return $null
 }
 
 # To get the Azure AD app detail with new secret.
@@ -305,7 +314,7 @@ function CreateAzureADApp {
             if ($updateDecision -eq 0) {
                 WriteI -message "Updating the existing app..."
 
-                az ad app update --id $app.appId --display-name $appName --sign-in-audience AzureADMultipleOrgs
+                az ad app update --id $app.appId --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
 
                 WriteI -message "Waiting for app update to finish..."
 
@@ -318,7 +327,7 @@ function CreateAzureADApp {
             }
         } else {
             # Create Azure AD app registration using CLI
-            az ad app create --display-name $appName --sign-in-audience AzureADMultipleOrgs
+            az ad app create --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
 
             WriteI -message "Waiting for app creation to finish..."
 
@@ -332,8 +341,20 @@ function CreateAzureADApp {
         $appSecret = $null;
         #Reset the app credentials to get the secret. The default validity of this secret will be for 1 year from the date its created.
         if ($ResetAppSecret) {
+            if ($null -eq $app) {
+                WriteE -message "Cannot create secret for '$appName': app lookup returned null."
+                return $null
+            }
             WriteI -message "Updating app secret..."
-            $appSecret = az ad app credential reset --id $app.appId --append | ConvertFrom-Json;
+            $maxSecretAttempts = 4
+            for ($secretAttempt = 1; $secretAttempt -le $maxSecretAttempts; $secretAttempt++) {
+                $appSecret = az ad app credential reset --id $app.appId --append | ConvertFrom-Json;
+                if ($LASTEXITCODE -eq 0 -and $null -ne $appSecret) { break }
+                if ($secretAttempt -lt $maxSecretAttempts) {
+                    WriteW -message "Secret creation timed out. Retrying in 15s ($secretAttempt/$maxSecretAttempts)..."
+                    Start-Sleep -Seconds 15
+                }
+            }
         }
 
         WriteS -message "Azure AD App: $appName registered successfully."
