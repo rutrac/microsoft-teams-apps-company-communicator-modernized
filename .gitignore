@@ -343,3 +343,6 @@ ASALocalRun/
 /Manifest/manifest.json
 /Manifest/*.zip
 Deployment/armparams.runtime.json
+logs_latest/
+Deployment/logs.zip
+Deployment/deploy.ps1.new
