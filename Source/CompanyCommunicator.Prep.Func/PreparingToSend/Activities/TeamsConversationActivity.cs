@@ -14,6 +14,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Graph;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
@@ -221,7 +222,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             {
                 await this.appManagerService.InstallAppForUserAsync(appId, recipient.RecipientId);
             }
-            catch (ServiceException exception)
+            catch (ODataError exception)
             {
                 switch ((HttpStatusCode)exception.ResponseStatusCode)
                 {
@@ -253,7 +254,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             {
                 return await this.chatsService.GetChatThreadIdAsync(recipient.RecipientId, appId);
             }
-            catch (ServiceException exception)
+            catch (ODataError exception)
             {
                 var errorMessage = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, (HttpStatusCode)exception.ResponseStatusCode, exception.Message);
                 log.LogError(exception, errorMessage);

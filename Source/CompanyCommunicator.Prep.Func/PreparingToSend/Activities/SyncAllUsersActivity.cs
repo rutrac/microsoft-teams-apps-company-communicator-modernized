@@ -16,6 +16,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
     using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
@@ -147,7 +148,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             {
                 return await this.usersService.GetAllUsersAsync(deltaLink);
             }
-            catch (ServiceException serviceException)
+            catch (ODataError serviceException)
             {
                 if ((HttpStatusCode)serviceException.ResponseStatusCode == HttpStatusCode.BadRequest)
                 {
@@ -192,7 +193,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                     return;
                 }
             }
-            catch (ServiceException)
+            catch (ODataError)
             {
                 // Failed to get user's license details. Will skip the user.
                 return;

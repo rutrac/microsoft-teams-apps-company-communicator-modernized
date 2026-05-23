@@ -73,7 +73,7 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Repositories.Notif
             // Arrange
             this.repositoryOptions.Setup(x => x.Value).Returns(new RepositoryOptions()
             {
-                StorageAccountConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountName = "devstoreaccount1",
                 EnsureTableExists = false,
             });
             Action action = () => new NotificationDataRepository(this.logger.Object, this.repositoryOptions.Object, this.rowKeyGenerator);
@@ -181,7 +181,7 @@ namespace Microsoft.Teams.App.CompanyCommunicator.Common.Test.Repositories.Notif
         {
             this.repositoryOptions.Setup(x => x.Value).Returns(new RepositoryOptions()
             {
-                StorageAccountConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountName = "devstoreaccount1",
                 EnsureTableExists = false,
             });
 

@@ -13,6 +13,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
     using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
@@ -101,7 +102,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
                         }
                     }
                 }
-                catch (ServiceException serviceException)
+                catch (ODataError serviceException)
                 {
                     if ((HttpStatusCode)serviceException.ResponseStatusCode != HttpStatusCode.Forbidden)
                     {
@@ -219,7 +220,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
                     UserType = this.localizer.GetString(sentNotification.UserType ?? "AdminConsentError"),
                     DeliveryStatus = sentNotification.DeliveryStatus is null ? sentNotification.DeliveryStatus : this.localizer.GetString(sentNotification.DeliveryStatus),
                     ReadStatus = sentNotification.ReadStatus.ToString(),
-                    Reactions = sentNotification.Reactions.ToString(),
+                    Reactions = sentNotification.Reactions,
                     StatusReason = this.GetStatusReason(sentNotification.ErrorMessage, sentNotification.StatusCode, notificationStatus),
                     Error = sentNotification.Exception,
                 }).ToList();

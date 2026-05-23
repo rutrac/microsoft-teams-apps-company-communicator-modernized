@@ -13,6 +13,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
     using Microsoft.Graph.Models;
+    using Microsoft.Graph.Models.ODataErrors;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
@@ -66,7 +67,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
             {
                 user = await this.usersService.GetUserAsync(exportRequiredData.exportDataEntity.PartitionKey);
             }
-            catch (ServiceException serviceException)
+            catch (ODataError serviceException)
             {
                 if ((HttpStatusCode)serviceException.ResponseStatusCode != HttpStatusCode.Forbidden)
                 {
