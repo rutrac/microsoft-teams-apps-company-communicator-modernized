@@ -547,11 +547,60 @@ function InvokeArmDeploymentWithParamsFile {
     $armParamsPath = Join-Path (Get-Location) 'armparams.runtime.json'
     ($armParamsObj | ConvertTo-Json -Depth 5) | Set-Content -Path $armParamsPath -Encoding utf8
 
-    return az deployment group create `
+    # Submit with --no-wait to avoid holding a long-lived TCP connection
+    # (the default blocking call can be open for 60+ minutes and gets reset by firewalls).
+    # Retry the submission itself on transient connection errors.
+    $submitAttempts = 0
+    $maxSubmitAttempts = 4
+    do {
+        $submitAttempts++
+        az deployment group create `
+            --name 'azuredeploy' `
+            --resource-group $parameters.resourceGroupName.Value `
+            --subscription $parameters.subscriptionId.Value `
+            --template-file 'azuredeploy.json' `
+            --parameters "@$armParamsPath" `
+            --no-wait 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { break }
+        if ($submitAttempts -lt $maxSubmitAttempts) {
+            WriteW -message "ARM deployment submission failed (attempt $submitAttempts/$maxSubmitAttempts). Retrying in 30s..."
+            Start-Sleep -Seconds 30
+        }
+    } while ($submitAttempts -lt $maxSubmitAttempts)
+
+    if ($LASTEXITCODE -ne 0) {
+        WriteE -message "ARM deployment submission failed after $maxSubmitAttempts attempts."
+        $global:LASTEXITCODE = 1
+        return $null
+    }
+
+    # Poll until deployment reaches a terminal state. Each poll is a short HTTP call.
+    WriteI -message "ARM deployment submitted. Polling every 60s for completion (this can take over an hour)..."
+    $pollIntervalSec = 60
+    $maxWaitSec = 14400  # 4 hours
+    $elapsedSec = 0
+    $deployState = ''
+    while ($elapsedSec -lt $maxWaitSec) {
+        Start-Sleep -Seconds $pollIntervalSec
+        $elapsedSec += $pollIntervalSec
+        $deployState = az deployment group show `
+            --name 'azuredeploy' `
+            --resource-group $parameters.resourceGroupName.Value `
+            --subscription $parameters.subscriptionId.Value `
+            --query "properties.provisioningState" -o tsv 2>$null
+        if ($deployState -eq 'Succeeded' -or $deployState -eq 'Failed' -or $deployState -eq 'Canceled') { break }
+        if (($elapsedSec % 300) -eq 0) {
+            WriteI -message "ARM deployment in progress (state: $deployState, elapsed: $([int]($elapsedSec/60)) min)..."
+        }
+    }
+
+    $deployResult = az deployment group show `
+        --name 'azuredeploy' `
         --resource-group $parameters.resourceGroupName.Value `
-        --subscription $parameters.subscriptionId.Value `
-        --template-file 'azuredeploy.json' `
-        --parameters "@$armParamsPath"
+        --subscription $parameters.subscriptionId.Value
+
+    $global:LASTEXITCODE = if ($deployState -eq 'Succeeded') { 0 } else { 1 }
+    return $deployResult
 }
 
 function DeployARMTemplate {
