@@ -908,6 +908,23 @@ function GrantAdminConsent {
 
 # Azure AD app update. Assigning Admin-consent,RedirectUris,IdentifierUris,Optionalclaim etc.
 # Rewritten to use az CLI + Microsoft Graph REST API (az rest) instead of the retired AzureAD PS module.
+
+# Helper: write JSON body to a temp file and call az rest PATCH.
+# Avoids PowerShell→external-command argument escaping with complex JSON bodies.
+function AzRestPatch {
+    Param(
+        [Parameter(Mandatory=$true)] [string]$Url,
+        [Parameter(Mandatory=$true)] [string]$Body
+    )
+    $tmp = [System.IO.Path]::GetTempFileName()
+    try {
+        [System.IO.File]::WriteAllText($tmp, $Body, [System.Text.Encoding]::UTF8)
+        az rest --method PATCH --url $Url --body "@$tmp" --headers "Content-Type=application/json" | Out-Null
+    } finally {
+        Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function ADAppUpdate {
     Param(
         [Parameter(Mandatory = $true)] $appdomainName,
@@ -926,7 +943,7 @@ function ADAppUpdate {
     az account set --subscription $parameters.subscriptionId.Value
 
     # Assigning graph permissions
-    az ad app update --id $configAppId --required-resource-accesses './AadAppManifest.json'
+    az ad app update --id $configAppId --required-resource-accesses (Join-Path $PSScriptRoot 'AadAppManifest.json')
 
     # Get the object ID (required for Graph API calls; appId and objectId are different)
     $appObjRaw = az ad app show --id $configAppId | ConvertFrom-Json
@@ -935,8 +952,9 @@ function ADAppUpdate {
     # Fetch full application object via Graph API
     $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
 
-    # Do nothing if the app has already been configured
-    if ($app.identifierUris.Count -gt 0) {
+    # Do nothing if the app has already been fully configured (identifier URIs + access_as_user scope)
+    $existingUserScope = $app.api.oauth2PermissionScopes | Where-Object { $_.value -eq 'access_as_user' }
+    if ($app.identifierUris.Count -gt 0 -and $null -ne $existingUserScope) {
         WriteS -message "Graph application is already configured."
         return
     }
@@ -947,24 +965,22 @@ function ADAppUpdate {
     if ($existingScopes.Count -gt 0) {
         $disabledScopes = $existingScopes | ForEach-Object { $_.isEnabled = $false; $_ }
         $disablePatch = @{ api = @{ oauth2PermissionScopes = $disabledScopes } } | ConvertTo-Json -Depth 10 -Compress
-        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-            --body $disablePatch --headers "Content-Type=application/json" | Out-Null
-        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-            --body '{"api":{"oauth2PermissionScopes":[]}}' --headers "Content-Type=application/json" | Out-Null
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $disablePatch
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"oauth2PermissionScopes":[]}}'
     }
 
     # Set both identifier URIs required for Teams SSO:
     # - api://domain/appId  (used by Teams SSO v2 token requests via getAuthToken)
     # - api://domain        (Teams also validates this form; must be registered for AADSTS500011 to not occur)
     $identifierUriPatch = ('{"identifierUris":["api://' + $azureDomainBase + '","api://' + $azureDomainBase + '/' + $configAppId + '"]}')
-    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-        --body $identifierUriPatch --headers "Content-Type=application/json" | Out-Null
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
     WriteI -message "App identifier URIs set (api://domain and api://domain/appId)"
 
     az ad app update --id $configAppId --web-redirect-uris $RedirectUris
     WriteI -message "App reply-urls set"
 
-    az ad app update --id $configAppId --optional-claims './AadOptionalClaims.json'
+    $optionalClaimsPath = Join-Path $PSScriptRoot 'AadOptionalClaims.json'
+    az ad app update --id $configAppId --optional-claims $optionalClaimsPath
     WriteI -message "App optionalclaim set."
 
     # Create access_as_user scope via Graph API PATCH
@@ -980,8 +996,7 @@ function ADAppUpdate {
         type                    = "User"
     }
     $scopePatch = @{ api = @{ oauth2PermissionScopes = @($newScope) } } | ConvertTo-Json -Depth 10 -Compress
-    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-        --body $scopePatch --headers "Content-Type=application/json" | Out-Null
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $scopePatch
     WriteI -message "Scope access_as_user added."
 
     # Pre-authorize Teams mobile/desktop and web clients to access the API
@@ -990,14 +1005,12 @@ function ADAppUpdate {
         @{ appId = '5e3ce6c0-2b1f-4285-8d4b-75ee78787346'; delegatedPermissionIds = @($scopeId) }
     )
     $preAuthPatch = @{ api = @{ preAuthorizedApplications = $preAuthApps } } | ConvertTo-Json -Depth 10 -Compress
-    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-        --body $preAuthPatch --headers "Content-Type=application/json" | Out-Null
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $preAuthPatch
     WriteI -message "Teams mobile/desktop and web clients applications pre-authorized."
 
     # Set requestedAccessTokenVersion = 2 so AAD issues v2 tokens for Teams SSO.
     # Required because Microsoft.Identity.Web disables inbound claim mapping and expects v2 JWT claim names.
-    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-        --body '{"api":{"requestedAccessTokenVersion":2}}' --headers "Content-Type=application/json" | Out-Null
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"requestedAccessTokenVersion":2}}'
     WriteI -message "requestedAccessTokenVersion set to 2 (Teams SSO v2 JWT format)"
 }
 
