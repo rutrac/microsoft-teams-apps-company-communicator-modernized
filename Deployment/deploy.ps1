@@ -1090,6 +1090,7 @@ function GenerateAppManifestPackage {
     copy-item -path $sourceManifestPath -destination $destManifestFilePath -Force
 
     # Replace merge fields with proper values in manifest file and save
+        $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
         $mergeFields = @{
             '<<companyName>>'   = $parameters.companyName.Value
             '<<botId>>'         = $appId
@@ -1098,6 +1099,7 @@ function GenerateAppManifestPackage {
             '<<privacyUrl>>'    = $parameters.privacyUrl.Value
             '<<termsOfUseUrl>>' = $parameters.termsOfUseUrl.Value
             '<<graphAppId>>'    = if ($graphAppId) { $graphAppId } else { $appId }
+            '<<version>>'       = $buildVersion
         }
         $appManifestContent = Get-Content $destManifestFilePath
         foreach ($mergeField in $mergeFields.GetEnumerator()) {
