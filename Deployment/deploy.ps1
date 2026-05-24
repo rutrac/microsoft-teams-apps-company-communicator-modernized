@@ -1276,7 +1276,7 @@ function logout {
 
         # Reading the deployment output.
         WriteI -message "Reading deployment outputs..."
-        if(($null -eq $deploymentOutput) -or ( $null -eq $deploymentOutput.properties) -or ($null -eq $deploymentOutput.properties.Outputs) -or ($deploymentOutput.properties.Outputs.keyVaultName) -or ($deploymentOutput.properties.Outputs.keyVaultName.Value))
+        if(($null -eq $deploymentOutput) -or ($null -eq $deploymentOutput.properties) -or ($null -eq $deploymentOutput.properties.Outputs) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName.Value))
         {
             $keyVaultName = $parameters.BaseResourceName.Value + 'vault'
             if($parameters.customDomainOption.Value -eq 'Azure Front Door')
@@ -1315,7 +1315,7 @@ function logout {
 
         # Reading the deployment output.
         WriteI -message "Reading deployment outputs..."
-        if(($null -eq $deploymentOutput) -or ( $null -eq $deploymentOutput.properties) -or ($null -eq $deploymentOutput.properties.Outputs) -or ($deploymentOutput.properties.Outputs.keyVaultName) -or ($deploymentOutput.properties.Outputs.keyVaultName.Value))
+        if(($null -eq $deploymentOutput) -or ($null -eq $deploymentOutput.properties) -or ($null -eq $deploymentOutput.properties.Outputs) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName.Value))
         {
             $keyVaultName = $parameters.BaseResourceName.Value + 'vault'
             if($parameters.customDomainOption.Value -eq 'Azure Front Door')
