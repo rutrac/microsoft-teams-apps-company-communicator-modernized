@@ -614,7 +614,38 @@ function DeployARMTemplate {
 
             WriteI -message "Fetching deployment status to check if deployment really failed..."
 
-            if(IsSourceControlTimeOut){
+            # Check if deployment reached Azure despite the connection error
+            $deployName = if ($parameters.useCertificate.Value) { 'azuredeploywithcert' } else { 'azuredeploy' }
+            $existingDeployState = az deployment group show `
+                --name $deployName `
+                --resource-group $parameters.resourceGroupName.Value `
+                --subscription $parameters.subscriptionId.Value `
+                --query "properties.provisioningState" -o tsv 2>$null
+
+            if ($existingDeployState -eq 'Running') {
+                WriteW -message "Connection was reset but ARM deployment is running in Azure. Waiting for it to complete (this can take over an hour)..."
+                az deployment group wait `
+                    --name $deployName `
+                    --resource-group $parameters.resourceGroupName.Value `
+                    --subscription $parameters.subscriptionId.Value `
+                    --created --timeout 7200 2>$null | Out-Null
+                $armDeploymentResult = az deployment group show `
+                    --name $deployName `
+                    --resource-group $parameters.resourceGroupName.Value `
+                    --subscription $parameters.subscriptionId.Value
+                $finalState = ($armDeploymentResult | ConvertFrom-Json).properties.provisioningState
+                if ($finalState -ne 'Succeeded') {
+                    CollectARMDeploymentLogs
+                    Throw $deploymentExceptionMessage
+                }
+                WriteS -message "ARM deployment completed successfully."
+            } elseif ($existingDeployState -eq 'Succeeded') {
+                WriteI -message "ARM deployment had already completed successfully. Fetching outputs..."
+                $armDeploymentResult = az deployment group show `
+                    --name $deployName `
+                    --resource-group $parameters.resourceGroupName.Value `
+                    --subscription $parameters.subscriptionId.Value
+            } elseif (IsSourceControlTimeOut) {
                 # wait couple of minutes & check deployment status...
                 $appserviceCodeSyncSuccess = WaitForCodeDeploymentSync $appServicesNames.Clone()
 
@@ -631,8 +662,17 @@ function DeployARMTemplate {
                     Throw $deploymentExceptionMessage
                 }
             } else {
-                CollectARMDeploymentLogs
-                Throw $deploymentExceptionMessage
+                # Deployment never reached Azure — retry once
+                WriteW -message "Deployment not found in Azure (connection reset before submission). Retrying ARM deployment..."
+                if ($parameters.useCertificate.Value) {
+                    $armDeploymentResult = az deployment group create --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --template-file 'azuredeploywithcert.json' --parameters "baseResourceName=$($parameters.baseResourceName.Value)" "authorClientId=$authorappId" "authorAppCertName=$($parameters.authorAppCertName.Value)" "graphAppId=$graphappid" "graphAppCertName=$($parameters.graphAppCertName.Value)" "userClientId=$userappId" "userAppCertName=$($parameters.userAppCertName.Value)" "senderUPNList=$($parameters.senderUPNList.Value)" "customDomainOption=$($parameters.customDomainOption.Value)" "appDisplayName=$($parameters.appDisplayName.Value)" "appDescription=$($parameters.appDescription.Value)" "appIconUrl=$($parameters.appIconUrl.Value)" "tenantId=$($parameters.tenantId.Value)" "hostingPlanSku=$($parameters.hostingPlanSku.Value)" "hostingPlanSize=$($parameters.hostingPlanSize.Value)" "location=$($parameters.region.Value)" "gitRepoUrl=$($parameters.gitRepoUrl.Value)" "gitBranch=$($parameters.gitBranch.Value)" "ProactivelyInstallUserApp=$($parameters.proactivelyInstallUserApp.Value)" "objectId=$($parameters.UserObjectId.Value)" "UserAppExternalId=$($parameters.userAppExternalId.Value)" "DefaultCulture=$($parameters.defaultCulture.Value)" "SupportedCultures=$($parameters.supportedCultures.Value)"  "serviceBusWebAppRoleNameGuid=$($parameters.serviceBusWebAppRoleNameGuid.Value)" "serviceBusPrepFuncRoleNameGuid=$($parameters.serviceBusPrepFuncRoleNameGuid.Value)" "serviceBusSendFuncRoleNameGuid=$($parameters.serviceBusSendFuncRoleNameGuid.Value)" "serviceBusDataFuncRoleNameGuid=$($parameters.serviceBusDataFuncRoleNameGuid.Value)" "storageAccountWebAppRoleNameGuid=$($parameters.storageAccountWebAppRoleNameGuid.Value)" "storageAccountPrepFuncRoleNameGuid=$($parameters.storageAccountPrepFuncRoleNameGuid.Value)" "storageAccountDataFuncRoleNameGuid=$($parameters.storageAccountDataFuncRoleNameGuid.Value)" "TargetingEnabled=$($parameters.TargetingEnabled.Value)" "MasterAdminUpns=$($parameters.MasterAdminUpns.Value)"
+                } else {
+                    $armDeploymentResult = InvokeArmDeploymentWithParamsFile $graphappid $authorappId $userappId $graphappsecret $authorsecret $usersecret
+                }
+                if ($LASTEXITCODE -ne 0) {
+                    CollectARMDeploymentLogs
+                    Throw $deploymentExceptionMessage
+                }
             }
         }
         else {
