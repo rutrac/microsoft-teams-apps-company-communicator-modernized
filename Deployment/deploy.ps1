@@ -1072,7 +1072,8 @@ function GenerateAppManifestPackage {
     Param(
         [Parameter(Mandatory = $true)] [ValidateSet('authors', 'users')] $manifestType,
         [Parameter(Mandatory = $true)] $appdomainName,
-        [Parameter(Mandatory = $true)] $appId
+        [Parameter(Mandatory = $true)] $appId,
+        [Parameter(Mandatory = $false)] $graphAppId
     )
 
         WriteI -message "`nGenerating package for $manifestType..."
@@ -1096,6 +1097,7 @@ function GenerateAppManifestPackage {
             '<<websiteUrl>>'    = $parameters.websiteUrl.Value
             '<<privacyUrl>>'    = $parameters.privacyUrl.Value
             '<<termsOfUseUrl>>' = $parameters.termsOfUseUrl.Value
+            '<<graphAppId>>'    = if ($graphAppId) { $graphAppId } else { $appId }
         }
         $appManifestContent = Get-Content $destManifestFilePath
         foreach ($mergeField in $mergeFields.GetEnumerator()) {
@@ -1352,8 +1354,8 @@ function logout {
     logout
 
 # Function call to generate manifest.zip folder for User and Author.
-    GenerateAppManifestPackage 'authors' $appdomainName $authorAppCred.appId
-    GenerateAppManifestPackage 'users' $appdomainName $userAppCred.appId
+    GenerateAppManifestPackage 'authors' $appdomainName $authorAppCred.appId $graphAppCred.appId
+    GenerateAppManifestPackage 'users' $appdomainName $userAppCred.appId $graphAppCred.appId
 
 # Open manifest folder
     Invoke-Item ..\Manifest\
