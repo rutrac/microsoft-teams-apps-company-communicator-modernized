@@ -181,6 +181,13 @@
         "description": "Location for all resources."
       }
     },
+    "secretExpirationDate": {
+      "type": "int",
+      "defaultValue": "[dateTimeToEpoch(dateTimeAdd(utcNow(), 'P2Y'))]",
+      "metadata": {
+        "description": "Unix epoch (seconds) when Key Vault secrets created by this template should expire. Defaults to deployment-time + 2 years. Redeploying refreshes the expiry."
+      }
+    },
     "gitRepoUrl": {
       "type": "string",
       "metadata": {
@@ -1054,7 +1061,8 @@
           "properties": {
             "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')),'2023-01-01').keys[0].value)]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         },
@@ -1070,7 +1078,8 @@
           "properties": {
             "value": "[listkeys(variables('authRuleResourceId'), '2017-04-01').primaryConnectionString]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         },
@@ -1085,7 +1094,8 @@
           "properties": {
             "value": "[parameters('userClientSecret')]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         },
@@ -1100,7 +1110,8 @@
           "properties": {
             "value": "[parameters('authorClientSecret')]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         },
@@ -1115,7 +1126,8 @@
           "properties": {
             "value": "[parameters('graphAppSecret')]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         },
@@ -1131,7 +1143,8 @@
           "properties": {
             "value": "[reference(resourceId('Microsoft.Insights/components/', variables('appInsightsName')), '2020-02-02').InstrumentationKey]",
             "attributes": {
-              "enabled": true
+              "enabled": true,
+              "exp": "[parameters('secretExpirationDate')]"
             }
           }
         }
