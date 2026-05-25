@@ -348,3 +348,5 @@ Deployment/logs.zip
 Deployment/deploy.ps1.new
 
 Deployment/parameters.json.local
+Deployment/parameters.local.json
+Deployment/parameters.*.local.json
