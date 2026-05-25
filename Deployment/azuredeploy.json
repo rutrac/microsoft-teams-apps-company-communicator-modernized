@@ -370,13 +370,18 @@
     {
       "type": "Microsoft.Storage/storageAccounts",
       "name": "[variables('storageAccountName')]",
-      "apiVersion": "2019-06-01",
+      "apiVersion": "2023-01-01",
       "location": "[parameters('location')]",
-      "kind": "Storage",
+      "kind": "StorageV2",
       "properties": {
         "supportsHttpsTrafficOnly": true,
         "allowBlobPublicAccess": false,
-        "minimumTlsVersion": "TLS1_2"
+        "minimumTlsVersion": "TLS1_2",
+        "defaultToOAuthAuthentication": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Allow"
+        }
       },
       "sku": {
         "name": "Standard_LRS"
@@ -384,12 +389,16 @@
     },
     {
       "type": "Microsoft.ServiceBus/namespaces",
-      "apiVersion": "2017-04-01",
+      "apiVersion": "2022-10-01-preview",
       "name": "[variables('serviceBusNamespaceName')]",
       "location": "[parameters('location')]",
       "sku": {
         "name": "Basic",
         "tier": "Basic"
+      },
+      "properties": {
+        "disableLocalAuth": false,
+        "minimumTlsVersion": "1.2"
       },
       "resources": [
         {
@@ -614,11 +623,13 @@
         "hostNamesDisabled": false,
         "containerSize": 0,
         "dailyMemoryTimeQuota": 0,
-        "httpsOnly": false,
+        "httpsOnly": true,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
           "netFrameworkVersion": "v8.0",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true,
           "cors": {
             "supportCredentials": true,
             "allowedOrigins": [
@@ -706,11 +717,13 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": false,
+        "httpsOnly": true,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
-          "netFrameworkVersion": "v8.0"
+          "netFrameworkVersion": "v8.0",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true
         }
       },
       "dependsOn": [
@@ -781,11 +794,13 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": false,
+        "httpsOnly": true,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
-          "netFrameworkVersion": "v8.0"
+          "netFrameworkVersion": "v8.0",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true
         }
       },
       "dependsOn": [
@@ -850,11 +865,13 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
-        "httpsOnly": false,
+        "httpsOnly": true,
         "siteConfig": {
           "ftpsState": "Disabled",
           "alwaysOn": "[not(variables('isSharedPlan'))]",
-          "netFrameworkVersion": "v8.0"
+          "netFrameworkVersion": "v8.0",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true
         }
       },
       "dependsOn": [
