@@ -1156,42 +1156,12 @@ function logout {
         WriteS -message "Azure CLI is installed."
     }
 
-# Installing required modules
-    WriteI -message "Checking if the required modules are installed..."
-    $isAvailable = $true
-
-    if ((Get-Module -ListAvailable -Name "WriteAscii")) {
-        WriteI -message "WriteAscii module is available."
-    } else {
-        WriteW -message "WriteAscii module is missing."
-        $isAvailable = $false
-    }
-
+# Check optional modules
     # Az module is only required when useCertificate=true (Key Vault certificate operations).
     if ((Get-Module -ListAvailable -Name "Az.*")) {
         WriteI -message "Az module is available."
     } else {
         WriteI -message "Az module is not installed. It is only required when useCertificate=true."
-    }
-
-    if (-not $isAvailable)
-    {
-        $confirmationTitle = WriteI -message "The script requires the following module to deploy: `n 1.WriteAscii module`nIf you proceed, the script will install the missing module."
-        $confirmationQuestion = "Do you want to proceed?"
-        $confirmationChoices = "&Yes", "&No" # 0 = Yes, 1 = No
-
-        $updateDecision = $Host.UI.PromptForChoice($confirmationTitle, $confirmationQuestion, $confirmationChoices, 1)
-            if ($updateDecision -eq 0) {
-                if (-not (Get-Module -ListAvailable -Name "WriteAscii")) {
-                    WriteI -message "Installing WriteAscii module..."
-                    Install-Module WriteAscii -Scope CurrentUser -Force
-                }
-            } else {
-                WriteE -message "You may install the modules manually by following the below link. Please re-run the script after the modules are installed. `nhttps://docs.microsoft.com/en-us/powershell/module/powershellget/install-module?view=powershell-7"
-                EXIT
-            }
-    } else {
-        WriteS -message "All the modules are available!"
     }
 
 # Load Parameters from JSON meta-data file
@@ -1206,7 +1176,10 @@ function logout {
     }
 
 # Start Deployment.
-    Write-Ascii -InputObject "Company Communicator v5.0" -ForegroundColor Magenta
+    $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
+    Write-Host ""
+    Write-Host "===== Company Communicator v$buildVersion =====" -ForegroundColor Magenta
+    Write-Host ""
     WriteI -message "Starting deployment..."
 
 # Initialize connections - Azure CLI
@@ -1363,4 +1336,6 @@ function logout {
     Invoke-Item ..\Manifest\
 
 # Deployment completed.
-    Write-Ascii -InputObject "DEPLOYMENT COMPLETED." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "===== DEPLOYMENT COMPLETED =====" -ForegroundColor Green
+    Write-Host ""
