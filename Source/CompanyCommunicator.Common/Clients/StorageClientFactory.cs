@@ -7,7 +7,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Clients
 {
     using System;
     using global::Azure.Core;
+    using global::Azure.Identity;
     using global::Azure.Storage.Blobs;
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories;
 
@@ -17,46 +19,42 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Clients
     public class StorageClientFactory : IStorageClientFactory
     {
         private readonly string storageConnectionString;
+        private readonly string storageAccountName;
+        private readonly bool useManagedIdentity;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StorageClientFactory"/> class.
         /// </summary>
-        /// <param name="repositoryOptions">User data repository.</param>
-        public StorageClientFactory(IOptions<RepositoryOptions> repositoryOptions)
+        /// <param name="repositoryOptions">Repository options.</param>
+        /// <param name="configuration">App configuration (for UseManagedIdentity + StorageAccountName).</param>
+        public StorageClientFactory(IOptions<RepositoryOptions> repositoryOptions, IConfiguration configuration)
         {
             this.storageConnectionString = repositoryOptions.Value.StorageAccountConnectionString;
+            this.storageAccountName = configuration.GetValue<string>("StorageAccountName");
+            this.useManagedIdentity = configuration.GetValue<bool>("UseManagedIdentity");
         }
 
         /// <inheritdoc/>
         public BlobContainerClient CreateBlobContainerClient()
         {
-            var options = new BlobClientOptions();
-
-            // configure retries
-            options.Retry.MaxRetries = 5; // default is 3
-            options.Retry.Mode = RetryMode.Exponential; // default is fixed retry policy
-            options.Retry.Delay = TimeSpan.FromSeconds(1); // default is 0.8s
-
-            return new BlobContainerClient(
-                this.storageConnectionString,
-                Constants.BlobContainerName,
-                options);
+            return this.CreateBlobContainerClient(Constants.BlobContainerName);
         }
 
         /// <inheritdoc/>
         public BlobContainerClient CreateBlobContainerClient(string blobContainerName)
         {
             var options = new BlobClientOptions();
+            options.Retry.MaxRetries = 5;
+            options.Retry.Mode = RetryMode.Exponential;
+            options.Retry.Delay = TimeSpan.FromSeconds(1);
 
-            // configure retries
-            options.Retry.MaxRetries = 5; // default is 3
-            options.Retry.Mode = RetryMode.Exponential; // default is fixed retry policy
-            options.Retry.Delay = TimeSpan.FromSeconds(1); // default is 0.8s
+            if (this.useManagedIdentity)
+            {
+                var blobContainerUri = new Uri($"https://{this.storageAccountName}.blob.core.windows.net/{blobContainerName}");
+                return new BlobContainerClient(blobContainerUri, new DefaultAzureCredential(), options);
+            }
 
-            return new BlobContainerClient(
-                this.storageConnectionString,
-                blobContainerName,
-                options);
+            return new BlobContainerClient(this.storageConnectionString, blobContainerName, options);
         }
     }
 }
