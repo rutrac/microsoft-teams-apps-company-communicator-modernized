@@ -89,7 +89,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                     using var writer = new StreamWriter(entryStream, System.Text.Encoding.UTF8);
                     using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
                     var metadataMap = new MetadataMap(this.localizer);
-                    csv.Configuration.RegisterClassMap(metadataMap);
+                    csv.Context.RegisterClassMap(metadataMap);
                     csv.WriteHeader(typeof(Metadata));
                     await csv.NextRecordAsync();
                     csv.WriteRecord(uploadData.metadata);
@@ -106,7 +106,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                         if (uploadData.sentNotificationDataEntity.Teams.Any())
                         {
                             var teamDataMap = new TeamDataMap(this.localizer);
-                            csv.Configuration.RegisterClassMap(teamDataMap);
+                            csv.Context.RegisterClassMap(teamDataMap);
                             var teamDataStream = this.userDataStream.GetTeamDataStreamAsync(uploadData.sentNotificationDataEntity.Id, uploadData.sentNotificationDataEntity.Status);
                             await foreach (var data in teamDataStream)
                             {
@@ -116,7 +116,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                         else
                         {
                             var userDataMap = new UserDataMap(this.localizer);
-                            csv.Configuration.RegisterClassMap(userDataMap);
+                            csv.Context.RegisterClassMap(userDataMap);
                             var userDataStream = this.userDataStream.GetUserDataStreamAsync(uploadData.sentNotificationDataEntity.Id, uploadData.sentNotificationDataEntity.Status);
                             await foreach (var data in userDataStream)
                             {
