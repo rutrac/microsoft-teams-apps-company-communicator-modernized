@@ -360,6 +360,8 @@
     "StorageBlobDataOwner": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
     "StorageQueueDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
     "StorageTableDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+    "KeyVaultSecretsUser": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4633458b-17de-9322-b7c4-e0c705c7bb9c')]",
+    "KeyVaultSecretsOfficer": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
     "keyvaultName": "[concat(variables('botAppName'), 'vault')]",
     "keyVaultUrl": "[concat('https://',variables('keyvaultName'), '.vault.azure.net')]",
     "subscriptionTenantId": "[subscription().tenantId]",
@@ -961,7 +963,7 @@
     {
       "type": "Microsoft.KeyVault/vaults",
       "name": "[variables('keyvaultName')]",
-      "apiVersion": "2016-10-01",
+      "apiVersion": "2023-07-01",
       "location": "[parameters('location')]",
 
       "tags": {
@@ -969,76 +971,12 @@
       },
       "properties": {
         "tenantId": "[variables('subscriptionTenantId')]",
+        "enableRbacAuthorization": true,
         "enableSoftDelete": true,
         "enabledForDeployment": false,
         "enabledForDiskEncryption": false,
         "enabledForTemplateDeployment": true,
-        "accessPolicies": [
-          {
-            "tenantId": "[reference(concat('Microsoft.Web/sites/', variables('botAppName')), '2018-02-01', 'Full').identity.tenantId]",
-            "objectId": "[reference(concat('Microsoft.Web/sites/', variables('botAppName')), '2018-02-01', 'Full').identity.principalId]",
-            "permissions": {
-              "keys": [],
-              "secrets": [
-                "Get",
-                "Set",
-                "Restore"
-              ],
-              "certificates": []
-            },
-            "dependsOn": [
-              "[resourceId('Microsoft.Web/sites', variables('botAppName'))]"
-            ]
-          },
-          {
-            "tenantId": "[reference(concat('Microsoft.Web/sites/', variables('prepFunctionAppName')), '2018-02-01', 'Full').identity.tenantId]",
-            "objectId": "[reference(concat('Microsoft.Web/sites/', variables('prepFunctionAppName')), '2018-02-01', 'Full').identity.principalId]",
-            "permissions": {
-              "keys": [],
-              "secrets": [
-                "Get"
-              ],
-              "certificates": [
-                "Get"
-              ]
-            },
-            "dependsOn": [
-              "[resourceId('Microsoft.Web/sites', variables('prepFunctionAppName'))]"
-            ]
-          },
-          {
-            "tenantId": "[reference(concat('Microsoft.Web/sites/', variables('sendFunctionAppName')), '2018-02-01', 'Full').identity.tenantId]",
-            "objectId": "[reference(concat('Microsoft.Web/sites/', variables('sendFunctionAppName')), '2018-02-01', 'Full').identity.principalId]",
-            "permissions": {
-              "keys": [],
-              "secrets": [
-                "Get"
-              ],
-              "certificates": [
-                "Get"
-              ]
-            },
-            "dependsOn": [
-              "[resourceId('Microsoft.Web/sites', variables('sendFunctionAppName'))]"
-            ]
-          },
-          {
-            "tenantId": "[reference(concat('Microsoft.Web/sites/', variables('dataFunctionAppName')), '2018-02-01', 'Full').identity.tenantId]",
-            "objectId": "[reference(concat('Microsoft.Web/sites/', variables('dataFunctionAppName')), '2018-02-01', 'Full').identity.principalId]",
-            "permissions": {
-              "keys": [],
-              "secrets": [
-                "Get"
-              ],
-              "certificates": [
-                "Get"
-              ]
-            },
-            "dependsOn": [
-              "[resourceId('Microsoft.Web/sites', variables('dataFunctionAppName'))]"
-            ]
-          }
-        ],
+        "accessPolicies": [],
         "sku": {
           "name": "Standard",
           "family": "A"
@@ -1149,6 +1087,66 @@
           }
         }
       ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceGroup().id, variables('botAppName'), 'KeyVaultSecretsOfficer')]",
+      "scope": "[concat('Microsoft.KeyVault/vaults', '/', variables('keyvaultName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('botAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('KeyVaultSecretsOfficer')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('botAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceGroup().id, variables('prepFunctionAppName'), 'KeyVaultSecretsUser')]",
+      "scope": "[concat('Microsoft.KeyVault/vaults', '/', variables('keyvaultName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('prepFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('KeyVaultSecretsUser')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('prepFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceGroup().id, variables('sendFunctionAppName'), 'KeyVaultSecretsUser')]",
+      "scope": "[concat('Microsoft.KeyVault/vaults', '/', variables('keyvaultName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('sendFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('KeyVaultSecretsUser')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('sendFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceGroup().id, variables('dataFunctionAppName'), 'KeyVaultSecretsUser')]",
+      "scope": "[concat('Microsoft.KeyVault/vaults', '/', variables('keyvaultName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('dataFunctionAppName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('KeyVaultSecretsUser')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('dataFunctionAppName')), '2019-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
     },
     {
       "type": "Microsoft.Authorization/roleAssignments",
