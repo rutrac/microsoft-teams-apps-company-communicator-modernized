@@ -360,7 +360,7 @@
     "StorageBlobDataOwner": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
     "StorageQueueDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
     "StorageTableDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
-    "KeyVaultSecretsUser": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4633458b-17de-9322-b7c4-e0c705c7bb9c')]",
+    "KeyVaultSecretsUser": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
     "KeyVaultSecretsOfficer": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
     "keyvaultName": "[concat(variables('botAppName'), 'vault')]",
     "keyVaultUrl": "[concat('https://',variables('keyvaultName'), '.vault.azure.net')]",
