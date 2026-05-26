@@ -22,6 +22,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
     using Polly;
+    using Polly.Retry;
 
     /// <summary>
     /// This class contains the "clean up" durable activity.
@@ -118,12 +119,19 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                callback: async (turnContext, cancellationToken) =>
                {
                    // Retry it in addition to the original call.
-                   var retryPolicy = Policy.Handle<Exception>().WaitAndRetryAsync(maxNumberOfAttempts, p => TimeSpan.FromSeconds(p));
-                   await retryPolicy.ExecuteAsync(async () =>
+                   var retryPolicy = new ResiliencePipelineBuilder()
+                       .AddRetry(new RetryStrategyOptions
+                       {
+                           ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                           MaxRetryAttempts = maxNumberOfAttempts,
+                           DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(args.AttemptNumber + 1)),
+                       })
+                       .Build();
+                   await retryPolicy.ExecuteAsync(async ct =>
                    {
                        var failureMessage = MessageFactory.Text(failureText);
                        failureMessage.TextFormat = "xml";
-                       await turnContext.SendActivityAsync(failureMessage, cancellationToken);
+                       await turnContext.SendActivityAsync(failureMessage, ct);
                    });
                },
                cancellationToken: CancellationToken.None);

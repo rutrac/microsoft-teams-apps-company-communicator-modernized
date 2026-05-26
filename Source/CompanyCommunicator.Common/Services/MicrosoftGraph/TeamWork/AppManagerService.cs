@@ -52,11 +52,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             };
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            await retryPolicy.ExecuteAsync(async () =>
+            await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .PostAsync(userScopeTeamsAppInstallation));
+                    .PostAsync(userScopeTeamsAppInstallation, cancellationToken: ct));
         }
 
         /// <inheritdoc/>
@@ -81,10 +81,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             };
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            await retryPolicy.ExecuteAsync(async () =>
+            await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .PostAsync(teamsAppInstallation));
+                    .PostAsync(teamsAppInstallation, cancellationToken: ct));
         }
 
         /// <inheritdoc/>
@@ -101,15 +101,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var pagedApps = await retryPolicy.ExecuteAsync(async () =>
+            var pagedApps = await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .GetAsync(req =>
-                    {
-                        req.QueryParameters.Expand = new[] { "teamsApp" };
-                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
-                    }));
+                    .GetAsync(
+                        req =>
+                        {
+                            req.QueryParameters.Expand = new[] { "teamsApp" };
+                            req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                        },
+                        cancellationToken: ct));
 
             return pagedApps?.Value?.Any() ?? false;
         }
@@ -128,14 +130,16 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var pagedApps = await retryPolicy.ExecuteAsync(async () =>
+            var pagedApps = await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .GetAsync(req =>
-                    {
-                        req.QueryParameters.Expand = new[] { "teamsApp" };
-                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
-                    }));
+                    .GetAsync(
+                        req =>
+                        {
+                            req.QueryParameters.Expand = new[] { "teamsApp" };
+                            req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                        },
+                        cancellationToken: ct));
 
             return pagedApps?.Value?.Any() ?? false;
         }
@@ -154,15 +158,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var collection = await retryPolicy.ExecuteAsync(async () =>
+            var collection = await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps
-                    .GetAsync(req =>
-                    {
-                        req.QueryParameters.Expand = new[] { "teamsApp" };
-                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
-                    }));
+                    .GetAsync(
+                        req =>
+                        {
+                            req.QueryParameters.Expand = new[] { "teamsApp" };
+                            req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                        },
+                        cancellationToken: ct));
 
             return collection?.Value?.FirstOrDefault()?.Id;
         }
@@ -181,14 +187,16 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
             }
 
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var collection = await retryPolicy.ExecuteAsync(async () =>
+            var collection = await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Teams[teamId]
                     .InstalledApps
-                    .GetAsync(req =>
-                    {
-                        req.QueryParameters.Expand = new[] { "teamsApp" };
-                        req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
-                    }));
+                    .GetAsync(
+                        req =>
+                        {
+                            req.QueryParameters.Expand = new[] { "teamsApp" };
+                            req.QueryParameters.Filter = $"teamsApp/id eq '{appId}'";
+                        },
+                        cancellationToken: ct));
 
             return collection?.Value?.FirstOrDefault()?.Id;
         }

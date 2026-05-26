@@ -17,6 +17,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.FileCardSe
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot;
     using Polly;
+    using Polly.Retry;
 
     /// <summary>
     /// The file card service to manange the card.
@@ -79,13 +80,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.FileCardSe
                callback: async (turnContext, cancellationToken) =>
                {
                    // Retry it in addition to the original call.
-                   var retryPolicy = Policy.Handle<Exception>().WaitAndRetryAsync(maxNumberOfAttempts, p => TimeSpan.FromSeconds(p));
-                   await retryPolicy.ExecuteAsync(async () =>
+                   var retryPolicy = new ResiliencePipelineBuilder()
+                       .AddRetry(new RetryStrategyOptions
+                       {
+                           ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                           MaxRetryAttempts = maxNumberOfAttempts,
+                           DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(args.AttemptNumber + 1)),
+                       })
+                       .Build();
+                   await retryPolicy.ExecuteAsync(async ct =>
                    {
-                       await turnContext.DeleteActivityAsync(fileConsentId, cancellationToken);
+                       await turnContext.DeleteActivityAsync(fileConsentId, ct);
                        var deleteMessage = MessageFactory.Text(deleteText);
                        deleteMessage.TextFormat = "xml";
-                       await turnContext.SendActivityAsync(deleteMessage, cancellationToken);
+                       await turnContext.SendActivityAsync(deleteMessage, ct);
                    });
                },
                cancellationToken: CancellationToken.None);

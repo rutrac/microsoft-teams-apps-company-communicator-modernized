@@ -25,6 +25,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
     using Polly;
+    using Polly.Retry;
 
     /// <summary>
     /// Sends the file card.
@@ -113,10 +114,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                    var message = MessageFactory.Attachment(fileCardAttachment);
 
                    // Retry it in addition to the original call.
-                   var retryPolicy = Policy.Handle<Exception>().WaitAndRetryAsync(maxNumberOfAttempts, p => TimeSpan.FromSeconds(p));
-                   await retryPolicy.ExecuteAsync(async () =>
+                   var retryPolicy = new ResiliencePipelineBuilder()
+                       .AddRetry(new RetryStrategyOptions
+                       {
+                           ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                           MaxRetryAttempts = maxNumberOfAttempts,
+                           DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(args.AttemptNumber + 1)),
+                       })
+                       .Build();
+                   await retryPolicy.ExecuteAsync(async ct =>
                    {
-                       var response = await turnContext.SendActivityAsync(message, cancellationToken);
+                       var response = await turnContext.SendActivityAsync(message, ct);
                        consentId = (response == null) ? string.Empty : response.Id;
                    });
                },
