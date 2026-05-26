@@ -9,7 +9,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Policies
     using System.Net;
     using Microsoft.Graph.Models.ODataErrors;
     using Polly;
-    using Polly.Contrib.WaitAndRetry;
     using Polly.Retry;
 
     /// <summary>
@@ -18,20 +17,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Policies
     public class PollyPolicy
     {
         /// <summary>
-        /// Get the graph retry policy.
+        /// Get the graph retry pipeline.
         /// </summary>
         /// <param name="maxAttempts">the number of max attempts.</param>
-        /// <returns>A retry policy that can be applied to async delegates.</returns>
-        public static AsyncRetryPolicy GetGraphRetryPolicy(int maxAttempts)
+        /// <returns>A resilience pipeline that can be applied to async delegates.</returns>
+        public static ResiliencePipeline GetGraphRetryPolicy(int maxAttempts)
         {
-            var delay = Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromSeconds(1), retryCount: maxAttempts);
-
             // Only Handling 502 Bad Gateway Exception
             // Other exception such as 429, 503, 504 is handled by default by Graph SDK.
-            return Policy
-                .Handle<ODataError>(e =>
-                e.ResponseStatusCode == (int)HttpStatusCode.BadGateway)
-                .WaitAndRetryAsync(delay);
+            return new ResiliencePipelineBuilder()
+                .AddRetry(new RetryStrategyOptions
+                {
+                    ShouldHandle = new PredicateBuilder().Handle<ODataError>(e =>
+                        e.ResponseStatusCode == (int)HttpStatusCode.BadGateway),
+                    MaxRetryAttempts = maxAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    Delay = TimeSpan.FromSeconds(1),
+                })
+                .Build();
         }
     }
 }

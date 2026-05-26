@@ -15,7 +15,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot;
     using Polly;
-    using Polly.Contrib.WaitAndRetry;
     using Polly.Retry;
 
     /// <summary>
@@ -116,7 +115,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                 var retryPolicy = this.GetRetryPolicy(maxAttempts, log);
                 if (useCertificate)
                 {
-                    await retryPolicy.ExecuteAsync(async () =>
+                    await retryPolicy.ExecuteAsync(async ct =>
                     await this.botAdapter.CreateConversationUsingCertificateAsync(
                         channelId: ConversationService.MicrosoftTeamsChannelId,
                         serviceUrl: serviceUrl,
@@ -131,11 +130,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
 
                             return Task.CompletedTask;
                         },
-                        cancellationToken: CancellationToken.None));
+                        cancellationToken: ct));
                 }
                 else
                 {
-                    await retryPolicy.ExecuteAsync(async () =>
+                    await retryPolicy.ExecuteAsync(async ct =>
                     await this.botAdapter.CreateConversationUsingSecretAsync(
                         channelId: ConversationService.MicrosoftTeamsChannelId,
                         serviceUrl: serviceUrl,
@@ -150,7 +149,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
 
                             return Task.CompletedTask;
                         },
-                        cancellationToken: CancellationToken.None));
+                        cancellationToken: ct));
                 }
             }
             catch (ErrorResponseException e)
@@ -167,20 +166,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
             return response;
         }
 
-        private AsyncRetryPolicy GetRetryPolicy(int maxAttempts, ILogger log)
+        private ResiliencePipeline GetRetryPolicy(int maxAttempts, ILogger log)
         {
-            var delay = Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromSeconds(1), retryCount: maxAttempts);
-
-            return Policy
-                .Handle<ErrorResponseException>(e =>
+            return new ResiliencePipelineBuilder()
+                .AddRetry(new RetryStrategyOptions
                 {
-                    var errorMessage = $"{e.GetType()}: {e.Message}";
-                    log.LogError(e, $"Exception thrown: {errorMessage}");
+                    ShouldHandle = new PredicateBuilder().Handle<ErrorResponseException>(e =>
+                    {
+                        var errorMessage = $"{e.GetType()}: {e.Message}";
+                        log.LogError(e, $"Exception thrown: {errorMessage}");
 
-                    // Handle throttling.
-                    return e.Response.StatusCode == HttpStatusCode.TooManyRequests;
+                        // Handle throttling.
+                        return e.Response.StatusCode == HttpStatusCode.TooManyRequests;
+                    }),
+                    MaxRetryAttempts = maxAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    Delay = TimeSpan.FromSeconds(1),
                 })
-                .WaitAndRetryAsync(delay);
+                .Build();
         }
     }
 }

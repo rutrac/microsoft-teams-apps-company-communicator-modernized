@@ -46,12 +46,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 
             var installationId = await this.appManagerService.GetAppInstallationIdForUserAsync(appId, userId);
             var retryPolicy = PollyPolicy.GetGraphRetryPolicy(GraphConstants.MaxRetry);
-            var chat = await retryPolicy.ExecuteAsync(async () =>
+            var chat = await retryPolicy.ExecuteAsync(async ct =>
                 await this.graphServiceClient.Users[userId]
                     .Teamwork
                     .InstalledApps[installationId]
                     .Chat
-                    .GetAsync());
+                    .GetAsync(cancellationToken: ct));
 
             return chat?.Id;
         }

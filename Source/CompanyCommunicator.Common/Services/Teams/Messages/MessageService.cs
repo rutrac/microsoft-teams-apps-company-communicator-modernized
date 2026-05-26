@@ -15,7 +15,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot;
     using Polly;
-    using Polly.Contrib.WaitAndRetry;
     using Polly.Retry;
 
     /// <summary>
@@ -92,9 +91,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                     {
                         // Send message.
                         // await policy.ExecuteAsync(async () => await turnContext.SendActivityAsync(message));
-                        await policy.ExecuteAsync(async () =>
+                        await policy.ExecuteAsync(async ct =>
                         {
-                            var resp = await turnContext.SendActivityAsync(message);
+                            var resp = await turnContext.SendActivityAsync(message, ct);
                             response.ActivityId = resp.Id;
                         });
 
@@ -133,20 +132,26 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
             return response;
         }
 
-        private AsyncRetryPolicy GetRetryPolicy(int maxAttempts, ILogger log)
+        private ResiliencePipeline GetRetryPolicy(int maxAttempts, ILogger log)
         {
-            var delay = Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromSeconds(1), retryCount: maxAttempts);
-            return Policy
-                .Handle<ErrorResponseException>(e =>
+            return new ResiliencePipelineBuilder()
+                .AddRetry(new RetryStrategyOptions
                 {
-                    var errorMessage = $"{e.GetType()}: {e.Message}";
-                    log.LogError(e, $"Exception thrown: {errorMessage}");
+                    ShouldHandle = new PredicateBuilder().Handle<ErrorResponseException>(e =>
+                    {
+                        var errorMessage = $"{e.GetType()}: {e.Message}";
+                        log.LogError(e, $"Exception thrown: {errorMessage}");
 
-                    // Handle throttling and internal server errors.
-                    var statusCode = e.Response.StatusCode;
-                    return statusCode == HttpStatusCode.TooManyRequests || ((int)statusCode >= 500 && (int)statusCode < 600);
+                        // Handle throttling and internal server errors.
+                        var statusCode = e.Response.StatusCode;
+                        return statusCode == HttpStatusCode.TooManyRequests || ((int)statusCode >= 500 && (int)statusCode < 600);
+                    }),
+                    MaxRetryAttempts = maxAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    Delay = TimeSpan.FromSeconds(1),
                 })
-                .WaitAndRetryAsync(delay);
+                .Build();
         }
     }
 }
