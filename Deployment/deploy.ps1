@@ -934,7 +934,7 @@ function ADAppUpdate {
     $azureDomainBase = $appdomainName
     $configAppUrl = "https://$azureDomainBase"
     $RedirectUris = ($configAppUrl + '/signin-simple-end')
-    $IdentifierUris = "api://$azureDomainBase/$configAppId"
+    $IdentifierUris = "api://$azureDomainBase"
 
     # Grant Admin consent
     GrantAdminConsent $configAppId
@@ -969,12 +969,16 @@ function ADAppUpdate {
         AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"oauth2PermissionScopes":[]}}'
     }
 
-    # Set both identifier URIs required for Teams SSO:
-    # - api://domain/appId  (used by Teams SSO v2 token requests via getAuthToken)
-    # - api://domain        (Teams also validates this form; must be registered for AADSTS500011 to not occur)
-    $identifierUriPatch = ('{"identifierUris":["api://' + $azureDomainBase + '","api://' + $azureDomainBase + '/' + $configAppId + '"]}')
+    # Set the single Application ID URI expected by the Teams manifest:
+    # - api://domain (this is the value referenced by webApplicationInfo.resource)
+    $identifierUriPatch = ('{"identifierUris":["api://' + $azureDomainBase + '"]}')
     AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
-    WriteI -message "App identifier URIs set (api://domain and api://domain/appId)"
+
+    $appAfterIdentifierUriUpdate = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+    if ($appAfterIdentifierUriUpdate.identifierUris.Count -eq 0 -or $appAfterIdentifierUriUpdate.identifierUris[0] -ne $IdentifierUris) {
+        throw "Failed to set Application ID URI to $IdentifierUris on the Graph app."
+    }
+    WriteI -message "App identifier URI set ($IdentifierUris)"
 
     az ad app update --id $configAppId --web-redirect-uris $RedirectUris
     WriteI -message "App reply-urls set"
