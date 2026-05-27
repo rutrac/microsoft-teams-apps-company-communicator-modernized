@@ -934,7 +934,8 @@ function ADAppUpdate {
     $azureDomainBase = $appdomainName
     $configAppUrl = "https://$azureDomainBase"
     $RedirectUris = ($configAppUrl + '/signin-simple-end')
-    $IdentifierUris = "api://$azureDomainBase"
+    # Use tenant ID in identifier URI to comply with tenant policy (must contain tenant ID, verified domain, or app ID)
+    $IdentifierUris = "api://$($parameters.tenantId.Value)/$configAppId"
 
     # Grant Admin consent
     GrantAdminConsent $configAppId
@@ -970,8 +971,8 @@ function ADAppUpdate {
     }
 
     # Set the single Application ID URI expected by the Teams manifest:
-    # - api://domain (this is the value referenced by webApplicationInfo.resource)
-    $identifierUriPatch = ('{"identifierUris":["api://' + $azureDomainBase + '"]}')
+    # - api://tenantId/appId (complies with tenant policy requirement for tenant ID, verified domain, or app ID)
+    $identifierUriPatch = ('{"identifierUris":["' + $IdentifierUris + '"]}')
     AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
 
     $appAfterIdentifierUriUpdate = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
@@ -1095,6 +1096,8 @@ function GenerateAppManifestPackage {
 
     # Replace merge fields with proper values in manifest file and save
         $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
+        # Identifier URI must comply with tenant policy (contain tenant ID, verified domain, or app ID)
+        $identifierUri = "api://$($parameters.tenantId.Value)/$appId"
         $mergeFields = @{
             '<<companyName>>'   = $parameters.companyName.Value
             '<<botId>>'         = $appId
@@ -1103,6 +1106,7 @@ function GenerateAppManifestPackage {
             '<<privacyUrl>>'    = $parameters.privacyUrl.Value
             '<<termsOfUseUrl>>' = $parameters.termsOfUseUrl.Value
             '<<graphAppId>>'    = if ($graphAppId) { $graphAppId } else { $appId }
+            '<<identifierUri>>' = $identifierUri
             '<<version>>'       = $buildVersion
         }
         $appManifestContent = Get-Content $destManifestFilePath

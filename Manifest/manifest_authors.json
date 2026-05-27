@@ -47,6 +47,6 @@
   ],
   "webApplicationInfo": {
     "id": "<<graphAppId>>",
-    "resource": "api://<<appDomain>>"
+    "resource": "<<identifierUri>>"
   }
 }
