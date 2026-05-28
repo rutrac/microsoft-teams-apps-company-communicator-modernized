@@ -934,8 +934,8 @@ function ADAppUpdate {
     $azureDomainBase = $appdomainName
     $configAppUrl = "https://$azureDomainBase"
     $RedirectUris = ($configAppUrl + '/signin-simple-end')
-    # Use tenant ID in identifier URI to comply with tenant policy (must contain tenant ID, verified domain, or app ID)
-    $IdentifierUris = "api://$($parameters.tenantId.Value)/$configAppId"
+    # Use api://<appId> format: complies with tenant policy (contains app ID) AND Teams SDK iframe-origin check (no host to validate)
+    $IdentifierUris = "api://$configAppId"
 
     # Grant Admin consent
     GrantAdminConsent $configAppId
@@ -970,8 +970,7 @@ function ADAppUpdate {
         AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"oauth2PermissionScopes":[]}}'
     }
 
-    # Set the single Application ID URI expected by the Teams manifest:
-    # - api://tenantId/appId (complies with tenant policy requirement for tenant ID, verified domain, or app ID)
+    # Set the single Application ID URI expected by the Teams manifest (api://<appId> form).
     $identifierUriPatch = ('{"identifierUris":["' + $IdentifierUris + '"]}')
     AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
 
@@ -1096,8 +1095,9 @@ function GenerateAppManifestPackage {
 
     # Replace merge fields with proper values in manifest file and save
         $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
-        # Identifier URI must comply with tenant policy (contain tenant ID, verified domain, or app ID)
-        $identifierUri = "api://$($parameters.tenantId.Value)/$appId"
+        # webApplicationInfo.resource must target the SSO/main app, not the bot app. Form: api://<mainAppId> (tenant-policy compliant, Teams-iframe-origin compatible).
+        $ssoAppId = if ($graphAppId) { $graphAppId } else { $appId }
+        $identifierUri = "api://$ssoAppId"
         $mergeFields = @{
             '<<companyName>>'   = $parameters.companyName.Value
             '<<botId>>'         = $appId
@@ -1105,7 +1105,7 @@ function GenerateAppManifestPackage {
             '<<websiteUrl>>'    = $parameters.websiteUrl.Value
             '<<privacyUrl>>'    = $parameters.privacyUrl.Value
             '<<termsOfUseUrl>>' = $parameters.termsOfUseUrl.Value
-            '<<graphAppId>>'    = if ($graphAppId) { $graphAppId } else { $appId }
+            '<<graphAppId>>'    = $ssoAppId
             '<<identifierUri>>' = $identifierUri
             '<<version>>'       = $buildVersion
         }

@@ -350,3 +350,9 @@ Deployment/deploy.ps1.new
 Deployment/parameters.json.local
 Deployment/parameters.local.json
 Deployment/parameters.*.local.json
+
+Manifest/users_package/
+
+# Local publish artifacts
+Source/CompanyCommunicator/publish/
+Source/CompanyCommunicator/publish.zip
