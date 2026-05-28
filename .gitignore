@@ -5,6 +5,13 @@
 # Azure Functions localsettings file
 local.settings.json
 
+# Ad-hoc helper scripts and debug log dumps must not be committed
+/*.ps1
+/logs_latest/
+/logs_latest.zip
+/Deployment/logs.zip
+/Deployment/*.new
+
 # User-specific files
 *.suo
 *.user
