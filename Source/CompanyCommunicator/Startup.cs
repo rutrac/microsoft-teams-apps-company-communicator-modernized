@@ -131,7 +131,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                         configuration.GetValue<bool>("ProactivelyInstallUserApp", true);
 
                     options.UserAppExternalId =
-                        configuration.GetValue<string>("UserAppExternalId", "148a66bb-e83d-425a-927d-09f4299a9274");
+                        configuration.GetValue<string>("UserAppExternalId", "6202129d-5e47-4e34-87f1-4b916b2d30f7");
 
                     options.ImageUploadBlobStorage =
                         configuration.GetValue<bool>("ImageUploadBlobStorage", false);
