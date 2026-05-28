@@ -98,6 +98,7 @@ var host = new HostBuilder()
         services.AddSingleton<ISentNotificationDataRepository, SentNotificationDataRepository>();
         services.AddSingleton<IUserDataRepository, UserDataRepository>();
         services.AddSingleton<IExportDataRepository, ExportDataRepository>();
+        services.AddTransient<TableRowKeyGenerator>();
 
         services.AddSingleton<IDataQueue, DataQueue>();
     })
