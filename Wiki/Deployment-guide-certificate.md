@@ -113,7 +113,7 @@ Register three Azure AD application in your tenant's directory: one for author b
     6. **Microsoft Graph App Client ID**: The application (client) ID of the Microsoft Graph Azure AD app. (from Step 1)
     7. **Microsoft Graph App Certificate Name**:  Provide the name for creating the new certificate of Microsoft Graph Azure AD app in Azure Key vault
     8. **Proactively Install User App [Optional]**: Default value is `true`. You may set it to `false` if you want to disable the feature.
-    9. **User App ExternalId [Optional]**: Default value is `148a66bb-e83d-425a-927d-09f4299a9274`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
+    9. **User App ExternalId [Optional]**: Default value is `6202129d-5e47-4e34-87f1-4b916b2d30f7`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
     10. **Hosting Plan SKU  [Optional]**: The pricing tier for the hosting plan. Default value is `Standard`. You may choose between Basic, Standard and Premium.
     11. **Hosting Plan Size  [Optional]**: The size of the hosting plan (small - 1, medium - 2, or large - 3). Default value is `2`.
     
