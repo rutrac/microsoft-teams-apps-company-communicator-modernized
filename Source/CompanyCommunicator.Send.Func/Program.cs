@@ -83,6 +83,7 @@ var host = new HostBuilder()
         services.AddSingleton<IGlobalSendingNotificationDataRepository, GlobalSendingNotificationDataRepository>();
         services.AddSingleton<ISentNotificationDataRepository, SentNotificationDataRepository>();
         services.AddSingleton<INotificationDataRepository, NotificationDataRepository>();
+        services.AddTransient<TableRowKeyGenerator>();
 
         services.AddSingleton<ISendQueue, SendQueue>();
 
