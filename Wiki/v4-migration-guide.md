@@ -112,7 +112,7 @@ Please refer [step 2](https://github.com/OfficeDev/microsoft-teams-company-commu
     4. **Author Client ID**: The application (client) ID of the Microsoft Teams author bot app. (from Step 1)
     5. **Author Client Secret**: The client secret of the Microsoft Teams author bot app. (from Step 1)
     7. **Proactively Install User App [Optional]**: Default value is `true`. You may set it to `false` if you want to disable the feature.
-    8. **User App ExternalId [Optional]**: Default value is `148a66bb-e83d-425a-927d-09f4299a9274`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
+    8. **User App ExternalId [Optional]**: Default value is `6202129d-5e47-4e34-87f1-4b916b2d30f7`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
     9. **DefaultCulture, SupportedCultures [Optional]**: By default the application contains `en-US` resources. You may add/update the resources for other locales and update this configuration if desired.
 
     > **Note:** For ids, make sure that the values are copied as-is, with no extra spaces. The template checks that GUIDs are exactly 36 characters.

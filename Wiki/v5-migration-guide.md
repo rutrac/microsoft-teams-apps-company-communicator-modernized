@@ -123,7 +123,7 @@ Please refer [step 2](https://github.com/OfficeDev/microsoft-teams-company-commu
     6. **Microsoft Graph App Client ID**: The application (client) ID of the Microsoft Graph Azure AD app. (from Step 2)
     7. **Microsoft Graph App Secret**: The client secret of the Microsoft Graph Azure AD app. (from Step 2)
     8. **Proactively Install User App [Optional]**: Default value is `true`. You may set it to `false` if you want to disable the feature.
-    9. **User App ExternalId [Optional]**: Default value is `148a66bb-e83d-425a-927d-09f4299a9274`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
+    9. **User App ExternalId [Optional]**: Default value is `6202129d-5e47-4e34-87f1-4b916b2d30f7`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
      10. **Service Bus Web App Role Name Guid [Optional]**: Default value is `958380b3-630d-4823-b933-f59d92cdcada`. This **MUST** be the same `id` per app deployment.
    
         > **Note:** Make sure to keep the same values for an upgrade. Please change the role name GUIDs in case of another Company Communicator Deployment in same subscription.

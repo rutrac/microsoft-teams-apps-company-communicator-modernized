@@ -95,20 +95,20 @@ Verify if the below permissions has been added to the graph app registration and
 To deploy the second instance of company communicator in single-tenant
 
 1. Register Azure AD Applications as mentioned in Step 1 of [Deployment Guide](https://github.com/OfficeDev/microsoft-teams-apps-company-communicator/wiki/Deployment-guide).
-2. While doing ARM Template deployment, update “User App External Id” with following different value example: `148a66bb-e83d-425a-927d-09f4299a9275`
+2. While doing ARM Template deployment, update “User App External Id” with following different value example: `6202129d-5e47-4e34-87f1-4b916b2d30f8`
 3. Update the below fields with newly generated valid GUIDs during the re-deployment. Any online tool can be used to generate a valid GUID. 
 
 ![Screenshot of troubleshooting roleassignment error code deployment](images/troubleshooting_roleassignmenterror.png)
 
 4. Proceed with remaining steps 3, 4 of [Deployment Guide](https://github.com/OfficeDev/microsoft-teams-apps-company-communicator/wiki/Deployment-guide).
-5. In Step 5, Please update user app manifest id from `148a66bb-e83d-425a-927d-09f4299a9274` to `148a66bb-e83d-425a-927d-09f4299a9275` and please update author app manifest id from `1c07cd26-a088-4db8-8928-ace382fa219f` to `1c07cd26-a088-4db8-8928-ace382fa219d` (Different value)
+5. In Step 5, Please update user app manifest id from `6202129d-5e47-4e34-87f1-4b916b2d30f7` to `6202129d-5e47-4e34-87f1-4b916b2d30f8` and please update author app manifest id from `de49b683-4b1d-4c3d-80e8-081d1ba733aa` to `de49b683-4b1d-4c3d-80e8-081d1ba733ab` (Different value)
 and proceed with the remaining steps as mentioned in deployment guide.
 
 If you miss updating “User App External Id” in step 2, you can update the value in the following sections:
 
-* Go to second instance azure resource group. Open the App service and click on Configuration (in left navigation). Update “UserAppExternalId” value to `148a66bb-e83d-425a-927d-09f4299a9275`. Click on “ok” and then on “save” and restart app service.
+* Go to second instance azure resource group. Open the App service and click on Configuration (in left navigation). Update “UserAppExternalId” value to `6202129d-5e47-4e34-87f1-4b916b2d30f8`. Click on “ok” and then on “save” and restart app service.
 
-* Go to second instance azure resource group. Open function app which is ending with “-prep-function” and click on Configuration (in left navigation).Update the“UserAppExternalId” value to `148a66bb-e83d-425a-927d-09f4299a9275`. Click on “ok” and the on “save” and restart function app.
+* Go to second instance azure resource group. Open function app which is ending with “-prep-function” and click on Configuration (in left navigation).Update the“UserAppExternalId” value to `6202129d-5e47-4e34-87f1-4b916b2d30f8`. Click on “ok” and the on “save” and restart function app.
 
 ## 5. App service Sync throws npm error
 
