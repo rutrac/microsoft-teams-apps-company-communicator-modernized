@@ -39,6 +39,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IUserTypeService userTypeService;
         private readonly IRecipientsService recipientsService;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncAllUsersActivity"/> class.
@@ -57,7 +58,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             INotificationDataRepository notificationDataRepository,
             IUserTypeService userTypeService,
             IRecipientsService recipientsService,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<SyncAllUsersActivity> logger)
         {
             this.userDataRepository = userDataRepository ?? throw new ArgumentNullException(nameof(userDataRepository));
             this.sentNotificationDataRepository = sentNotificationDataRepository ?? throw new ArgumentNullException(nameof(sentNotificationDataRepository));
@@ -66,16 +68,16 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             this.userTypeService = userTypeService ?? throw new ArgumentNullException(nameof(userTypeService));
             this.recipientsService = recipientsService ?? throw new ArgumentNullException(nameof(recipientsService));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Syncs all users to Sent notification table.
         /// </summary>
         /// <param name="notification">Notification.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         [Function(FunctionNames.SyncAllUsersActivity)]
-        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification, ILogger log)
+        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification)
         {
             if (notification == null)
             {

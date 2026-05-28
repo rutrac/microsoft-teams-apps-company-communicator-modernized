@@ -25,6 +25,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly INotificationDataRepository notificationDataRepository;
         private readonly IDataQueue dataQueue;
         private readonly int messageDelayInSeconds;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DataAggregationTriggerActivity"/> class.
@@ -35,11 +36,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         public DataAggregationTriggerActivity(
             INotificationDataRepository notificationDataRepository,
             IDataQueue dataQueue,
-            IOptions<DataQueueMessageOptions> options)
+            IOptions<DataQueueMessageOptions> options,
+            ILogger<DataAggregationTriggerActivity> logger)
         {
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
             this.dataQueue = dataQueue ?? throw new ArgumentNullException(nameof(dataQueue));
             this.messageDelayInSeconds = options?.Value?.MessageDelayInSeconds ?? throw new ArgumentNullException(nameof(options));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -48,12 +51,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// 2. Sends message to data queue.
         /// </summary>
         /// <param name="input">Input.</param>
-        /// <param name="log">logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         [Function(FunctionNames.DataAggregationTriggerActivity)]
         public async Task RunAsync(
-            [ActivityTrigger](string notificationId, int recipientCount) input,
-            ILogger log)
+            [ActivityTrigger](string notificationId, int recipientCount) input)
         {
             if (input.notificationId == null)
             {
@@ -66,7 +67,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             }
 
             // Update notification.
-            await this.UpdateNotification(input.notificationId, input.recipientCount, log);
+            await this.UpdateNotification(input.notificationId, input.recipientCount);
 
             // Send message to data queue.
             var messageDelay = new TimeSpan(0, 0, this.messageDelayInSeconds);
@@ -78,9 +79,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notificationId">Notification id.</param>
         /// <param name="recipientCount">Recipient count.</param>
-        /// <param name="log">Logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        private async Task UpdateNotification(string notificationId, int recipientCount, ILogger log)
+        private async Task UpdateNotification(string notificationId, int recipientCount)
         {
             var notificationDataEntity = await this.notificationDataRepository.GetAsync(
                 NotificationDataTableNames.SentNotificationsPartition,
@@ -88,7 +88,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 
             if (notificationDataEntity == null)
             {
-                log.LogError($"Notification entity not found. Notification Id: {notificationId}");
+                this.logger.LogError($"Notification entity not found. Notification Id: {notificationId}");
                 return;
             }
 

@@ -36,6 +36,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IUserDataRepository userDataRepository;
         private readonly IUserTypeService userTypeService;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncGroupMembersActivity"/> class.
@@ -52,7 +53,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             IGroupMembersService groupMembersService,
             IUserDataRepository userDataRepository,
             IUserTypeService userTypeService,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<SyncGroupMembersActivity> logger)
         {
             this.groupMembersService = groupMembersService ?? throw new ArgumentNullException(nameof(groupMembersService));
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
@@ -60,21 +62,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             this.userDataRepository = userDataRepository ?? throw new ArgumentNullException(nameof(userDataRepository));
             this.userTypeService = userTypeService ?? throw new ArgumentNullException(nameof(userTypeService));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Syncs group members to Sent notification table.
         /// </summary>
         /// <param name="input">Input.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>It returns the group transitive members first page and next page url.</returns>
         [Function(FunctionNames.SyncGroupMembersActivity)]
         public async Task RunAsync(
-        [ActivityTrigger](string notificationId, string groupId) input, ILogger log)
+        [ActivityTrigger](string notificationId, string groupId) input)
         {
             _ = input.notificationId ?? throw new ArgumentNullException(nameof(input.notificationId));
             _ = input.groupId ?? throw new ArgumentNullException(nameof(input.groupId));
-            _ = log ?? throw new ArgumentNullException(nameof(log));
 
             var notificationId = input.notificationId;
             var groupId = input.groupId;
@@ -93,7 +94,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             catch (Exception ex)
             {
                 var errorMessage = this.localizer.GetString("FailedToGetMembersForGroupFormat", groupId, ex.Message);
-                log.LogError(ex, errorMessage);
+                this.logger.LogError(ex, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
             }
         }

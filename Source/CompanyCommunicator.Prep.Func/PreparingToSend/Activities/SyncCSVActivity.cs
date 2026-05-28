@@ -41,6 +41,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IUserTypeService userTypeService;
         private readonly IRecipientsService recipientsService;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncCSVActivity"/> class.
@@ -59,7 +60,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             INotificationDataRepository notificationDataRepository,
             IUserTypeService userTypeService,
             IRecipientsService recipientsService,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<SyncCSVActivity> logger)
         {
             this.userDataRepository = userDataRepository ?? throw new ArgumentNullException(nameof(userDataRepository));
             this.sentNotificationDataRepository = sentNotificationDataRepository ?? throw new ArgumentNullException(nameof(sentNotificationDataRepository));
@@ -68,24 +70,24 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             this.userTypeService = userTypeService ?? throw new ArgumentNullException(nameof(userTypeService));
             this.recipientsService = recipientsService ?? throw new ArgumentNullException(nameof(recipientsService));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Syncs CSV users to Sent notification table.
         /// </summary>
         /// <param name="notification">Input.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>It returns the group transitive members first page and next page url.</returns>
         [Function(FunctionNames.SyncCSVActivity)]
-        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification, ILogger log)
+        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification)
         {
             if (notification == null)
             {
                 throw new ArgumentNullException(nameof(notification));
             }
 
-            log.LogInformation("About to process the list of CSV users.");
-            log.LogInformation("notification.CsvUsers: " + notification.CsvUsers);
+            this.logger.LogInformation("About to process the list of CSV users.");
+            this.logger.LogInformation("notification.CsvUsers: " + notification.CsvUsers);
 
             // sync users from the csv file
             List<User> users = new List<User>();
@@ -102,35 +104,35 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                 if (!userst.IsNullOrEmpty())
                 {
                     // usertp = userst.Substring(1, userst.Length - 2).Trim();
-                    log.LogInformation("Processing: " + userst);
+                    this.logger.LogInformation("Processing: " + userst);
 
                     try
                     {
                         usr = await this.usersService.GetUserAsync(userst);
                         users.Add(usr);
-                        log.LogInformation("User " + userst + " added to the collection.");
+                        this.logger.LogInformation("User " + userst + " added to the collection.");
                     }
                     catch (Exception ex)
                     {
-                        log.LogError("User not added to the collection.");
-                        log.LogError("User " + userst + " is invalid. " + ex.Message);
+                        this.logger.LogError("User not added to the collection.");
+                        this.logger.LogError("User " + userst + " is invalid. " + ex.Message);
                     }
                 }
             }
 
-            log.LogDebug("About to convert to recipients.");
+            this.logger.LogDebug("About to convert to recipients.");
 
             // Convert to Recipients
             var recipients = await this.GetRecipientsAsync(notification.Id, users);
-            log.LogDebug("CSV Users converted to recipients.");
+            this.logger.LogDebug("CSV Users converted to recipients.");
 
-            log.LogDebug("About to store the list of recipients on the database.");
+            this.logger.LogDebug("About to store the list of recipients on the database.");
 
             // Store.
             await this.sentNotificationDataRepository.BatchInsertOrMergeAsync(recipients);
-            log.LogDebug("Sent messages stored on the database for future updates.");
+            this.logger.LogDebug("Sent messages stored on the database for future updates.");
 
-            log.LogDebug("Finished. Batching recipients and moving to the next pipeline step.");
+            this.logger.LogDebug("Finished. Batching recipients and moving to the next pipeline step.");
 
             // Store in batches and return batch info.
             return await this.recipientsService.BatchRecipients(recipients);
