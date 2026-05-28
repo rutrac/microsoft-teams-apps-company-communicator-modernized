@@ -1,4 +1,4 @@
-﻿// <copyright file="RecipientsActivity.cs" company="Microsoft">
+// <copyright file="RecipientsActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -9,8 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Recipients;
@@ -41,7 +40,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notificationBatchKey">notification batch key.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.GetRecipientsActivity)]
+        [Function(FunctionNames.GetRecipientsActivity)]
         public async Task<IEnumerable<SentNotificationDataEntity>> GetRecipientsAsync([ActivityTrigger] string notificationBatchKey)
         {
             _ = notificationBatchKey ?? throw new ArgumentNullException(nameof(notificationBatchKey));
@@ -53,7 +52,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notificationBatchKey">notification batch key.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.GetPendingRecipientsActivity)]
+        [Function(FunctionNames.GetPendingRecipientsActivity)]
         public async Task<IEnumerable<SentNotificationDataEntity>> GetPendingRecipientsAsync([ActivityTrigger] string notificationBatchKey)
         {
             _ = notificationBatchKey ?? throw new ArgumentNullException(nameof(notificationBatchKey));
@@ -66,7 +65,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notificationId">notification id.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.BatchRecipientsActivity)]
+        [Function(FunctionNames.BatchRecipientsActivity)]
         public async Task<RecipientsInfo> BatchRecipientsAsync([ActivityTrigger] string notificationId)
         {
             _ = notificationId ?? throw new ArgumentNullException(nameof(notificationId));

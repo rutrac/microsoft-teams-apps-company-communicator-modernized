@@ -9,7 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
     using System.Net.Http;
     using System.Threading.Tasks;
     using global::Azure.Data.Tables;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+    using Microsoft.DurableTask.Client;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Newtonsoft.Json;
@@ -75,8 +75,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
                     Throttled = throttledCount,
                 };
 
-                if (orchestrationStatus.Equals(nameof(OrchestrationStatus.Terminated), StringComparison.InvariantCultureIgnoreCase)
-                   || orchestrationStatus.Equals(nameof(OrchestrationStatus.Completed), StringComparison.InvariantCultureIgnoreCase))
+                if (orchestrationStatus.Equals("Terminated", StringComparison.InvariantCultureIgnoreCase)
+                   || orchestrationStatus.Equals("Completed", StringComparison.InvariantCultureIgnoreCase))
                 {
                     if (currentTotalNotificationCount >= totalExpectedNotificationCount)
                     {
@@ -126,14 +126,46 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
         /// </summary>
         /// <param name="functionPayload">the payload of the orchestration containing Status Uri, Terminate Uri etc.</param>
         /// <returns>the status of the orchestration.</returns>
-        public async Task<string> GetOrchestrationStatusAsync(string functionPayload)
+        public async Task<string> GetOrchestrationStatusAsync(string functionPayload, DurableTaskClient client)
         {
-            var instancePayload = JsonConvert.DeserializeObject<HttpManagementPayload>(functionPayload);
-            var client = this.httpClientFactory.CreateClient();
-            var response = await client.GetAsync(instancePayload.StatusQueryGetUri);
-            var content = await response.Content.ReadAsStringAsync();
-            var functionResp = JsonConvert.DeserializeObject<OrchestrationStatusResponse>(content);
-            return functionResp.RuntimeStatus;
+            if (string.IsNullOrEmpty(functionPayload))
+            {
+                return string.Empty;
+            }
+
+            var instanceId = functionPayload;
+            // Backwards compatibility: legacy persisted full HttpManagementPayload JSON.
+            if (functionPayload.TrimStart().StartsWith("{"))
+            {
+                var legacy = JsonConvert.DeserializeObject<HttpManagementPayload>(functionPayload);
+                instanceId = legacy?.Id ?? string.Empty;
+            }
+
+            if (string.IsNullOrEmpty(instanceId))
+            {
+                return string.Empty;
+            }
+
+            var metadata = await client.GetInstanceAsync(instanceId);
+            return metadata?.RuntimeStatus.ToString() ?? string.Empty;
+        }
+
+        private sealed class HttpManagementPayload
+        {
+            [JsonProperty("id")]
+            public string Id { get; set; }
+
+            [JsonProperty("statusQueryGetUri")]
+            public string StatusQueryGetUri { get; set; }
+
+            [JsonProperty("sendEventPostUri")]
+            public string SendEventPostUri { get; set; }
+
+            [JsonProperty("terminatePostUri")]
+            public string TerminatePostUri { get; set; }
+
+            [JsonProperty("purgeHistoryDeleteUri")]
+            public string PurgeHistoryDeleteUri { get; set; }
         }
 
         private void SetSentStatus(ref UpdateNotificationDataEntity notificationDataEntityUpdate, DateTime? lastSentDate)

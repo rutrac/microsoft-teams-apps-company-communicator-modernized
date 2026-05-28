@@ -8,8 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using System;
     using System.Net;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Localization;
     using Microsoft.Graph;
     using Microsoft.Graph.Models;
@@ -47,7 +46,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
         /// </summary>
         /// <param name="exportRequiredData">Tuple containing notification data entity and export data entity.</param>
         /// <returns>instance of metadata.</returns>
-        [FunctionName(FunctionNames.GetMetadataActivity)]
+        [Function(FunctionNames.GetMetadataActivity)]
         public async Task<Metadata> GetMetadataActivityAsync(
             [ActivityTrigger](NotificationDataEntity notificationDataEntity,
             ExportDataEntity exportDataEntity) exportRequiredData)

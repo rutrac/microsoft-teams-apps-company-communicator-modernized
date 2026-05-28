@@ -7,7 +7,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
+    using global::Azure.Messaging.ServiceBus;
+    using Microsoft.Azure.Functions.Worker;
+    using Microsoft.DurableTask.Client;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Extensions;
@@ -30,6 +32,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
         private readonly IDataQueue dataQueue;
         private readonly double firstTenMinutesRequeueMessageDelayInSeconds;
         private readonly double requeueMessageDelayInSeconds;
+        private readonly ILogger<CompanyCommunicatorDataFunction> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CompanyCommunicatorDataFunction"/> class.
@@ -40,12 +43,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
         /// <param name="updateNotificationDataService">The service to update the notification totals.</param>
         /// <param name="dataQueue">The data queue.</param>
         /// <param name="dataQueueMessageOptions">The data queue message options.</param>
+        /// <param name="logger">Logger.</param>
         public CompanyCommunicatorDataFunction(
             INotificationDataRepository notificationDataRepository,
             AggregateSentNotificationDataService aggregateSentNotificationDataService,
             UpdateNotificationDataService updateNotificationDataService,
             IDataQueue dataQueue,
-            IOptions<DataQueueMessageOptions> dataQueueMessageOptions)
+            IOptions<DataQueueMessageOptions> dataQueueMessageOptions,
+            ILogger<CompanyCommunicatorDataFunction> logger)
         {
             this.notificationDataRepository = notificationDataRepository;
             this.aggregateSentNotificationDataService = aggregateSentNotificationDataService;
@@ -55,31 +60,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
                 dataQueueMessageOptions.Value.FirstTenMinutesRequeueMessageDelayInSeconds;
             this.requeueMessageDelayInSeconds =
                 dataQueueMessageOptions.Value.RequeueMessageDelayInSeconds;
+            this.logger = logger;
         }
 
         /// <summary>
         /// Azure Function App triggered by messages from a Service Bus queue
         /// Used for aggregating results for a sent notification.
         /// </summary>
-        /// <param name="myQueueItem">The Service Bus queue item.</param>
-        /// <param name="deliveryCount">The deliver count.</param>
-        /// <param name="enqueuedTimeUtc">The enqueued time.</param>
-        /// <param name="messageId">The message ID.</param>
-        /// <param name="log">The logger.</param>
-        /// <param name="context">The execution context.</param>
+        /// <param name="message">The Service Bus received message.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName("CompanyCommunicatorDataFunction")]
+        [Function("CompanyCommunicatorDataFunction")]
         public async Task Run(
             [ServiceBusTrigger(
                 DataQueue.QueueName,
                 Connection = DataQueue.ServiceBusConnectionConfigurationKey)]
-            string myQueueItem,
-            int deliveryCount,
-            DateTime enqueuedTimeUtc,
-            string messageId,
-            ILogger log,
-            ExecutionContext context)
+            ServiceBusReceivedMessage message,
+            [DurableClient] DurableTaskClient durableTaskClient)
         {
+            var myQueueItem = message.Body.ToString();
+            var log = this.logger;
             var messageContent = JsonConvert.DeserializeObject<DataQueueMessageContent>(myQueueItem);
 
             var notificationDataEntity = await this.notificationDataRepository.GetAsync(
@@ -92,7 +91,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
                 string orchestrationStatus = string.Empty;
                 if (notificationDataEntity.Status.Equals(NotificationStatus.Canceling.ToString()))
                 {
-                    orchestrationStatus = await this.updateNotificationDataService.GetOrchestrationStatusAsync(notificationDataEntity.FunctionInstancePayload);
+                    orchestrationStatus = await this.updateNotificationDataService.GetOrchestrationStatusAsync(notificationDataEntity.FunctionInstancePayload, durableTaskClient);
                 }
 
                 // Get all of the result counts (Successes, Failures, etc.) from the Sent Notification Data.

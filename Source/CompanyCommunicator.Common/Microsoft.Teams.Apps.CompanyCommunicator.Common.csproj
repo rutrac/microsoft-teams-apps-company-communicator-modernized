@@ -25,7 +25,7 @@
     <PackageReference Include="Azure.Storage.Blobs" Version="12.28.0" />
     <PackageReference Include="Microsoft.Bot.Builder.Integration.AspNet.Core" Version="4.23.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-    <!-- Pin Microsoft.Extensions.* to 8.x: Azure.Core 1.53+ pulls 10.x which is incompatible with Functions v4 in-process host that consumes this shared library. -->
+    <!-- Pin Microsoft.Extensions.* to 8.x: same reason. -->
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="8.0.1" />

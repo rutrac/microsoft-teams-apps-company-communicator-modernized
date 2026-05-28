@@ -7,8 +7,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+    using global::Azure.Messaging.ServiceBus;
+    using Microsoft.Azure.Functions.Worker;
+    using Microsoft.DurableTask.Client;
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
@@ -22,16 +23,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
 
     /// <summary>
     /// Azure Function App triggered by messages from a Service Bus queue.
-    /// This function exports notification in a zip file for the admin.
-    /// It prepares the file by reading the notification data, user graph api.
-    /// This function stage the file in Blob Storage and send the
-    /// file card to the admin using bot framework adapter.
+    /// Exports notification as a zip file for the admin.
     /// </summary>
     public class ExportFunction
     {
         private readonly INotificationDataRepository notificationDataRepository;
         private readonly IExportDataRepository exportDataRepository;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger<ExportFunction> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ExportFunction"/> class.
@@ -39,40 +38,33 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
         /// <param name="notificationDataRepository">Notification data repository.</param>
         /// <param name="exportDataRepository">Export data repository.</param>
         /// <param name="localizer">Localization service.</param>
+        /// <param name="logger">Logger.</param>
         public ExportFunction(
             INotificationDataRepository notificationDataRepository,
             IExportDataRepository exportDataRepository,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<ExportFunction> logger)
         {
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
             this.exportDataRepository = exportDataRepository ?? throw new ArgumentNullException(nameof(exportDataRepository));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
-        /// Azure Function App triggered by messages from a Service Bus queue.
-        /// It kicks off the durable orchestration for exporting notifications.
+        /// Service Bus triggered entry point that kicks off the export orchestration.
         /// </summary>
-        /// <param name="myQueueItem">The Service Bus queue item.</param>
+        /// <param name="message">The Service Bus received message.</param>
         /// <param name="starter">Durable orchestration client.</param>
-        /// <param name="log">Logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName("CompanyCommunicatorExportFunction")]
+        [Function("CompanyCommunicatorExportFunction")]
         public async Task Run(
             [ServiceBusTrigger(ExportQueue.QueueName, Connection = ExportQueue.ServiceBusConnectionConfigurationKey)]
-            string myQueueItem,
-            [DurableClient] IDurableOrchestrationClient starter,
-            ILogger log)
+            ServiceBusReceivedMessage message,
+            [DurableClient] DurableTaskClient starter)
         {
-            if (myQueueItem == null)
-            {
-                throw new ArgumentNullException(nameof(myQueueItem));
-            }
-
-            if (starter == null)
-            {
-                throw new ArgumentNullException(nameof(starter));
-            }
+            var myQueueItem = message.Body.ToString();
+            var log = this.logger;
 
             var messageContent = JsonConvert.DeserializeObject<ExportMessageQueueContent>(myQueueItem);
             var notificationId = messageContent.NotificationId;
@@ -88,7 +80,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
                 return;
             }
 
-            string instanceId = await starter.StartNewAsync(
+            string instanceId = await starter.ScheduleNewOrchestrationInstanceAsync(
                 FunctionNames.ExportOrchestration,
                 requirement);
 

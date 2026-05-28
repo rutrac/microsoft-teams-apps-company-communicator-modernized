@@ -1,4 +1,4 @@
-﻿// <copyright file="DataAggregationTriggerActivity.cs" company="Microsoft">
+// <copyright file="DataAggregationTriggerActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,8 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
@@ -51,7 +50,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// <param name="input">Input.</param>
         /// <param name="log">logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.DataAggregationTriggerActivity)]
+        [Function(FunctionNames.DataAggregationTriggerActivity)]
         public async Task RunAsync(
             [ActivityTrigger](string notificationId, int recipientCount) input,
             ILogger log)
