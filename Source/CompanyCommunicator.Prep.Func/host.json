@@ -12,8 +12,6 @@
         "controlQueueVisibilityTimeout": "01:00:00",
         "workItemQueueVisibilityTimeout": "01:00:00"
       },
-      "extendedSessionsEnabled": true,
-      "extendedSessionIdleTimeoutInSeconds": 60,
       "maxConcurrentOrchestratorFunctions": 3,
       "maxConcurrentActivityFunctions": 10
     }
