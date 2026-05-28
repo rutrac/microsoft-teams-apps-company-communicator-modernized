@@ -52,6 +52,7 @@ var host = new HostBuilder()
                 opts.GraphAppId = cfg.GetValue<string>("GraphAppId");
                 opts.GraphAppCertName = cfg.GetValue<string>("GraphAppCertName", string.Empty);
                 opts.UseCertificate = cfg.GetValue<bool>("UseCertificate", false);
+                opts.TenantId = cfg.GetValue<string>("TenantId", string.Empty);
             });
 
         services.AddOptions<CleanUpFileOptions>()

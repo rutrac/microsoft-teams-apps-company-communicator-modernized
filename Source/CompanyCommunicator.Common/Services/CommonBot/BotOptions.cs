@@ -74,5 +74,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot
         /// Gets or sets a value indicating whether gets or sets the DisableReadTracking flag.
         /// </summary>
         public bool DisableReadTracking { get; set; }
+
+        /// <summary>
+        /// Gets or sets the AAD tenant id of the bot apps. Required when the Azure Bot resource is configured as SingleTenant.
+        /// </summary>
+        public string TenantId { get; set; }
     }
 }

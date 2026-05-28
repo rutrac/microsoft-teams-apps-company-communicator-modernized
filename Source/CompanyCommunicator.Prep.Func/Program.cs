@@ -72,6 +72,7 @@ var host = new HostBuilder()
                 opts.AuthorAppCertName = cfg.GetValue<string>("AuthorAppCertName", string.Empty);
                 opts.UserAppCertName = cfg.GetValue<string>("UserAppCertName", string.Empty);
                 opts.GraphAppCertName = cfg.GetValue<string>("GraphAppCertName", string.Empty);
+                opts.TenantId = cfg.GetValue<string>("TenantId", string.Empty);
             });
 
         services.AddOptions<DataQueueMessageOptions>()
