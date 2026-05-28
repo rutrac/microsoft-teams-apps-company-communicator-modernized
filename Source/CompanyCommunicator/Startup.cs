@@ -9,6 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
 {
     using System;
     using System.Net;
+    using global::Azure.Monitor.OpenTelemetry.AspNetCore;
     using Microsoft.AspNetCore.Builder;
     using Microsoft.AspNetCore.Diagnostics;
     using Microsoft.AspNetCore.Hosting;
@@ -210,8 +211,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
             services.AddScoped<IGroupsService>(sp => sp.GetRequiredService<IGraphServiceFactory>().GetGroupsService());
             services.AddScoped<IAppCatalogService>(sp => sp.GetRequiredService<IGraphServiceFactory>().GetAppCatalogService());
 
-            // Add Application Insights telemetry.
-            services.AddApplicationInsightsTelemetry();
+            // Add Azure Monitor OpenTelemetry distro (modern replacement for classic Application Insights SDK).
+            services.AddOpenTelemetry().UseAzureMonitor();
 
             // Add miscellaneous dependencies.
             services.AddTransient<TableRowKeyGenerator>();
