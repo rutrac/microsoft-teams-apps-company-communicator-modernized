@@ -1,4 +1,4 @@
-﻿// <copyright file="HandleFailureActivity.cs" company="Microsoft">
+// <copyright file="HandleFailureActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,8 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Localization;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
@@ -42,7 +41,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="input">Input value.</param>
         /// <returns>A task that represents the work queued to execute.</returns>
-        [FunctionName(FunctionNames.HandleFailureActivity)]
+        [Function(FunctionNames.HandleFailureActivity)]
         public async Task RunAsync(
             [ActivityTrigger](NotificationDataEntity notification, Exception exception) input)
         {

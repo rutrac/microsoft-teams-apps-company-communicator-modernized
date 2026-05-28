@@ -1,4 +1,4 @@
-﻿// <copyright file="ExportOrchestration.cs" company="Microsoft">
+// <copyright file="ExportOrchestration.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,30 +7,28 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Orchestrator
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+    using Microsoft.Azure.Functions.Worker;
+    using Microsoft.DurableTask;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Model;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
 
     /// <summary>
-    /// This class is the durable framework orchestration for exporting notifications.
+    /// Durable orchestration for exporting notifications.
     /// </summary>
     public static class ExportOrchestration
     {
         /// <summary>
-        /// This is the durable orchestration method,
-        /// which starts the export process.
+        /// Run orchestrator.
         /// </summary>
         /// <param name="context">Durable orchestration context.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.ExportOrchestration)]
+        [Function(FunctionNames.ExportOrchestration)]
         public static async Task RunOrchestrator(
-            [OrchestrationTrigger] IDurableOrchestrationContext context,
-            ILogger log)
+            [OrchestrationTrigger] TaskOrchestrationContext context)
         {
+            var log = context.CreateReplaySafeLogger(nameof(ExportOrchestration));
             var exportRequiredData = context.GetInput<ExportDataRequirement>();
             var sentNotificationDataEntity = exportRequiredData.NotificationDataEntity;
             var exportDataEntity = exportRequiredData.ExportDataEntity;
@@ -48,40 +46,40 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Orchestrator
                 }
 
                 exportDataEntity.Status = ExportStatus.InProgress.ToString();
-                await context.CallActivityWithRetryAsync(
+                await context.CallActivityAsync(
                     FunctionNames.UpdateExportDataActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    exportDataEntity);
+                    exportDataEntity,
+                    FunctionSettings.DefaultRetryOptions);
 
                 if (!context.IsReplaying)
                 {
                     log.LogInformation("About to get the metadata information.");
                 }
 
-                var metaData = await context.CallActivityWithRetryAsync<Metadata>(
+                var metaData = await context.CallActivityAsync<Metadata>(
                     FunctionNames.GetMetadataActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    (sentNotificationDataEntity, exportDataEntity));
+                    (sentNotificationDataEntity, exportDataEntity),
+                    FunctionSettings.DefaultRetryOptions);
 
                 if (!context.IsReplaying)
                 {
                     log.LogInformation("About to start file upload.");
                 }
 
-                await context.CallActivityWithRetryAsync(
+                await context.CallActivityAsync(
                     FunctionNames.UploadActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    (sentNotificationDataEntity, metaData, exportDataEntity.FileName));
+                    (sentNotificationDataEntity, metaData, exportDataEntity.FileName),
+                    FunctionSettings.DefaultRetryOptions);
 
                 if (!context.IsReplaying)
                 {
                     log.LogInformation("About to send file card.");
                 }
 
-                var consentId = await context.CallActivityWithRetryAsync<string>(
+                var consentId = await context.CallActivityAsync<string>(
                     FunctionNames.SendFileCardActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    (exportRequiredData.UserId, exportRequiredData.NotificationDataEntity.Id, exportDataEntity.FileName));
+                    (exportRequiredData.UserId, exportRequiredData.NotificationDataEntity.Id, exportDataEntity.FileName),
+                    FunctionSettings.DefaultRetryOptions);
 
                 if (!context.IsReplaying)
                 {
@@ -90,20 +88,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Orchestrator
 
                 exportDataEntity.FileConsentId = consentId;
                 exportDataEntity.Status = ExportStatus.Completed.ToString();
-                await context.CallActivityWithRetryAsync(
+                await context.CallActivityAsync(
                     FunctionNames.UpdateExportDataActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    exportDataEntity);
+                    exportDataEntity,
+                    FunctionSettings.DefaultRetryOptions);
 
                 log.LogInformation($"ExportOrchestration is successful for notification id:{sentNotificationDataEntity.Id}!");
             }
             catch (Exception ex)
             {
                 log.LogError(ex, $"Failed to export notification {sentNotificationDataEntity.Id} : {ex.Message}");
-                await context.CallActivityWithRetryAsync(
+                await context.CallActivityAsync(
                     FunctionNames.HandleExportFailureActivity,
-                    FunctionSettings.DefaultRetryOptions,
-                    exportDataEntity);
+                    exportDataEntity,
+                    FunctionSettings.DefaultRetryOptions);
             }
         }
     }

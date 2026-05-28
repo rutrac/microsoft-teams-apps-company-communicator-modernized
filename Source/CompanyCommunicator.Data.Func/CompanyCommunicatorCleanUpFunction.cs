@@ -10,7 +10,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
     using System.Linq;
     using System.Threading.Tasks;
     using global::Azure.Storage.Blobs;
-    using Microsoft.Azure.WebJobs;
+    using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
@@ -26,6 +26,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
         private readonly IExportDataRepository exportDataRepository;
         private readonly IFileCardService fileCardService;
         private readonly BlobContainerClient blobContainerClient;
+        private readonly ILogger<CompanyCommunicatorCleanUpFunction> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CompanyCommunicatorCleanUpFunction"/> class.
@@ -34,16 +35,19 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
         /// <param name="blobContainerClient">The Azure Blob storage container client.</param>
         /// <param name="fileCardService">The service to manage the file card.</param>
         /// <param name="cleanUpFileOptions">The options to clean up file.</param>
+        /// <param name="logger">Logger.</param>
         public CompanyCommunicatorCleanUpFunction(
             IExportDataRepository exportDataRepository,
             BlobContainerClient blobContainerClient,
             IFileCardService fileCardService,
-            IOptions<CleanUpFileOptions> cleanUpFileOptions)
+            IOptions<CleanUpFileOptions> cleanUpFileOptions,
+            ILogger<CompanyCommunicatorCleanUpFunction> logger)
         {
             this.exportDataRepository = exportDataRepository;
             this.fileCardService = fileCardService;
             this.blobContainerClient = blobContainerClient;
             this.cleanUpFileOlderThanDays = int.Parse(cleanUpFileOptions.Value.CleanUpFile);
+            this.logger = logger;
         }
 
         /// <summary>
@@ -51,11 +55,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func
         /// Used for house keeping activites.
         /// </summary>
         /// <param name="myTimer">The timer schedule.</param>
-        /// <param name="log">The logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName("CompanyCommunicatorCleanUpFunction")]
-        public async Task Run([TimerTrigger("%CleanUpScheduleTriggerTime%")] TimerInfo myTimer, ILogger log)
+        [Function("CompanyCommunicatorCleanUpFunction")]
+        public async Task Run([TimerTrigger("%CleanUpScheduleTriggerTime%")] TimerInfo myTimer)
         {
+            var log = this.logger;
             var cleanUpDateTime = DateTime.UtcNow.AddDays(-this.cleanUpFileOlderThanDays);
             var exportDataEntities = await this.exportDataRepository.GetAllLessThanDateTimeAsync(cleanUpDateTime);
             exportDataEntities = exportDataEntities.Where(exportDataEntity => exportDataEntity.Status.Equals(ExportStatus.Completed.ToString()));

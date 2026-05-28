@@ -8,7 +8,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
     using System;
     using System.Net;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
+    using global::Azure.Messaging.ServiceBus;
+    using Microsoft.Azure.Functions.Worker;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Builder.Teams;
     using Microsoft.Bot.Schema;
@@ -46,6 +47,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
         private readonly IMessageService messageService;
         private readonly ISendQueue sendQueue;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger<SendFunction> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SendFunction"/> class.
@@ -56,13 +58,15 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
         /// <param name="notificationRepo">Notification repository.</param>
         /// <param name="sendQueue">The send queue.</param>
         /// <param name="localizer">Localization service.</param>
+        /// <param name="logger">Logger.</param>
         public SendFunction(
             IOptions<SendFunctionOptions> options,
             INotificationService notificationService,
             IMessageService messageService,
             ISendingNotificationDataRepository notificationRepo,
             ISendQueue sendQueue,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<SendFunction> logger)
         {
             if (options is null)
             {
@@ -77,31 +81,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
             this.notificationRepo = notificationRepo ?? throw new ArgumentNullException(nameof(notificationRepo));
             this.sendQueue = sendQueue ?? throw new ArgumentNullException(nameof(sendQueue));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Azure Function App triggered by messages from a Service Bus queue
         /// Used for sending messages from the bot.
         /// </summary>
-        /// <param name="myQueueItem">The Service Bus queue item.</param>
-        /// <param name="deliveryCount">The deliver count.</param>
-        /// <param name="enqueuedTimeUtc">The enqueued time.</param>
-        /// <param name="messageId">The message ID.</param>
-        /// <param name="log">The logger.</param>
-        /// <param name="context">The execution context.</param>
+        /// <param name="message">The Service Bus received message.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName("SendMessageFunction")]
+        [Function("SendMessageFunction")]
         public async Task Run(
             [ServiceBusTrigger(
                 SendQueue.QueueName,
                 Connection = SendQueue.ServiceBusConnectionConfigurationKey)]
-            string myQueueItem,
-            int deliveryCount,
-            DateTime enqueuedTimeUtc,
-            string messageId,
-            ILogger log,
-            ExecutionContext context)
+            ServiceBusReceivedMessage message)
         {
+            var myQueueItem = message.Body.ToString();
+            var deliveryCount = message.DeliveryCount;
+            var log = this.logger;
             log.LogInformation($"C# ServiceBus queue trigger function processed message: {myQueueItem}");
 
             var messageContent = JsonConvert.DeserializeObject<SendQueueMessageContent>(myQueueItem);
@@ -227,6 +225,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
             SendMessageResponse sendMessageResponse,
             ILogger log)
         {
+            log ??= this.logger;
             var statusReason = string.Empty;
             if (sendMessageResponse.ResultType == SendMessageResult.Succeeded)
             {

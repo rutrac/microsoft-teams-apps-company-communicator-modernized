@@ -6,7 +6,7 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 {
     using System;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+    using Microsoft.DurableTask;
 
     /// <summary>
     /// Function settings.
@@ -16,9 +16,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// <summary>
         /// A default setting for the retry options for starting an activity / sub-orchestrator.
         /// </summary>
-        public static readonly RetryOptions DefaultRetryOptions
-            = new RetryOptions(
-                firstRetryInterval: TimeSpan.FromSeconds(5),
-                maxNumberOfAttempts: 3);
+        public static readonly TaskOptions DefaultRetryOptions
+            = TaskOptions.FromRetryPolicy(new RetryPolicy(
+                maxNumberOfAttempts: 3,
+                firstRetryInterval: TimeSpan.FromSeconds(5)));
     }
 }

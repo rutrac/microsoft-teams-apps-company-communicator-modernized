@@ -1,4 +1,4 @@
-﻿// <copyright file="SendBatchMessagesActivity.cs" company="Microsoft">
+// <copyright file="SendBatchMessagesActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -9,8 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.SentNotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData;
@@ -43,7 +42,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="input">Input.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.SendBatchMessagesActivity)]
+        [Function(FunctionNames.SendBatchMessagesActivity)]
         public async Task RunAsync(
             [ActivityTrigger](string notificationId, List<SentNotificationDataEntity> batch) input)
         {

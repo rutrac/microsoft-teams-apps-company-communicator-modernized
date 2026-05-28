@@ -1,4 +1,4 @@
-﻿// <copyright file="SendFileCardActivity.cs" company="Microsoft">
+// <copyright file="SendFileCardActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -9,8 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Schema;
     using Microsoft.Bot.Schema.Teams;
@@ -74,7 +73,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
         /// <param name="sendData">Tuple containing user id, notification id and filename.</param>
         /// <param name="log">Logging service.</param>
         /// <returns>file card response id.</returns>
-        [FunctionName(FunctionNames.SendFileCardActivity)]
+        [Function(FunctionNames.SendFileCardActivity)]
         public async Task<string> SendFileCardActivityAsync(
             [ActivityTrigger](string userId, string notificationId, string fileName) sendData,
             ILogger log)

@@ -1,4 +1,4 @@
-﻿// <copyright file="StoreMessageActivity.cs" company="Microsoft">
+// <copyright file="StoreMessageActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,8 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.AdaptiveCard;
 
@@ -38,7 +37,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notification">A notification to be sent to recipients.</param>
         /// <returns>A task that represents the work queued to execute.</returns>
-        [FunctionName(FunctionNames.StoreMessageActivity)]
+        [Function(FunctionNames.StoreMessageActivity)]
         public async Task RunAsync(
             [ActivityTrigger] NotificationDataEntity notification)
         {

@@ -1,4 +1,4 @@
-﻿// <copyright file="HandleExportFailureActivity.cs" company="Microsoft">
+// <copyright file="HandleExportFailureActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -8,8 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using System;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Schema;
     using Microsoft.Extensions.Localization;
@@ -69,7 +68,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
         /// </summary>
         /// <param name="exportDataEntity">export data entity.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.HandleExportFailureActivity)]
+        [Function(FunctionNames.HandleExportFailureActivity)]
         public async Task HandleFailureActivityAsync(
             [ActivityTrigger] ExportDataEntity exportDataEntity)
         {

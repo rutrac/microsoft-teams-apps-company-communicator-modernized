@@ -1,4 +1,4 @@
-﻿// <copyright file="UpdateExportDataActivity.cs" company="Microsoft">
+// <copyright file="UpdateExportDataActivity.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // </copyright>
@@ -7,8 +7,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+        using Microsoft.Azure.Functions.Worker;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.ExportData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
 
@@ -33,7 +32,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
         /// </summary>
         /// <param name="exportDataEntity">Export data entity.</param>
         /// <returns>A <see cref="Task"/>Representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.UpdateExportDataActivity)]
+        [Function(FunctionNames.UpdateExportDataActivity)]
         public async Task UpdateExportDataActivityAsync(
             [ActivityTrigger] ExportDataEntity exportDataEntity)
         {

@@ -934,8 +934,9 @@ function ADAppUpdate {
     $azureDomainBase = $appdomainName
     $configAppUrl = "https://$azureDomainBase"
     $RedirectUris = ($configAppUrl + '/signin-simple-end')
-    # Use api://<appId> format: complies with tenant policy (contains app ID) AND Teams SDK iframe-origin check (no host to validate)
-    $IdentifierUris = "api://$configAppId"
+    # Teams SSO requires the resource URI to contain the iframe host so it can match against the tab origin.
+    # Form: api://<appDomain>/<appId> (contains appId so it also satisfies tenant ID-URI policy).
+    $IdentifierUris = "api://$azureDomainBase/$configAppId"
 
     # Grant Admin consent
     GrantAdminConsent $configAppId
@@ -952,6 +953,12 @@ function ADAppUpdate {
 
     # Fetch full application object via Graph API
     $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+
+    # Ensure implicit id_token issuance is enabled (required by the popup auth flow in SignInSimpleStart/End)
+    if (-not $app.web.implicitGrantSettings.enableIdTokenIssuance) {
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"web":{"implicitGrantSettings":{"enableIdTokenIssuance":true,"enableAccessTokenIssuance":false}}}'
+        WriteI -message "Implicit id_token issuance enabled."
+    }
 
     # Do nothing if the app has already been fully configured (identifier URIs + access_as_user scope)
     $existingUserScope = $app.api.oauth2PermissionScopes | Where-Object { $_.value -eq 'access_as_user' }
@@ -975,7 +982,7 @@ function ADAppUpdate {
     AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
 
     $appAfterIdentifierUriUpdate = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
-    if ($appAfterIdentifierUriUpdate.identifierUris.Count -eq 0 -or $appAfterIdentifierUriUpdate.identifierUris[0] -ne $IdentifierUris) {
+    if ($appAfterIdentifierUriUpdate.identifierUris -notcontains $IdentifierUris) {
         throw "Failed to set Application ID URI to $IdentifierUris on the Graph app."
     }
     WriteI -message "App identifier URI set ($IdentifierUris)"
@@ -1095,9 +1102,10 @@ function GenerateAppManifestPackage {
 
     # Replace merge fields with proper values in manifest file and save
         $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
-        # webApplicationInfo.resource must target the SSO/main app, not the bot app. Form: api://<mainAppId> (tenant-policy compliant, Teams-iframe-origin compatible).
+        # webApplicationInfo.resource must target the SSO/main app and contain the iframe host so Teams SSO can match it against the tab origin.
+        # Form: api://<appDomain>/<mainAppId>
         $ssoAppId = if ($graphAppId) { $graphAppId } else { $appId }
-        $identifierUri = "api://$ssoAppId"
+        $identifierUri = "api://$azureDomainBase/$ssoAppId"
         $mergeFields = @{
             '<<companyName>>'   = $parameters.companyName.Value
             '<<botId>>'         = $appId

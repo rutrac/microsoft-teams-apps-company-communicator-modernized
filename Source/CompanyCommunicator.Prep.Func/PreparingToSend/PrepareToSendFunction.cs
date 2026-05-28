@@ -7,8 +7,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
 {
     using System;
     using System.Threading.Tasks;
-    using Microsoft.Azure.WebJobs;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+    using global::Azure.Messaging.ServiceBus;
+    using Microsoft.Azure.Functions.Worker;
+    using Microsoft.DurableTask.Client;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MessageQueues.PrepareToSendQueue;
@@ -16,40 +17,41 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
     using Newtonsoft.Json;
 
     /// <summary>
-    /// Azure Function App triggered by messages from a Service Bus queue. <see cref="PrepareToSendQueue.QueueName"/>
-    ///
-    /// The function processes data from service bus queue and prepares the data to be processed in send, data queue.
+    /// Azure Function App triggered by messages from a Service Bus queue. <see cref="PrepareToSendQueue.QueueName"/>.
     /// </summary>
     public class PrepareToSendFunction
     {
         private readonly INotificationDataRepository notificationDataRepository;
+        private readonly ILogger<PrepareToSendFunction> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PrepareToSendFunction"/> class.
         /// </summary>
         /// <param name="notificationDataRepository">Notification data repository.</param>
+        /// <param name="logger">Logger.</param>
         public PrepareToSendFunction(
-            INotificationDataRepository notificationDataRepository)
+            INotificationDataRepository notificationDataRepository,
+            ILogger<PrepareToSendFunction> logger)
         {
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
-        /// Azure Function App triggered by messages from a Service Bus queue.
-        /// It kicks off the durable orchestration for preparing to send notifications.
+        /// Service Bus triggered entry point that kicks off the prepare-to-send orchestration.
         /// </summary>
-        /// <param name="myQueueItem">The Service Bus queue item.</param>
+        /// <param name="message">The Service Bus received message.</param>
         /// <param name="starter">Durable orchestration client.</param>
-        /// <param name="log">Logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        [FunctionName(FunctionNames.PrepareToSendFunction)]
+        [Function(FunctionNames.PrepareToSendFunction)]
         public async Task Run(
             [ServiceBusTrigger(PrepareToSendQueue.QueueName, Connection = PrepareToSendQueue.ServiceBusConnectionConfigurationKey)]
-            string myQueueItem,
-            [DurableClient] IDurableOrchestrationClient starter,
-            ILogger log)
+            ServiceBusReceivedMessage message,
+            [DurableClient] DurableTaskClient starter)
         {
-            // Get Notification Data
+            var myQueueItem = message.Body.ToString();
+            var log = this.logger;
+
             var queueMessageContent = JsonConvert.DeserializeObject<PrepareToSendQueueMessageContent>(myQueueItem);
             var notificationId = queueMessageContent.NotificationId;
             var sentNotificationDataEntity = await this.notificationDataRepository.GetAsync(
@@ -62,15 +64,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func
                 return;
             }
 
-            // Start PrepareToSendOrchestrator function.
-            string instanceId = await starter.StartNewAsync(
+            string instanceId = await starter.ScheduleNewOrchestrationInstanceAsync(
                 FunctionNames.PrepareToSendOrchestrator,
                 sentNotificationDataEntity);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            var httpManagementPayload = starter.CreateHttpManagementPayload(instanceId);
-            sentNotificationDataEntity.FunctionInstancePayload = JsonConvert.SerializeObject(httpManagementPayload);
+            // Persist the instance id so the data function can later query orchestration status.
+            sentNotificationDataEntity.FunctionInstancePayload = instanceId;
             await this.notificationDataRepository.InsertOrMergeAsync(sentNotificationDataEntity);
         }
     }
