@@ -38,6 +38,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
         private readonly TeamsConversationOptions options;
         private readonly INotificationDataRepository notificationDataRepository;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SendFileCardActivity"/> class.
@@ -56,7 +57,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
             IConversationService conversationService,
             IOptions<TeamsConversationOptions> options,
             INotificationDataRepository notificationDataRepository,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<SendFileCardActivity> logger)
         {
             this.botAdapter = botAdapter ?? throw new ArgumentNullException(nameof(botAdapter));
             this.authorAppId = botOptions?.Value?.AuthorAppId ?? throw new ArgumentNullException(nameof(botOptions));
@@ -65,25 +67,24 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
             this.options = options?.Value ?? throw new ArgumentNullException(nameof(options));
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Sends the file card to the user.
         /// </summary>
         /// <param name="sendData">Tuple containing user id, notification id and filename.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>file card response id.</returns>
         [Function(FunctionNames.SendFileCardActivity)]
         public async Task<string> SendFileCardActivityAsync(
-            [ActivityTrigger](string userId, string notificationId, string fileName) sendData,
-            ILogger log)
+            [ActivityTrigger](string userId, string notificationId, string fileName) sendData)
         {
             var user = await this.userDataRepository.GetAsync(UserDataTableNames.AuthorDataPartition, sendData.userId);
             string conversationId = string.Empty;
             if (!string.IsNullOrEmpty(user.UserId))
             {
                 // Create conversation using bot adapter for users with teams user id.
-                conversationId = await this.CreateConversationWithTeamsAuthor(sendData.notificationId, user, log);
+                conversationId = await this.CreateConversationWithTeamsAuthor(sendData.notificationId, user);
                 user.ConversationId = conversationId;
                 await this.userDataRepository.CreateOrUpdateAsync(user);
             }
@@ -158,8 +159,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
 
         private async Task<string> CreateConversationWithTeamsAuthor(
             string notificationId,
-            UserDataEntity user,
-            ILogger log)
+            UserDataEntity user)
         {
             try
             {
@@ -169,7 +169,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
                     tenantId: user.TenantId,
                     serviceUrl: user.ServiceUrl,
                     maxAttempts: this.options.MaxAttemptsToCreateConversation,
-                    log: log);
+                    log: this.logger);
 
                 return response.Result switch
                 {
@@ -181,7 +181,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
             catch (Exception exception)
             {
                 var errorMessage = this.localizer.GetString("FailedToCreateConversationForUserFormat", user?.UserId, exception.Message);
-                log.LogError(exception, errorMessage);
+                this.logger.LogError(exception, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 return null;
             }

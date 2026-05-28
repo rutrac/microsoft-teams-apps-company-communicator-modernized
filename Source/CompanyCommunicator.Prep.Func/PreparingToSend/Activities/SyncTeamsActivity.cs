@@ -29,6 +29,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IStringLocalizer<Strings> localizer;
         private readonly INotificationDataRepository notificationDataRepository;
         private readonly IRecipientsService recipientsService;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncTeamsActivity"/> class.
@@ -43,36 +44,32 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             ISentNotificationDataRepository sentNotificationDataRepository,
             IStringLocalizer<Strings> localizer,
             INotificationDataRepository notificationDataRepository,
-            IRecipientsService recipientsService)
+            IRecipientsService recipientsService,
+            ILogger<SyncTeamsActivity> logger)
         {
             this.teamDataRepository = teamDataRepository ?? throw new ArgumentNullException(nameof(teamDataRepository));
             this.sentNotificationDataRepository = sentNotificationDataRepository ?? throw new ArgumentNullException(nameof(sentNotificationDataRepository));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
             this.recipientsService = recipientsService ?? throw new ArgumentNullException(nameof(recipientsService));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Sync teams data to Sent notification table.
         /// </summary>
         /// <param name="notification">Notification.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         [Function(FunctionNames.SyncTeamsActivity)]
-        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification, ILogger log)
+        public async Task<RecipientsInfo> RunAsync([ActivityTrigger] NotificationDataEntity notification)
         {
             if (notification == null)
             {
                 throw new ArgumentNullException(nameof(notification));
             }
 
-            if (log == null)
-            {
-                throw new ArgumentNullException(nameof(log));
-            }
-
             // Get teams data.
-            var teamsData = await this.GetTeamDataEntities(notification.Id, notification.Teams, log);
+            var teamsData = await this.GetTeamDataEntities(notification.Id, notification.Teams);
 
             // Convert to recipients.
             var recipients = teamsData.Select(teamData => this.ConvertToRecipient(notification.Id, teamData));
@@ -89,9 +86,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// </summary>
         /// <param name="notificationId">Notification Id.</param>
         /// <param name="teamIds">Team Ids.</param>
-        /// <param name="log">Logger.</param>
         /// <returns>Team Data Entities.</returns>
-        private async Task<IEnumerable<TeamDataEntity>> GetTeamDataEntities(string notificationId, IEnumerable<string> teamIds, ILogger log)
+        private async Task<IEnumerable<TeamDataEntity>> GetTeamDataEntities(string notificationId, IEnumerable<string> teamIds)
         {
             var teamDataEntities = await this.teamDataRepository.GetTeamDataEntitiesByIdsAsync(teamIds);
 
@@ -103,7 +99,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                 if (!teamDataEntities.Any(p => p.TeamId == teamId))
                 {
                     var errorMessage = this.localizer.GetString("FailedToFindTeamInDbFormat", teamId);
-                    log.LogWarning($"Notification {notificationId}: {errorMessage}");
+                    this.logger.LogWarning($"Notification {notificationId}: {errorMessage}");
                     await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 }
             }

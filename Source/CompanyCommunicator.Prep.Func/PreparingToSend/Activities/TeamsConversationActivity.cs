@@ -36,6 +36,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IChatsService chatsService;
         private readonly IAppSettingsService appSettingsService;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TeamsConversationActivity"/> class.
@@ -58,7 +59,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             IChatsService chatsService,
             IAppSettingsService appSettingsService,
             IOptions<TeamsConversationOptions> options,
-            IStringLocalizer<Strings> localizer)
+            IStringLocalizer<Strings> localizer,
+            ILogger<TeamsConversationActivity> logger)
         {
             this.conversationService = conversationService ?? throw new ArgumentNullException(nameof(conversationService));
             this.sentNotificationDataRepository = sentNotificationDataRepository ?? throw new ArgumentNullException(nameof(sentNotificationDataRepository));
@@ -69,6 +71,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             this.appSettingsService = appSettingsService ?? throw new ArgumentNullException(nameof(appSettingsService));
             this.options = options?.Value ?? throw new ArgumentNullException(nameof(options));
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -78,12 +81,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         /// For other users - it installs User application and gets conversation id.
         /// </summary>
         /// <param name="input">Input.</param>
-        /// <param name="log">Logger.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         [Function(FunctionNames.TeamsConversationActivity)]
         public async Task CreateConversationAsync(
-            [ActivityTrigger](string notificationId, string batchKey, SentNotificationDataEntity recipient) input,
-            ILogger log)
+            [ActivityTrigger](string notificationId, string batchKey, SentNotificationDataEntity recipient) input)
         {
             if (input.notificationId == null)
             {
@@ -100,11 +101,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                 throw new ArgumentNullException(nameof(input.batchKey));
             }
 
-            if (log == null)
-            {
-                throw new ArgumentNullException(nameof(log));
-            }
-
             var recipient = input.recipient;
 
             // No-op for Team recipient.
@@ -116,7 +112,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             // No-op for null user type.
             if (string.IsNullOrEmpty(recipient.UserType))
             {
-                log.LogInformation("Unknown User Type.");
+                this.logger.LogInformation("Unknown User Type.");
                 return;
             }
             else if (recipient.UserType.Equals(UserType.Guest, StringComparison.OrdinalIgnoreCase))
@@ -130,19 +126,19 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             if (!string.IsNullOrEmpty(recipient.UserId))
             {
                 // Create conversation using bot adapter for users with teams user id.
-                conversationId = await this.CreateConversationWithTeamsUser(input.notificationId, recipient, log);
+                conversationId = await this.CreateConversationWithTeamsUser(input.notificationId, recipient);
             }
             else
             {
                 // check if proactive app installation is enabled.
                 if (!this.options.ProactivelyInstallUserApp)
                 {
-                    log.LogInformation("Proactive app installation is disabled.");
+                    this.logger.LogInformation("Proactive app installation is disabled.");
                     return;
                 }
 
                 // For other user, install the User's app and get conversation id.
-                conversationId = await this.InstallAppAndGetConversationId(input.notificationId, recipient, log);
+                conversationId = await this.InstallAppAndGetConversationId(input.notificationId, recipient);
             }
 
             if (string.IsNullOrEmpty(conversationId))
@@ -170,8 +166,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 
         private async Task<string> CreateConversationWithTeamsUser(
             string notificationId,
-            SentNotificationDataEntity recipient,
-            ILogger log)
+            SentNotificationDataEntity recipient)
         {
             try
             {
@@ -181,7 +176,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                     tenantId: recipient.TenantId,
                     serviceUrl: recipient.ServiceUrl,
                     maxAttempts: this.options.MaxAttemptsToCreateConversation,
-                    log: log);
+                    log: this.logger);
 
                 return response.Result switch
                 {
@@ -193,7 +188,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             catch (Exception exception)
             {
                 var errorMessage = this.localizer.GetString("FailedToCreateConversationForUserFormat", recipient?.UserId, exception.Message);
-                log.LogError(exception, errorMessage);
+                this.logger.LogError(exception, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 var exceptionDetails = this.localizer.GetString("FailedToCreateConversationForUserFormat", recipient?.UserId, exception.ToString());
                 await this.sentNotificationDataRepository.SaveExceptionInSentNotificationDataEntityAsync(notificationId, recipient?.RecipientId, exceptionDetails);
@@ -203,15 +198,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 
         private async Task<string> InstallAppAndGetConversationId(
             string notificationId,
-            SentNotificationDataEntity recipient,
-            ILogger log)
+            SentNotificationDataEntity recipient)
         {
             var appId = await this.appSettingsService.GetUserAppIdAsync();
             if (string.IsNullOrEmpty(appId))
             {
                 // This may happen if the User app is not added to the organization's app catalog.
                 var errorMessage = this.localizer.GetString("UserAppNotFound");
-                log.LogError(errorMessage);
+                this.logger.LogError(errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 return string.Empty;
             }
@@ -227,12 +221,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                 {
                     case HttpStatusCode.Conflict:
                         // Note: application is already installed, we should fetch conversation id for this user.
-                        log.LogWarning("Application is already installed for the user.");
+                        this.logger.LogWarning("Application is already installed for the user.");
                         break;
                     case HttpStatusCode.NotFound:
                         // Failed to find the User app in App Catalog. This may happen if the User app is deleted from app catalog.
                         var message = this.localizer.GetString("FailedToFindUserAppInAppCatalog", appId);
-                        log.LogError(message);
+                        this.logger.LogError(message);
                         await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, message);
 
                         // Clear cached user app id. The app may fetch an updated app id next time a message is sent.
@@ -240,7 +234,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                         return string.Empty;
                     default:
                         var errorMessage = this.localizer.GetString("FailedToInstallApplicationForUserFormat", recipient?.RecipientId, exception.Message);
-                        log.LogError(exception, errorMessage);
+                        this.logger.LogError(exception, errorMessage);
                         await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                         var exceptionDetails = this.localizer.GetString("FailedToInstallApplicationForUserFormat", recipient?.RecipientId, exception.ToString());
                         await this.sentNotificationDataRepository.SaveExceptionInSentNotificationDataEntityAsync(notificationId, recipient?.RecipientId, exceptionDetails);
@@ -256,7 +250,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             catch (ODataError exception)
             {
                 var errorMessage = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, (HttpStatusCode)exception.ResponseStatusCode, exception.Message);
-                log.LogError(exception, errorMessage);
+                this.logger.LogError(exception, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 var exceptionDetails = this.localizer.GetString("FailedToGetConversationForUserFormat", recipient?.UserId, (HttpStatusCode)exception.ResponseStatusCode, exception.ToString());
                 await this.sentNotificationDataRepository.SaveExceptionInSentNotificationDataEntityAsync(notificationId, recipient?.RecipientId, exceptionDetails);

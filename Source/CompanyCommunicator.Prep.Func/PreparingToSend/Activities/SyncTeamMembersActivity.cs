@@ -36,6 +36,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
         private readonly IStringLocalizer<Strings> localizer;
         private readonly IUserDataRepository userDataRepository;
         private readonly IUserTypeService userTypeService;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncTeamMembersActivity"/> class.
@@ -54,7 +55,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             ISentNotificationDataRepository sentNotificationDataRepository,
             IStringLocalizer<Strings> localizer,
             IUserDataRepository userDataRepository,
-            IUserTypeService userTypeService)
+            IUserTypeService userTypeService,
+            ILogger<SyncTeamMembersActivity> logger)
         {
             this.teamDataRepository = teamDataRepository ?? throw new ArgumentNullException(nameof(teamDataRepository));
             this.memberService = memberService ?? throw new ArgumentNullException(nameof(memberService));
@@ -63,18 +65,17 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
             this.userDataRepository = userDataRepository ?? throw new ArgumentNullException(nameof(userDataRepository));
             this.userTypeService = userTypeService ?? throw new ArgumentNullException(nameof(userTypeService));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Syncs Team members to SentNotification table.
         /// </summary>
         /// <param name="input">Input data.</param>
-        /// <param name="log">Logging service.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         [Function(FunctionNames.SyncTeamMembersActivity)]
         public async Task RunAsync(
-            [ActivityTrigger](string notificationId, string teamId) input,
-            ILogger log)
+            [ActivityTrigger](string notificationId, string teamId) input)
         {
             if (input.notificationId == null)
             {
@@ -86,11 +87,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
                 throw new ArgumentNullException(nameof(input.teamId));
             }
 
-            if (log == null)
-            {
-                throw new ArgumentNullException(nameof(log));
-            }
-
             var notificationId = input.notificationId;
             var teamId = input.teamId;
 
@@ -99,7 +95,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             if (teamInfo == null)
             {
                 var errorMessage = this.localizer.GetString("FailedToFindTeamInDbFormat", teamId);
-                log.LogWarning($"Notification {notificationId}: {errorMessage}");
+                this.logger.LogWarning($"Notification {notificationId}: {errorMessage}");
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
                 return;
             }
@@ -121,7 +117,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
             catch (Exception ex)
             {
                 var errorMessage = this.localizer.GetString("FailedToGetMembersForTeamFormat", teamId, ex.Message);
-                log.LogError(ex, errorMessage);
+                this.logger.LogError(ex, errorMessage);
                 await this.notificationDataRepository.SaveWarningInNotificationDataEntityAsync(notificationId, errorMessage);
             }
         }
