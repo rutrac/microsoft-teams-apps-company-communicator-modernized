@@ -96,6 +96,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                     botOptions.MasterAdminUpns = configuration.GetValue<string>("MasterAdminUpns");
                     botOptions.ImageUploadBlobStorage = configuration.GetValue<bool>("ImageUploadBlobStorage");
                     botOptions.DisableReadTracking = configuration.GetValue<bool>("DisableReadTracking");
+                    botOptions.TenantId = configuration.GetValue<string>("TenantId", string.Empty);
                 });
             services.AddOptions<BotFilterMiddlewareOptions>()
                 .Configure<IConfiguration>((botFilterMiddlewareOptions, configuration) =>
