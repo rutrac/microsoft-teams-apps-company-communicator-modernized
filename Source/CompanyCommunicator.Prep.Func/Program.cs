@@ -5,6 +5,8 @@
 
 using System;
 using System.Globalization;
+using System.Text.Json;
+using Azure.Core.Serialization;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Bot.Connector.Authentication;
@@ -38,7 +40,13 @@ using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams;
 using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend;
 
 var host = new HostBuilder()
-    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureFunctionsWorkerDefaults(workerApp => { }, options =>
+    {
+        options.Serializer = new JsonObjectSerializer(new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            IncludeFields = true,
+        });
+    })
     .ConfigureServices((context, services) =>
     {
         services.AddApplicationInsightsTelemetryWorkerService();
