@@ -511,11 +511,7 @@
                   },
                   {
                      "name":"FUNCTIONS_WORKER_RUNTIME",
-                     "value":"dotnet"
-                  },
-                  {
-                     "name":"FUNCTIONS_INPROC_NET8_ENABLED",
-                     "value":"1"
+                     "value":"dotnet-isolated"
                   },
                   {
                      "name":"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
@@ -627,11 +623,7 @@
                   },
                   {
                      "name":"FUNCTIONS_WORKER_RUNTIME",
-                     "value":"dotnet"
-                  },
-                  {
-                     "name":"FUNCTIONS_INPROC_NET8_ENABLED",
-                     "value":"1"
+                     "value":"dotnet-isolated"
                   },
                   {
                      "name":"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
@@ -735,11 +727,7 @@
                   },
                   {
                      "name":"FUNCTIONS_WORKER_RUNTIME",
-                     "value":"dotnet"
-                  },
-                  {
-                     "name":"FUNCTIONS_INPROC_NET8_ENABLED",
-                     "value":"1"
+                     "value":"dotnet-isolated"
                   },
                   {
                      "name":"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
