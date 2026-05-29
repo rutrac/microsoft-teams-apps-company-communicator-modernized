@@ -72,6 +72,15 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
                 throw new ArgumentException("Null channel id.");
             }
 
+            if (string.IsNullOrWhiteSpace(teamDataEntity.ServiceUrl) || string.IsNullOrWhiteSpace(teamDataEntity.TenantId))
+            {
+                // Without a real service URL + tenant id the bot adapter will return 502 from the channel.
+                return HttpStatusCode.ServiceUnavailable;
+            }
+
+            // Trust the Teams service URL so the Bot Framework will issue tokens for it.
+            Microsoft.Bot.Connector.Authentication.MicrosoftAppCredentials.TrustServiceUrl(teamDataEntity.ServiceUrl);
+
             // Create bot conversation reference.
             var conversationReference = this.PrepareConversationReferenceAsync(teamDataEntity, teamsChannelId);
 

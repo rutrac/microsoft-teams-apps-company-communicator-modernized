@@ -92,17 +92,25 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                 var notificationEntities = await this.notificationDataRepository.GetAllPendingScheduledNotificationsAsync();
                 foreach (var notificationEntity in notificationEntities)
                 {
-                    this.smslogger.LogInformation("[CC Scheduler] sending notification: {0}", notificationEntity.Title);
-                    this.SendNotification(notificationEntity.Id);
+                    try
+                    {
+                        this.smslogger.LogInformation("[CC Scheduler] sending notification: {Title}", notificationEntity.Title);
+                        await this.SendNotificationAsync(notificationEntity.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Don't let a single failed scheduled notification stop the rest of the batch.
+                        this.smslogger.LogError(ex, "[CC Scheduler] failed to send scheduled notification {NotificationId}.", notificationEntity.Id);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                this.smslogger.LogError(ex.ToString());
+                this.smslogger.LogError(ex, "[CC Scheduler] failed to enumerate pending scheduled notifications.");
             }
         }
 
-        private async void SendNotification(string id)
+        private async Task SendNotificationAsync(string id)
         {
             var draftNotificationDataEntity = await this.notificationDataRepository.GetAsync(
                 NotificationDataTableNames.DraftNotificationsPartition,

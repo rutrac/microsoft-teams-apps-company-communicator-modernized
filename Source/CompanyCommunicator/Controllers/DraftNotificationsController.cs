@@ -503,14 +503,39 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 return this.BadRequest($"Notification {draftNotificationPreviewRequest.DraftNotificationId} not found.");
             }
 
-            var teamDataEntity = new TeamDataEntity();
-            teamDataEntity.TenantId = this.HttpContext.User.FindFirstValue(Common.Constants.ClaimTypeTenantId);
-            teamDataEntity.ServiceUrl = await this.appSettingsService.GetServiceUrlAsync();
-            var result = await this.draftNotificationPreviewService.SendPreview(
-                notificationEntity,
-                teamDataEntity,
-                draftNotificationPreviewRequest.TeamsChannelId);
-            return this.StatusCode((int)result);
+            // Look up the installed team to use the ServiceUrl + TenantId that the bot captured on install.
+            // Falling back to the JWT TenantId and the global app-settings ServiceUrl can yield a null/wrong
+            // URL (especially across tenants or for guest installs) and produce a 502 from the bot channel.
+            var teamData = await this.teamDataRepository.GetAsync(
+                TeamDataTableNames.TeamDataPartition,
+                draftNotificationPreviewRequest.TeamsTeamId);
+            var teamDataEntity = new TeamDataEntity
+            {
+                TenantId = teamData?.TenantId ?? this.HttpContext.User.FindFirstValue(Common.Constants.ClaimTypeTenantId),
+                ServiceUrl = teamData?.ServiceUrl ?? await this.appSettingsService.GetServiceUrlAsync(),
+            };
+
+            if (string.IsNullOrWhiteSpace(teamDataEntity.ServiceUrl) || string.IsNullOrWhiteSpace(teamDataEntity.TenantId))
+            {
+                return this.StatusCode(
+                    (int)System.Net.HttpStatusCode.ServiceUnavailable,
+                    "Preview unavailable: bot has not yet captured a service URL for the selected team.");
+            }
+
+            try
+            {
+                var result = await this.draftNotificationPreviewService.SendPreview(
+                    notificationEntity,
+                    teamDataEntity,
+                    draftNotificationPreviewRequest.TeamsChannelId);
+                return this.StatusCode((int)result);
+            }
+            catch (Exception ex)
+            {
+                return this.StatusCode(
+                    (int)System.Net.HttpStatusCode.InternalServerError,
+                    new { error = "Preview failed", message = ex.Message });
+            }
         }
 
         private async Task<NotificationDataEntity> FindNotificationToDuplicate(string notificationId)
