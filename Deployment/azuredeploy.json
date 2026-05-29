@@ -736,7 +736,6 @@
             "ImageUploadBlobStorageSasDurationHours": "[parameters('ImageUploadBlobStorageSasDurationHours')]",
             "TargetingEnabled": "[parameters('TargetingEnabled')]",
             "MasterAdminUpns": "[parameters('MasterAdminUpns')]",
-            "IsItExpectedThatTableAlreadyExists": "true",
             "SCM_COMMAND_IDLE_TIMEOUT": "7200",
             "SCM_DO_BUILD_DURING_DEPLOYMENT": "true"
           }
