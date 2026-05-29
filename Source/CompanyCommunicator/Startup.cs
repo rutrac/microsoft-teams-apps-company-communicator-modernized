@@ -114,9 +114,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                     repositoryOptions.StorageAccountName =
                         configuration.GetValue<string>("StorageAccountName");
 
-                    // Setting this to true because the main application should ensure that all
-                    // tables exist.
-                    repositoryOptions.EnsureTableExists = true;
+                    // Skip CreateIfNotExists when tenant policies block data-plane table create
+                    // (tables are provisioned by ARM/initial deploy and persist).
+                    repositoryOptions.EnsureTableExists =
+                        !configuration.GetValue<bool>("IsItExpectedThatTableAlreadyExists", false);
                 });
             services.AddOptions<DataQueueMessageOptions>()
                 .Configure<IConfiguration>((dataQueueMessageOptions, configuration) =>
