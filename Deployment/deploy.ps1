@@ -911,15 +911,28 @@ function GrantAdminConsent {
 
 # Helper: write JSON body to a temp file and call az rest PATCH.
 # Avoids PowerShell→external-command argument escaping with complex JSON bodies.
+# Retries on transient failures (Graph ReadTimeout / TCP reset / throttling) and throws on final failure
+# so callers cannot silently proceed past a failed write.
 function AzRestPatch {
     Param(
         [Parameter(Mandatory=$true)] [string]$Url,
-        [Parameter(Mandatory=$true)] [string]$Body
+        [Parameter(Mandatory=$true)] [string]$Body,
+        [int]$MaxAttempts = 4,
+        [int]$RetryDelaySeconds = 15
     )
     $tmp = [System.IO.Path]::GetTempFileName()
     try {
         [System.IO.File]::WriteAllText($tmp, $Body, [System.Text.Encoding]::UTF8)
-        az rest --method PATCH --url $Url --body "@$tmp" --headers "Content-Type=application/json" | Out-Null
+        $lastError = ''
+        for ($i = 1; $i -le $MaxAttempts; $i++) {
+            $lastError = (az rest --method PATCH --url $Url --body "@$tmp" --headers "Content-Type=application/json" 2>&1) -join "`n"
+            if ($LASTEXITCODE -eq 0) { return }
+            if ($i -lt $MaxAttempts) {
+                WriteW -message "Graph PATCH failed (attempt $i/$MaxAttempts). Retrying in ${RetryDelaySeconds}s..."
+                Start-Sleep -Seconds $RetryDelaySeconds
+            }
+        }
+        throw "AzRestPatch failed after $MaxAttempts attempts: $Url`n$lastError"
     } finally {
         Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
     }
@@ -954,10 +967,24 @@ function ADAppUpdate {
     # Fetch full application object via Graph API
     $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
 
-    # Ensure implicit id_token issuance is enabled (required by the popup auth flow in SignInSimpleStart/End)
-    if (-not $app.web.implicitGrantSettings.enableIdTokenIssuance) {
-        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"web":{"implicitGrantSettings":{"enableIdTokenIssuance":true,"enableAccessTokenIssuance":false}}}'
-        WriteI -message "Implicit id_token issuance enabled."
+    # Ensure web settings are correct (redirectUris + implicit id_token issuance for the popup auth flow).
+    # PATCH on `web` replaces the whole complex type, so redirectUris and implicitGrantSettings MUST be set together —
+    # patching only implicitGrantSettings would wipe redirectUris (the root cause of an earlier silent failure).
+    $webOk = ($app.web.redirectUris -contains $RedirectUris) -and $app.web.implicitGrantSettings.enableIdTokenIssuance
+    if (-not $webOk) {
+        $webPatch = @{ web = @{
+            redirectUris          = @($RedirectUris)
+            implicitGrantSettings = @{ enableIdTokenIssuance = $true; enableAccessTokenIssuance = $false }
+        } } | ConvertTo-Json -Depth 10 -Compress
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $webPatch
+        $appAfterWeb = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+        if ($appAfterWeb.web.redirectUris -notcontains $RedirectUris) {
+            throw "Failed to set web.redirectUris to $RedirectUris on the Graph app."
+        }
+        if (-not $appAfterWeb.web.implicitGrantSettings.enableIdTokenIssuance) {
+            throw "Failed to enable implicit id_token issuance on the Graph app."
+        }
+        WriteI -message "App web settings set (redirectUris=$RedirectUris, implicit id_token=true)"
     }
 
     # Do nothing if the app has already been fully configured (identifier URIs + access_as_user scope)
@@ -987,11 +1014,12 @@ function ADAppUpdate {
     }
     WriteI -message "App identifier URI set ($IdentifierUris)"
 
-    az ad app update --id $configAppId --web-redirect-uris $RedirectUris
-    WriteI -message "App reply-urls set"
-
+    # Set optionalClaims via Graph PATCH (replaces the unverified `az ad app update --optional-claims` CLI call,
+    # which silently swallows transient Graph ReadTimeouts).
     $optionalClaimsPath = Join-Path $PSScriptRoot 'AadOptionalClaims.json'
-    az ad app update --id $configAppId --optional-claims $optionalClaimsPath
+    $optionalClaimsObj = Get-Content -Path $optionalClaimsPath -Raw | ConvertFrom-Json
+    $optionalClaimsPatch = @{ optionalClaims = $optionalClaimsObj } | ConvertTo-Json -Depth 10 -Compress
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $optionalClaimsPatch
     WriteI -message "App optionalclaim set."
 
     # Create access_as_user scope via Graph API PATCH
