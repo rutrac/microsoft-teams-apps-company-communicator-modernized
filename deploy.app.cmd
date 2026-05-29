@@ -74,24 +74,27 @@ echo Restoring NuGet packages
 call :ExecuteCmd dotnet restore "%DEPLOYMENT_SOURCE%\Source\Microsoft.Teams.Apps.CompanyCommunicator.sln"
 IF !ERRORLEVEL! NEQ 0 goto error
 
-:: 2. Restore npm packages
-echo Restoring npm packages (this can take several minutes)
-pushd "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp"
+:: 2+3. ClientApp build: prefer pre-built artifacts (skips OOM/recycle risk on B1).
+IF EXIST "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp\build\index.html" (
+    echo Pre-built ClientApp\build detected, skipping npm install + npm run build
+) ELSE (
+    echo Restoring npm packages (this can take several minutes)
+    pushd "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp"
 
-call :ExecuteCmd npm install --no-audit
-IF !ERRORLEVEL! NEQ 0 (
-    echo First attempt failed, retrying once
     call :ExecuteCmd npm install --no-audit
-)
-popd
-IF !ERRORLEVEL! NEQ 0 goto error
+    IF !ERRORLEVEL! NEQ 0 (
+        echo First attempt failed, retrying once
+        call :ExecuteCmd npm install --no-audit
+    )
+    popd
+    IF !ERRORLEVEL! NEQ 0 goto error
 
-:: 3. Build the client app
-echo Building the client app (this can take several minutes)
-pushd "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp"
-call :ExecuteCmd npm run build
-popd
-IF !ERRORLEVEL! NEQ 0 goto error
+    echo Building the client app (this can take several minutes)
+    pushd "%DEPLOYMENT_SOURCE%\Source\CompanyCommunicator\ClientApp"
+    call :ExecuteCmd npm run build
+    popd
+    IF !ERRORLEVEL! NEQ 0 goto error
+)
 
 :: 4. Build and publish
 echo Building the application
