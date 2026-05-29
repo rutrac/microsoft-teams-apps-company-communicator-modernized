@@ -9,6 +9,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Bot.Connector.Authentication;
     using Microsoft.Bot.Schema;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
@@ -81,6 +82,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                 AllSendStatusCodes = string.Empty,
             };
 
+            // Trust the Teams service URL so the Bot Framework will issue tokens for it.
+            // Without this, proactive sends can be silently dropped on the first use of a new service URL.
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
+
             await this.botAdapter.ContinueConversationAsync(
                 botId: this.microsoftAppId,
                 reference: conversationReference,
@@ -89,11 +94,18 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                     var policy = this.GetRetryPolicy(maxAttempts, log);
                     try
                     {
-                        // Send message.
-                        // await policy.ExecuteAsync(async () => await turnContext.SendActivityAsync(message));
                         await policy.ExecuteAsync(async ct =>
                         {
                             var resp = await turnContext.SendActivityAsync(message, ct);
+
+                            // A successful Teams delivery always returns a non-empty activity id.
+                            // A null/empty id means the call was accepted upstream but Teams did not
+                            // actually deliver the message (e.g. stale conversation, untrusted URL).
+                            if (resp == null || string.IsNullOrEmpty(resp.Id))
+                            {
+                                throw new InvalidOperationException("Bot send returned no activity id; treating as not delivered.");
+                            }
+
                             response.ActivityId = resp.Id;
                         });
 
@@ -126,6 +138,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                                 break;
                         }
                     }
+                    catch (InvalidOperationException exception)
+                    {
+                        log.LogError(exception, $"Failed to send message: {exception.Message}");
+                        response.StatusCode = (int)HttpStatusCode.BadGateway;
+                        response.AllSendStatusCodes += $"{(int)HttpStatusCode.BadGateway},";
+                        response.ErrorMessage = exception.ToString();
+                        response.ResultType = SendMessageResult.Failed;
+                    }
                 },
                 cancellationToken: CancellationToken.None);
 
@@ -142,14 +162,22 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
                         var errorMessage = $"{e.GetType()}: {e.Message}";
                         log.LogError(e, $"Exception thrown: {errorMessage}");
 
-                        // Handle throttling and internal server errors.
                         var statusCode = e.Response.StatusCode;
+
+                        // Auth failures (401/403) will not recover by retrying; fail fast.
+                        if (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
+                        {
+                            return false;
+                        }
+
+                        // Handle throttling and transient server errors.
                         return statusCode == HttpStatusCode.TooManyRequests || ((int)statusCode >= 500 && (int)statusCode < 600);
                     }),
                     MaxRetryAttempts = maxAttempts,
                     BackoffType = DelayBackoffType.Exponential,
                     UseJitter = true,
-                    Delay = TimeSpan.FromSeconds(1),
+                    Delay = TimeSpan.FromSeconds(5),
+                    MaxDelay = TimeSpan.FromSeconds(60),
                 })
                 .Build();
         }

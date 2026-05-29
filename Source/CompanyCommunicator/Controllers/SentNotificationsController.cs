@@ -517,41 +517,63 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         {
             _ = id ?? throw new ArgumentNullException(nameof(id));
 
-            var notificationDataEntity = await this.notificationDataRepository.GetAsync(
-                NotificationDataTableNames.SentNotificationsPartition,
-                id);
-            if (notificationDataEntity == null)
+            try
             {
-                return this.NotFound();
-            }
+                var notificationDataEntity = await this.notificationDataRepository.GetAsync(
+                    NotificationDataTableNames.SentNotificationsPartition,
+                    id);
+                if (notificationDataEntity == null)
+                {
+                    return this.NotFound();
+                }
 
-            var instancePayload = JsonConvert.DeserializeObject<HttpManagementPayload>(notificationDataEntity.FunctionInstancePayload);
-            var client = this.clientFactory.CreateClient();
-            var httpContent = new StringContent(string.Empty, Encoding.UTF8, "application/json");
+                // The isolated-worker Prep.Func writes `FunctionInstancePayload` as a plain orchestration id.
+                // Older deployments wrote a serialized `HttpManagementPayload` JSON object. Handle both shapes
+                // defensively: if we have a TerminatePostUri, use it; otherwise rely on the per-message
+                // cancellation check Send.Func performs against `Status`.
+                var payload = notificationDataEntity.FunctionInstancePayload;
+                if (!string.IsNullOrWhiteSpace(payload) && payload.TrimStart().StartsWith("{"))
+                {
+                    try
+                    {
+                        var legacy = JsonConvert.DeserializeObject<HttpManagementPayload>(payload);
+                        if (legacy?.TerminatePostUri != null)
+                        {
+                            var client = this.clientFactory.CreateClient();
+                            var httpContent = new StringContent(string.Empty, Encoding.UTF8, "application/json");
+                            var terminateUri = legacy.TerminatePostUri.Replace("{text}", "Canceled");
+                            var response = await client.PostAsync(terminateUri, httpContent);
+                            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                            {
+                                return this.NotFound();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        this.logger.LogWarning(ex, "Failed to terminate orchestration via legacy HttpManagementPayload for notification {NotificationId}; falling back to status-based cancellation.", id);
+                    }
+                }
 
-            // Update the reason of termination.
-            var terminateUri = instancePayload.TerminatePostUri.Replace("{text}", "Canceled");
-            var response = await client.PostAsync(terminateUri, httpContent);
-            if (response.StatusCode == System.Net.HttpStatusCode.Accepted ||
-                response.StatusCode == System.Net.HttpStatusCode.Gone)
-            {
                 if (!notificationDataEntity.IsCompleted())
                 {
                     notificationDataEntity.Status = NotificationStatus.Canceling.ToString();
                     await this.notificationDataRepository.InsertOrMergeAsync(notificationDataEntity);
 
-                    // send message to data queue
                     var messageDelay = new TimeSpan(0, 0, 5);
                     await this.dataQueue.SendMessageAsync(id, messageDelay);
                     return this.Accepted();
                 }
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return this.NotFound();
-            }
 
-            return this.Ok();
+                return this.Ok();
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "Cancel failed for notification {NotificationId}.", id);
+                return this.StatusCode(
+                    (int)System.Net.HttpStatusCode.InternalServerError,
+                    new { error = "Cancel failed", message = ex.Message });
+            }
         }
 
         private int? GetUnknownCount(NotificationDataEntity notificationEntity)

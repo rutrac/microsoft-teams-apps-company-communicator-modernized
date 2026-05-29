@@ -44,12 +44,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter
                 ClientCertificate = cert,
             };
 
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
             await this.CreateConversationAsync(channelId, serviceUrl, new CertificateAppCredentials(options) as AppCredentials, conversationParameters, callback, cancellationToken);
         }
 
         /// <inheritdoc/>
         public async Task CreateConversationUsingSecretAsync(string channelId, string serviceUrl, MicrosoftAppCredentials credentials, ConversationParameters conversationParameters, BotCallbackHandler callback, CancellationToken cancellationToken)
         {
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
             await this.CreateConversationAsync(channelId, serviceUrl, credentials, conversationParameters, callback, cancellationToken);
         }
 

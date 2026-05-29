@@ -110,6 +110,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Teams
             };
 
             var response = new CreateConversationResponse();
+
+            // Trust the Teams service URL so the Bot Framework will issue tokens for it.
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
+
             try
             {
                 var retryPolicy = this.GetRetryPolicy(maxAttempts, log);
