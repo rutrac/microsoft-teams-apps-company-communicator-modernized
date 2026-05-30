@@ -44,10 +44,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             CompanyCommunicatorBotAdapter companyCommunicatorBotAdapter)
         {
             var options = botOptions ?? throw new ArgumentNullException(nameof(botOptions));
-            this.botAppId = options.Value.AuthorAppId;
+
+            // Preview posts into the destination Teams channel using the User bot, because the
+            // User app is the one installed in destination teams (the Authors app lives only in
+            // an authoring team and would not have a TeamData/ServiceUrl row for arbitrary teams).
+            this.botAppId = options.Value.UserAppId;
             if (string.IsNullOrEmpty(this.botAppId))
             {
-                throw new ApplicationException("AuthorAppId setting is missing in the configuration.");
+                throw new ApplicationException("UserAppId setting is missing in the configuration.");
             }
 
             this.adaptiveCardCreator = adaptiveCardCreator ?? throw new ArgumentNullException(nameof(adaptiveCardCreator));
