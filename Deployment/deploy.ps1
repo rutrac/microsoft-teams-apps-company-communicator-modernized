@@ -293,9 +293,12 @@ function CreateAzureADApp {
     param(
         [Parameter(Mandatory = $true)] [string] $AppName,
 		[Parameter(Mandatory = $false)] [bool] $ResetAppSecret = $true,
-        [Parameter(Mandatory = $false)] [bool] $MultiTenant = $true,
+        [Parameter(Mandatory = $false)] [bool] $MultiTenant = $false,
         [Parameter(Mandatory = $false)] [bool] $AllowImplicitFlow
     )
+
+    # Bot Service msaAppType is hard-coded SingleTenant in azuredeploy.json, so AAD apps must match.
+    $signInAudience = if ($MultiTenant) { 'AzureADMultipleOrgs' } else { 'AzureADMyOrg' }
 
     try {
         WriteI -message "`r`nCreating Azure AD App: $appName..."
@@ -316,7 +319,7 @@ function CreateAzureADApp {
 
                 $updateSuccess = $false
                 for ($updateAttempt = 1; $updateAttempt -le 4; $updateAttempt++) {
-                    az ad app update --id $app.appId --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+                    az ad app update --id $app.appId --display-name $appName --sign-in-audience $signInAudience | Out-Null
                     if ($LASTEXITCODE -eq 0) { $updateSuccess = $true; break }
                     if ($updateAttempt -lt 4) {
                         WriteW -message "App update timed out. Retrying in 15s ($updateAttempt/4)..."
@@ -341,7 +344,7 @@ function CreateAzureADApp {
             # Create Azure AD app registration using CLI (with retry for transient Graph API timeouts)
             $createSuccess = $false
             for ($createAttempt = 1; $createAttempt -le 4; $createAttempt++) {
-                az ad app create --display-name $appName --sign-in-audience AzureADMultipleOrgs | Out-Null
+                az ad app create --display-name $appName --sign-in-audience $signInAudience | Out-Null
                 if ($LASTEXITCODE -eq 0) { $createSuccess = $true; break }
                 if ($createAttempt -lt 4) {
                     WriteW -message "App creation timed out. Retrying in 15s ($createAttempt/4)..."
@@ -361,6 +364,26 @@ function CreateAzureADApp {
         }
 
         $app = GetAzureADApp $appName
+
+        # Ensure the matching service principal exists. Without an SP, admin consent has nothing
+        # to write grants against, bot connector auth returns 401, and Graph OBO fails (AADSTS65001).
+        # 'az ad sp create' is idempotent: if the SP already exists it errors out, which is fine.
+        if ($null -ne $app) {
+            $spOk = $false
+            for ($spAttempt = 1; $spAttempt -le 10; $spAttempt++) {
+                $spOut = az ad sp create --id $app.appId 2>&1
+                if ($LASTEXITCODE -eq 0) { $spOk = $true; break }
+                if ($spOut -match 'already exists|Another object with the same value') { $spOk = $true; break }
+                if ($spAttempt -lt 10) {
+                    WriteW -message "SP create not ready (AAD propagation). Retrying in 6s ($spAttempt/10)..."
+                    Start-Sleep -Seconds 6
+                }
+            }
+            if (-not $spOk) {
+                WriteE -message "Failed to create service principal for '$appName'. Admin consent and bot auth will not work."
+                return $null
+            }
+        }
 
         $appSecret = $null;
         #Reset the app credentials to get the secret. The default validity of this secret will be for 1 year from the date its created.
@@ -1283,7 +1306,8 @@ function logout {
 	}
 	else
 	{
-		$userAppCred = CreateAzureADApp $usersApp
+		# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
+		$userAppCred = CreateAzureADApp -AppName $usersApp -ResetAppSecret $True -MultiTenant $False
 		if ($null -eq $userAppCred) {
 			WriteE -message "Failed to create or update User app in Azure Active Directory. Exiting..."
 			logout
@@ -1299,7 +1323,8 @@ function logout {
 	}
 	else
 	{
-		$authorAppCred = CreateAzureADApp $authorsApp
+		# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
+		$authorAppCred = CreateAzureADApp -AppName $authorsApp -ResetAppSecret $True -MultiTenant $False
 		if ($null -eq $authorAppCred) {
         WriteE -message "Failed to create or update the Author app in Azure Active Directory. Exiting..."
         logout
