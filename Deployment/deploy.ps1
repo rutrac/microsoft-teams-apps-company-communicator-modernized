@@ -912,7 +912,9 @@ function GrantAdminConsent {
     * User.Read(Application)
     Please ask the tenant's global administrator to consent."
 
-    $updateDecision = $Host.UI.PromptForChoice($confirmationTitle, $confirmationQuestion, $confirmationChoices, 1)
+    # Default to Yes (0). Unattended/detached runs would otherwise silently skip consent
+    # and the Teams app would later fail with AADSTS65001 on every Graph OBO call.
+    $updateDecision = $Host.UI.PromptForChoice($confirmationTitle, $confirmationQuestion, $confirmationChoices, 0)
     if ($updateDecision -eq 0) {
         # Grant admin consent for app registration required permissions using CLI
         WriteI -message "Waiting for admin consent to finish..."
@@ -921,11 +923,13 @@ function GrantAdminConsent {
         if ($LASTEXITCODE -ne 0) {
             WriteE -message $consentErrorMessage
             WriteW -message "`nPlease inform the global admin to consent the app permissions from this link`nhttps://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
+            throw "Admin consent failed for appId $graphAppId. Aborting so the deploy does not silently produce a broken Teams app."
         } else {
             WriteS -message "Admin consent has been granted."
         }
     } else {
         WriteW -message "`nPlease inform the global admin to consent the app permissions from this link`nhttps://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
+        throw "Admin consent was declined for appId $graphAppId. Aborting deploy."
     }
 }
 
@@ -999,14 +1003,19 @@ function ADAppUpdate {
     # Form: api://<appDomain>/<appId> (contains appId so it also satisfies tenant ID-URI policy).
     $IdentifierUris = "api://$azureDomainBase/$configAppId"
 
-    # Grant Admin consent
-    GrantAdminConsent $configAppId
-
     # set subscription
     az account set --subscription $parameters.subscriptionId.Value
 
-    # Assigning graph permissions
+    # Assigning graph permissions FIRST so admin consent below has scopes to grant.
+    # Previously consent ran before this and silently no-oped (no scopes on the app yet),
+    # leaving the Teams web app to fail every Graph OBO call with AADSTS65001.
     az ad app update --id $configAppId --required-resource-accesses (Join-Path $PSScriptRoot 'AadAppManifest.json')
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to set required-resource-accesses on appId $configAppId. Aborting."
+    }
+
+    # Grant Admin consent AFTER required permissions are written to the app.
+    GrantAdminConsent $configAppId
 
     # Get the object ID (required for Graph API calls; appId and objectId are different).
     # Retries through AAD replication lag — without it, a freshly created app sometimes returns empty,
