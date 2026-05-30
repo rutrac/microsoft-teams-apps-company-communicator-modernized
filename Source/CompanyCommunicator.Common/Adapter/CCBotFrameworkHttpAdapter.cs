@@ -12,7 +12,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter
     using Microsoft.Bot.Builder.Integration.AspNet.Core;
     using Microsoft.Bot.Connector.Authentication;
     using Microsoft.Bot.Schema;
+    using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Secrets;
+    using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.CommonBot;
 
     /// <summary>
     /// Bot framework http adapter instance.
@@ -20,18 +22,22 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter
     public class CCBotFrameworkHttpAdapter : BotFrameworkHttpAdapter, ICCBotFrameworkHttpAdapter
     {
         private readonly ICertificateProvider certificateProvider;
+        private readonly BotOptions botOptions;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CCBotFrameworkHttpAdapter"/> class.
         /// </summary>
         /// <param name="credentialProvider">credential provider.</param>
         /// <param name="certificateProvider">certificate provider.</param>
+        /// <param name="botOptions">bot options (tenantId + per-app passwords).</param>
         public CCBotFrameworkHttpAdapter(
             ICredentialProvider credentialProvider,
-            ICertificateProvider certificateProvider)
+            ICertificateProvider certificateProvider,
+            IOptions<BotOptions> botOptions)
             : base(credentialProvider)
         {
             this.certificateProvider = certificateProvider;
+            this.botOptions = botOptions?.Value ?? throw new ArgumentNullException(nameof(botOptions));
         }
 
         /// <inheritdoc/>
@@ -75,7 +81,26 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Adapter
             }
             else
         {
-                return await base.BuildCredentialsAsync(appId, oAuthScope);
+                // SingleTenant bot apps require channelAuthTenant so the SDK hits the tenant-specific
+                // /oauth2/token endpoint instead of the default /botframework.com one. Resolve the
+                // password from BotOptions (the registered ICredentialProvider only knows the legacy
+                // MicrosoftAppId/MicrosoftAppPassword pair and returns empty for our UserAppId/AuthorAppId).
+                var tenantId = string.IsNullOrWhiteSpace(this.botOptions.TenantId) ? null : this.botOptions.TenantId;
+                string password = null;
+                if (!string.IsNullOrEmpty(this.botOptions.UserAppId) && string.Equals(appId, this.botOptions.UserAppId, StringComparison.OrdinalIgnoreCase))
+                {
+                    password = this.botOptions.UserAppPassword;
+                }
+                else if (!string.IsNullOrEmpty(this.botOptions.AuthorAppId) && string.Equals(appId, this.botOptions.AuthorAppId, StringComparison.OrdinalIgnoreCase))
+                {
+                    password = this.botOptions.AuthorAppPassword;
+                }
+                else
+                {
+                    password = await this.CredentialProvider.GetAppPasswordAsync(appId);
+                }
+
+                return new MicrosoftAppCredentials(appId, password, channelAuthTenant: tenantId, oAuthScope: oAuthScope);
             }
         }
     }
