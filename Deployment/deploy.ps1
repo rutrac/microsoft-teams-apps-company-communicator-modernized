@@ -938,6 +938,31 @@ function AzRestPatch {
     }
 }
 
+# Resolve an application's object ID from its appId, retrying through AAD replication lag.
+# After 'az ad app create' the new app may take several seconds to be queryable by appId; without this
+# retry, downstream Graph PATCHes hit https://graph.microsoft.com/v1.0/applications/ (empty id) and 405.
+function Resolve-AppObjectId {
+    Param(
+        [Parameter(Mandatory=$true)] [string]$AppId,
+        [int]$MaxAttempts = 10,
+        [int]$RetryDelaySeconds = 6
+    )
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        $raw = az ad app show --id $AppId 2>$null
+        if ($LASTEXITCODE -eq 0 -and $raw) {
+            try {
+                $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+                if ($obj -and $obj.id) { return $obj }
+            } catch { }
+        }
+        if ($i -lt $MaxAttempts) {
+            WriteW -message "az ad app show returned no objectId for appId=$AppId (attempt $i/$MaxAttempts). Retrying in ${RetryDelaySeconds}s..."
+            Start-Sleep -Seconds $RetryDelaySeconds
+        }
+    }
+    throw "Resolve-AppObjectId: failed to resolve object id for appId=$AppId after $MaxAttempts attempts."
+}
+
 function ADAppUpdate {
     Param(
         [Parameter(Mandatory = $true)] $appdomainName,
@@ -960,8 +985,10 @@ function ADAppUpdate {
     # Assigning graph permissions
     az ad app update --id $configAppId --required-resource-accesses (Join-Path $PSScriptRoot 'AadAppManifest.json')
 
-    # Get the object ID (required for Graph API calls; appId and objectId are different)
-    $appObjRaw = az ad app show --id $configAppId | ConvertFrom-Json
+    # Get the object ID (required for Graph API calls; appId and objectId are different).
+    # Retries through AAD replication lag — without it, a freshly created app sometimes returns empty,
+    # producing PATCH https://graph.microsoft.com/v1.0/applications/ (405 Method Not Allowed).
+    $appObjRaw = Resolve-AppObjectId -AppId $configAppId
     $applicationObjectId = $appObjRaw.id
 
     # Fetch full application object via Graph API
@@ -1072,8 +1099,8 @@ function FormatAADApp {
         [Parameter(Mandatory = $true)] $appName
     )
 
-    # Get the object ID (required for Graph API calls)
-    $appObjRaw = az ad app show --id $appId | ConvertFrom-Json
+    # Get the object ID (required for Graph API calls). Same propagation-safe retry as in ADAppUpdate.
+    $appObjRaw = Resolve-AppObjectId -AppId $appId
     $applicationObjectId = $appObjRaw.id
 
     # Fetch full application object via Graph API
