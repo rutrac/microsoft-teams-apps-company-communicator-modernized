@@ -7,6 +7,7 @@ using System.IO;
 using System.Net.Mime;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Sas;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Teams.Apps.CompanyCommunicator.Common.Clients;
 using Microsoft.Teams.Apps.CompanyCommunicator.Controllers.Options;
@@ -47,6 +48,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         private readonly UserAppOptions userAppOptions;
         private readonly IAppSettingsService appSettingsService;
         private readonly IStringLocalizer<Strings> localizer;
+        private readonly ILogger<DraftNotificationsController> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DraftNotificationsController"/> class.
@@ -66,8 +68,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             IStringLocalizer<Strings> localizer,
             IGroupsService groupsService,
             IStorageClientFactory storageClientFactory,
-            IOptions<UserAppOptions> userAppOptions)
+            IOptions<UserAppOptions> userAppOptions,
+            ILogger<DraftNotificationsController> logger)
         {
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
             this.teamDataRepository = teamDataRepository ?? throw new ArgumentNullException(nameof(teamDataRepository));
             this.draftNotificationPreviewService = draftNotificationPreviewService ?? throw new ArgumentNullException(nameof(draftNotificationPreviewService));
@@ -487,25 +491,28 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         public async Task<ActionResult> PreviewDraftNotificationAsync(
             [FromBody] DraftNotificationPreviewRequest draftNotificationPreviewRequest)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            this.logger.LogWarning("PREVIEW step=enter draftId={DraftId} teamId={TeamId} channelId={ChannelId}", draftNotificationPreviewRequest?.DraftNotificationId, draftNotificationPreviewRequest?.TeamsTeamId, draftNotificationPreviewRequest?.TeamsChannelId);
             if (draftNotificationPreviewRequest == null
                 || string.IsNullOrWhiteSpace(draftNotificationPreviewRequest.DraftNotificationId)
                 || string.IsNullOrWhiteSpace(draftNotificationPreviewRequest.TeamsTeamId)
                 || string.IsNullOrWhiteSpace(draftNotificationPreviewRequest.TeamsChannelId))
             {
+                this.logger.LogWarning("PREVIEW step=bad-request ms={Ms}", sw.ElapsedMilliseconds);
                 return this.BadRequest();
             }
 
+            this.logger.LogWarning("PREVIEW step=fetch-notification ms={Ms}", sw.ElapsedMilliseconds);
             var notificationEntity = await this.notificationDataRepository.GetAsync(
                 NotificationDataTableNames.DraftNotificationsPartition,
                 draftNotificationPreviewRequest.DraftNotificationId);
             if (notificationEntity == null)
             {
+                this.logger.LogWarning("PREVIEW step=notification-missing ms={Ms}", sw.ElapsedMilliseconds);
                 return this.BadRequest($"Notification {draftNotificationPreviewRequest.DraftNotificationId} not found.");
             }
 
-            // Look up the installed team to use the ServiceUrl + TenantId that the bot captured on install.
-            // Falling back to the JWT TenantId and the global app-settings ServiceUrl can yield a null/wrong
-            // URL (especially across tenants or for guest installs) and produce a 502 from the bot channel.
+            this.logger.LogWarning("PREVIEW step=fetch-team ms={Ms}", sw.ElapsedMilliseconds);
             var teamData = await this.teamDataRepository.GetAsync(
                 TeamDataTableNames.TeamDataPartition,
                 draftNotificationPreviewRequest.TeamsTeamId);
@@ -514,9 +521,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 TenantId = teamData?.TenantId ?? this.HttpContext.User.FindFirstValue(Common.Constants.ClaimTypeTenantId),
                 ServiceUrl = teamData?.ServiceUrl ?? await this.appSettingsService.GetServiceUrlAsync(),
             };
+            this.logger.LogWarning("PREVIEW step=team-resolved hasTeamRow={HasTeamRow} tenantId={TenantId} serviceUrl={ServiceUrl} ms={Ms}", teamData != null, teamDataEntity.TenantId, teamDataEntity.ServiceUrl, sw.ElapsedMilliseconds);
 
             if (string.IsNullOrWhiteSpace(teamDataEntity.ServiceUrl) || string.IsNullOrWhiteSpace(teamDataEntity.TenantId))
             {
+                this.logger.LogWarning("PREVIEW step=team-incomplete ms={Ms}", sw.ElapsedMilliseconds);
                 return this.StatusCode(
                     (int)System.Net.HttpStatusCode.ServiceUnavailable,
                     "Preview unavailable: bot has not yet captured a service URL for the selected team.");
@@ -524,17 +533,20 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
 
             try
             {
+                this.logger.LogWarning("PREVIEW step=call-sendpreview ms={Ms}", sw.ElapsedMilliseconds);
                 var result = await this.draftNotificationPreviewService.SendPreview(
                     notificationEntity,
                     teamDataEntity,
                     draftNotificationPreviewRequest.TeamsChannelId);
+                this.logger.LogWarning("PREVIEW step=sendpreview-returned status={Status} ms={Ms}", (int)result, sw.ElapsedMilliseconds);
                 return this.StatusCode((int)result);
             }
             catch (Exception ex)
             {
+                this.logger.LogError(ex, "PREVIEW step=exception ms={Ms} type={Type} msg={Msg}", sw.ElapsedMilliseconds, ex.GetType().FullName, ex.Message);
                 return this.StatusCode(
                     (int)System.Net.HttpStatusCode.InternalServerError,
-                    new { error = "Preview failed", message = ex.Message });
+                    new { error = "Preview failed", message = ex.Message, type = ex.GetType().FullName });
             }
         }
 

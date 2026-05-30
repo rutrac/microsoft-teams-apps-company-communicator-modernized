@@ -12,6 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
     using AdaptiveCards;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Schema;
+    using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Teams.Apps.CompanyCommunicator.Bot;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
@@ -31,6 +32,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
         private readonly string botAppId;
         private readonly AdaptiveCardCreator adaptiveCardCreator;
         private readonly CompanyCommunicatorBotAdapter companyCommunicatorBotAdapter;
+        private readonly ILogger<DraftNotificationPreviewService> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DraftNotificationPreviewService"/> class.
@@ -38,11 +40,14 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
         /// <param name="botOptions">The bot options.</param>
         /// <param name="adaptiveCardCreator">Adaptive card creator service.</param>
         /// <param name="companyCommunicatorBotAdapter">Bot framework http adapter instance.</param>
+        /// <param name="logger">Logger.</param>
         public DraftNotificationPreviewService(
             IOptions<BotOptions> botOptions,
             AdaptiveCardCreator adaptiveCardCreator,
-            CompanyCommunicatorBotAdapter companyCommunicatorBotAdapter)
+            CompanyCommunicatorBotAdapter companyCommunicatorBotAdapter,
+            ILogger<DraftNotificationPreviewService> logger)
         {
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             var options = botOptions ?? throw new ArgumentNullException(nameof(botOptions));
 
             // Preview posts into the destination Teams channel using the User bot, because the
@@ -84,22 +89,40 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
 
             // Trust the Teams service URL so the Bot Framework will issue tokens for it.
             Microsoft.Bot.Connector.Authentication.MicrosoftAppCredentials.TrustServiceUrl(teamDataEntity.ServiceUrl);
+            this.logger.LogWarning("SENDPREVIEW step=trusted-service-url botAppId={BotAppId} serviceUrl={ServiceUrl} tenantId={TenantId} channelId={ChannelId}", this.botAppId, teamDataEntity.ServiceUrl, teamDataEntity.TenantId, teamsChannelId);
 
             // Create bot conversation reference.
             var conversationReference = this.PrepareConversationReferenceAsync(teamDataEntity, teamsChannelId);
+            this.logger.LogWarning("SENDPREVIEW step=ref-built");
 
             // Trigger bot to send the adaptive card.
             try
             {
+                this.logger.LogWarning("SENDPREVIEW step=before-continueconversation");
                 await this.companyCommunicatorBotAdapter.ContinueConversationAsync(
                     this.botAppId,
                     conversationReference,
-                    async (turnContext, cancellationToken) => await this.SendAdaptiveCardAsync(turnContext, draftNotificationEntity),
+                    async (turnContext, cancellationToken) =>
+                    {
+                        this.logger.LogWarning("SENDPREVIEW step=callback-entered activityType={Type} channelId={Channel}", turnContext?.Activity?.Type, turnContext?.Activity?.ChannelId);
+                        try
+                        {
+                            await this.SendAdaptiveCardAsync(turnContext, draftNotificationEntity);
+                            this.logger.LogWarning("SENDPREVIEW step=callback-sendactivity-completed");
+                        }
+                        catch (Exception cbEx)
+                        {
+                            this.logger.LogError(cbEx, "SENDPREVIEW step=callback-exception type={Type} msg={Msg}", cbEx.GetType().FullName, cbEx.Message);
+                            throw;
+                        }
+                    },
                     CancellationToken.None);
+                this.logger.LogWarning("SENDPREVIEW step=continueconversation-returned");
                 return HttpStatusCode.OK;
             }
             catch (ErrorResponseException e)
             {
+                this.logger.LogError(e, "SENDPREVIEW step=errorresponse code={Code} msg={Msg}", e.Body?.Error?.Code, e.Message);
                 var errorResponse = (ErrorResponse)e.Body;
                 if (errorResponse != null
                     && errorResponse.Error.Code.Equals(DraftNotificationPreviewService.ThrottledErrorResponse, StringComparison.OrdinalIgnoreCase))
