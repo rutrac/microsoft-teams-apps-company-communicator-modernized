@@ -701,6 +701,8 @@
           "properties": {
             "PROJECT": "Source/CompanyCommunicator/Microsoft.Teams.Apps.CompanyCommunicator.csproj",
             "SITE_ROLE": "app",
+            "MicrosoftAppType": "SingleTenant",
+            "MicrosoftAppTenantId": "[parameters('tenantId')]",
             "i18n:DefaultCulture": "[variables('i18n:DefaultCulture')]",
             "i18n:SupportedCultures": "[variables('i18n:SupportedCultures')]",
             "ProactivelyInstallUserApp": "[variables('ProactivelyInstallUserApp')]",
@@ -784,6 +786,8 @@
           "properties": {
             "PROJECT": "Source\\CompanyCommunicator.Prep.Func\\Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.csproj",
             "SITE_ROLE": "function",
+            "MicrosoftAppType": "SingleTenant",
+            "MicrosoftAppTenantId": "[parameters('tenantId')]",
             "i18n:DefaultCulture": "[variables('i18n:DefaultCulture')]",
             "i18n:SupportedCultures": "[variables('i18n:SupportedCultures')]",
             "ProactivelyInstallUserApp": "[variables('ProactivelyInstallUserApp')]",
@@ -860,6 +864,8 @@
           "properties": {
             "PROJECT": "Source\\CompanyCommunicator.Send.Func\\Microsoft.Teams.Apps.CompanyCommunicator.Send.Func.csproj",
             "SITE_ROLE": "function",
+            "MicrosoftAppType": "SingleTenant",
+            "MicrosoftAppTenantId": "[parameters('tenantId')]",
             "i18n:DefaultCulture": "[variables('i18n:DefaultCulture')]",
             "i18n:SupportedCultures": "[variables('i18n:SupportedCultures')]",
             "ProactivelyInstallUserApp": "[variables('ProactivelyInstallUserApp')]",
@@ -930,6 +936,8 @@
           "properties": {
             "PROJECT": "Source\\CompanyCommunicator.Data.Func\\Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.csproj",
             "SITE_ROLE": "function",
+            "MicrosoftAppType": "SingleTenant",
+            "MicrosoftAppTenantId": "[parameters('tenantId')]",
             "i18n:DefaultCulture": "[variables('i18n:DefaultCulture')]",
             "i18n:SupportedCultures": "[variables('i18n:SupportedCultures')]",
             "ProactivelyInstallUserApp": "[variables('ProactivelyInstallUserApp')]",
