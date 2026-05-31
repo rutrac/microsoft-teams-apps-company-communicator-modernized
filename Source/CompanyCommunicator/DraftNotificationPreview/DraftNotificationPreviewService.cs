@@ -216,7 +216,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             try
             {
                 var resp = await sendTask;
-                WriteBreadcrumb($"send-completed responses={(resp?.Length ?? 0)}");
+                WriteBreadcrumb($"send-completed respId={resp?.Id}");
             }
             catch (System.Exception sendEx)
             {
