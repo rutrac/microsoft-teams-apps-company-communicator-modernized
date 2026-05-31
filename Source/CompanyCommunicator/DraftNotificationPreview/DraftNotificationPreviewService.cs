@@ -295,7 +295,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             var attachment = new Attachment
             {
                 ContentType = AdaptiveCard.ContentType,
-                Content = adaptiveCard,
+                Content = Newtonsoft.Json.Linq.JObject.Parse(adaptiveCard.ToJson()),
             };
 
             var reply = MessageFactory.Attachment(attachment);
