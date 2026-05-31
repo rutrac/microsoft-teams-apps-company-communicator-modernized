@@ -212,6 +212,32 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             }
 
             WriteBreadcrumb("send-before-sendactivity");
+
+            // BISECT: send a plain text activity first. If this succeeds, the AdaptiveCard
+            // attachment serialization is what kills the SDK pipeline.
+            try
+            {
+                var textOnly = Microsoft.Bot.Builder.MessageFactory.Text("preview diag: plain text probe");
+                WriteBreadcrumb("text-before-send");
+                var textTask = turnContext.SendActivityAsync(textOnly);
+                WriteBreadcrumb($"text-task-created status={textTask.Status}");
+                var textWinner = await System.Threading.Tasks.Task.WhenAny(textTask, System.Threading.Tasks.Task.Delay(System.TimeSpan.FromSeconds(15)));
+                if (textWinner != textTask)
+                {
+                    WriteBreadcrumb($"text-TIMEOUT-15s status={textTask.Status}");
+                }
+                else
+                {
+                    var tr = await textTask;
+                    WriteBreadcrumb($"text-completed respId={tr?.Id}");
+                }
+            }
+            catch (System.Exception textEx)
+            {
+                WriteBreadcrumb($"text-exception type={textEx.GetType().FullName} msg={textEx.Message}");
+            }
+
+            WriteBreadcrumb("card-before-sendactivity");
             var sendTask = turnContext.SendActivityAsync(reply);
             WriteBreadcrumb($"send-task-created status={sendTask.Status}");
             var sendWinner = await System.Threading.Tasks.Task.WhenAny(sendTask, System.Threading.Tasks.Task.Delay(System.TimeSpan.FromSeconds(20)));
