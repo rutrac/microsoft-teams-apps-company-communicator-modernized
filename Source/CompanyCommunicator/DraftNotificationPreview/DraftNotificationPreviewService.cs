@@ -163,8 +163,30 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             ITurnContext turnContext,
             NotificationDataEntity draftNotificationEntity)
         {
+            WriteBreadcrumb("send-enter");
             var reply = this.CreateReply(draftNotificationEntity);
+            WriteBreadcrumb("send-reply-built");
             await turnContext.SendActivityAsync(reply);
+            WriteBreadcrumb("send-completed");
+        }
+
+        private static void WriteBreadcrumb(string step)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    System.Environment.GetEnvironmentVariable("HOME") ?? "D:\\home",
+                    "LogFiles",
+                    "preview-breadcrumbs");
+                System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(dir, $"breadcrumbs-{System.DateTime.UtcNow:yyyyMMdd}.log"),
+                    $"{System.DateTime.UtcNow:O} pid={System.Environment.ProcessId} tid={System.Environment.CurrentManagedThreadId} step={step}\n");
+            }
+            catch
+            {
+                // best-effort
+            }
         }
 
         private IMessageActivity CreateReply(NotificationDataEntity draftNotificationEntity)
