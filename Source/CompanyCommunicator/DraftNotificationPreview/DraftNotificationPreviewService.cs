@@ -99,29 +99,45 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             try
             {
                 this.logger.LogWarning("SENDPREVIEW step=before-continueconversation");
-                await this.companyCommunicatorBotAdapter.ContinueConversationAsync(
+                WriteBreadcrumb("before-continueconversation");
+                using var cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(30));
+                var ccTask = this.companyCommunicatorBotAdapter.ContinueConversationAsync(
                     this.botAppId,
                     conversationReference,
                     async (turnContext, cancellationToken) =>
                     {
+                        WriteBreadcrumb("callback-entered");
                         this.logger.LogWarning("SENDPREVIEW step=callback-entered activityType={Type} channelId={Channel}", turnContext?.Activity?.Type, turnContext?.Activity?.ChannelId);
                         try
                         {
                             await this.SendAdaptiveCardAsync(turnContext, draftNotificationEntity);
+                            WriteBreadcrumb("callback-sendactivity-completed");
                             this.logger.LogWarning("SENDPREVIEW step=callback-sendactivity-completed");
                         }
                         catch (Exception cbEx)
                         {
+                            WriteBreadcrumb($"callback-exception type={cbEx.GetType().FullName} msg={cbEx.Message} inner={cbEx.InnerException?.GetType().FullName}:{cbEx.InnerException?.Message}\nSTACK:\n{cbEx}");
                             this.logger.LogError(cbEx, "SENDPREVIEW step=callback-exception type={Type} msg={Msg}", cbEx.GetType().FullName, cbEx.Message);
                             throw;
                         }
                     },
-                    CancellationToken.None);
+                    cts.Token);
+                var winner = await System.Threading.Tasks.Task.WhenAny(ccTask, System.Threading.Tasks.Task.Delay(System.TimeSpan.FromSeconds(35)));
+                if (winner != ccTask)
+                {
+                    WriteBreadcrumb("TIMEOUT-35s waiting for ContinueConversationAsync");
+                    this.logger.LogError("SENDPREVIEW step=hang-timeout - ContinueConversationAsync did not complete in 35s; returning 504");
+                    return HttpStatusCode.GatewayTimeout;
+                }
+
+                await ccTask; // surface any exception
+                WriteBreadcrumb("continueconversation-returned");
                 this.logger.LogWarning("SENDPREVIEW step=continueconversation-returned");
                 return HttpStatusCode.OK;
             }
             catch (ErrorResponseException e)
             {
+                WriteBreadcrumb($"errorresponse code={e.Body?.Error?.Code} msg={e.Message}\nSTACK:\n{e}");
                 this.logger.LogError(e, "SENDPREVIEW step=errorresponse code={Code} msg={Msg}", e.Body?.Error?.Code, e.Message);
                 var errorResponse = (ErrorResponse)e.Body;
                 if (errorResponse != null
@@ -130,6 +146,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
                     return HttpStatusCode.TooManyRequests;
                 }
 
+                throw;
+            }
+            catch (Exception ex)
+            {
+                WriteBreadcrumb($"outer-exception type={ex.GetType().FullName} msg={ex.Message} inner={ex.InnerException?.GetType().FullName}:{ex.InnerException?.Message}\nSTACK:\n{ex}");
+                this.logger.LogError(ex, "SENDPREVIEW step=outer-exception type={Type} msg={Msg}", ex.GetType().FullName, ex.Message);
                 throw;
             }
         }
