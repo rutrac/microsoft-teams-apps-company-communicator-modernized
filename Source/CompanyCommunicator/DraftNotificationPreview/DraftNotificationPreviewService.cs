@@ -30,6 +30,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
         private static readonly string ThrottledErrorResponse = "Throttled";
 
         private readonly string botAppId;
+        private readonly BotOptions botOptions;
         private readonly AdaptiveCardCreator adaptiveCardCreator;
         private readonly CompanyCommunicatorBotAdapter companyCommunicatorBotAdapter;
         private readonly ILogger<DraftNotificationPreviewService> logger;
@@ -59,6 +60,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
                 throw new ApplicationException("UserAppId setting is missing in the configuration.");
             }
 
+            this.botOptions = options.Value;
             this.adaptiveCardCreator = adaptiveCardCreator ?? throw new ArgumentNullException(nameof(adaptiveCardCreator));
             this.companyCommunicatorBotAdapter = companyCommunicatorBotAdapter ?? throw new ArgumentNullException(nameof(companyCommunicatorBotAdapter));
         }
@@ -189,18 +191,24 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             var reply = this.CreateReply(draftNotificationEntity);
             WriteBreadcrumb("send-reply-built");
 
-            // Outbound probe from worker thread (proves request-thread can reach login + Teams svc).
+            // Direct SDK credential + token probe: builds the same MicrosoftAppCredentials the
+            // adapter will use, then forces a token acquisition. If the worker dies in here, the
+            // crash is in MSAL/credential code (not the conversations REST call).
             try
             {
-                using var probe = new System.Net.Http.HttpClient { Timeout = System.TimeSpan.FromSeconds(8) };
-                var oidcResp = await probe.GetAsync("https://login.microsoftonline.com/6326296d-a179-42b3-99bd-c7bbb7b293f4/v2.0/.well-known/openid-configuration");
-                WriteBreadcrumb($"probe-oidc status={(int)oidcResp.StatusCode}");
-                var svcResp = await probe.GetAsync("https://smba.trafficmanager.net/amer/v3/conversations");
-                WriteBreadcrumb($"probe-svc status={(int)svcResp.StatusCode}");
+                var tenantId = string.IsNullOrWhiteSpace(this.botOptions.TenantId) ? null : this.botOptions.TenantId;
+                WriteBreadcrumb($"probe-cred-pre tenant={tenantId} pwdLen={this.botOptions.UserAppPassword?.Length ?? 0}");
+                var directCreds = new Microsoft.Bot.Connector.Authentication.MicrosoftAppCredentials(
+                    this.botAppId,
+                    this.botOptions.UserAppPassword,
+                    channelAuthTenant: tenantId);
+                WriteBreadcrumb("probe-cred-built");
+                var token = await directCreds.GetTokenAsync();
+                WriteBreadcrumb($"probe-token-acquired len={token?.Length ?? 0}");
             }
             catch (System.Exception probeEx)
             {
-                WriteBreadcrumb($"probe-exception type={probeEx.GetType().FullName} msg={probeEx.Message}");
+                WriteBreadcrumb($"probe-token-exception type={probeEx.GetType().FullName} msg={probeEx.Message} inner={probeEx.InnerException?.GetType().FullName}:{probeEx.InnerException?.Message}");
             }
 
             WriteBreadcrumb("send-before-sendactivity");

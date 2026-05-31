@@ -46,6 +46,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
         /// <inheritdoc/>
         protected override async Task<AppCredentials> BuildCredentialsAsync(string appId, string oAuthScope = null)
         {
+            WriteAdapterBreadcrumb($"BuildCredentials-enter appId={appId} scope={oAuthScope}");
             appId = appId ?? throw new ArgumentNullException(nameof(appId));
 
             if (this.certificateProvider.IsCertificateAuthenticationEnabled())
@@ -58,6 +59,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                     OauthScope = oAuthScope,
                 };
 
+                WriteAdapterBreadcrumb("BuildCredentials-cert-done");
                 return new CertificateAppCredentials(options) as AppCredentials;
             }
 
@@ -80,7 +82,29 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                 password = await this.CredentialProvider.GetAppPasswordAsync(appId);
             }
 
-            return new MicrosoftAppCredentials(appId, password, channelAuthTenant: tenantId, oAuthScope: oAuthScope);
+            WriteAdapterBreadcrumb($"BuildCredentials-password-resolved hasPwd={!string.IsNullOrEmpty(password)} pwdLen={password?.Length ?? 0} tenantId={tenantId}");
+            var creds = new MicrosoftAppCredentials(appId, password, channelAuthTenant: tenantId, oAuthScope: oAuthScope);
+            WriteAdapterBreadcrumb("BuildCredentials-mac-built");
+            return creds;
+        }
+
+        private static void WriteAdapterBreadcrumb(string step)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    System.Environment.GetEnvironmentVariable("HOME") ?? "D:\\home",
+                    "LogFiles",
+                    "preview-breadcrumbs");
+                System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(dir, $"breadcrumbs-{System.DateTime.UtcNow:yyyyMMdd}.log"),
+                    $"{System.DateTime.UtcNow:O} pid={System.Environment.ProcessId} tid={System.Environment.CurrentManagedThreadId} step=ADAPTER:{step}\n");
+            }
+            catch
+            {
+                // best-effort
+            }
         }
     }
 }
