@@ -93,7 +93,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGrap
 
         private async Task<List<Group>> SearchM365GroupsAsync(string query, int resultCount, bool includeHiddenMembership = false)
         {
-            string filterQuery = $"groupTypes/any(c:c+eq+'Unified') and mailEnabled eq true and (startsWith(mail,'{query}') or startsWith(displayName,'{query}'))";
+            string filterQuery = $"groupTypes/any(c:c eq 'Unified') and mailEnabled eq true and (startsWith(mail,'{query}') or startsWith(displayName,'{query}'))";
             var groupsPaged = await this.SearchInternalAsync(filterQuery, resultCount);
             if (includeHiddenMembership)
             {
