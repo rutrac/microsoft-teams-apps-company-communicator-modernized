@@ -188,8 +188,41 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
             WriteBreadcrumb("send-enter");
             var reply = this.CreateReply(draftNotificationEntity);
             WriteBreadcrumb("send-reply-built");
-            await turnContext.SendActivityAsync(reply);
-            WriteBreadcrumb("send-completed");
+
+            // Outbound probe from worker thread (proves request-thread can reach login + Teams svc).
+            try
+            {
+                using var probe = new System.Net.Http.HttpClient { Timeout = System.TimeSpan.FromSeconds(8) };
+                var oidcResp = await probe.GetAsync("https://login.microsoftonline.com/6326296d-a179-42b3-99bd-c7bbb7b293f4/v2.0/.well-known/openid-configuration");
+                WriteBreadcrumb($"probe-oidc status={(int)oidcResp.StatusCode}");
+                var svcResp = await probe.GetAsync("https://smba.trafficmanager.net/amer/v3/conversations");
+                WriteBreadcrumb($"probe-svc status={(int)svcResp.StatusCode}");
+            }
+            catch (System.Exception probeEx)
+            {
+                WriteBreadcrumb($"probe-exception type={probeEx.GetType().FullName} msg={probeEx.Message}");
+            }
+
+            WriteBreadcrumb("send-before-sendactivity");
+            var sendTask = turnContext.SendActivityAsync(reply);
+            WriteBreadcrumb($"send-task-created status={sendTask.Status}");
+            var sendWinner = await System.Threading.Tasks.Task.WhenAny(sendTask, System.Threading.Tasks.Task.Delay(System.TimeSpan.FromSeconds(20)));
+            if (sendWinner != sendTask)
+            {
+                WriteBreadcrumb($"send-TIMEOUT-20s status={sendTask.Status}");
+                throw new System.TimeoutException("SendActivityAsync did not complete in 20s");
+            }
+
+            try
+            {
+                var resp = await sendTask;
+                WriteBreadcrumb($"send-completed responses={(resp?.Length ?? 0)}");
+            }
+            catch (System.Exception sendEx)
+            {
+                WriteBreadcrumb($"send-exception type={sendEx.GetType().FullName} msg={sendEx.Message} inner={sendEx.InnerException?.GetType().FullName}:{sendEx.InnerException?.Message}\nSTACK:\n{sendEx}");
+                throw;
+            }
         }
 
         private static void WriteBreadcrumb(string step)
