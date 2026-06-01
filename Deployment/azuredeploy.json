@@ -682,7 +682,7 @@
           "minTlsVersion": "1.2",
           "http20Enabled": true,
           "vnetRouteAllEnabled": true,
-          "ipSecurityRestrictionsDefaultAction": "Deny",
+          "ipSecurityRestrictionsDefaultAction": "Allow",
           "ipSecurityRestrictions": "[variables('webAppIpRestrictions')]",
           "scmIpSecurityRestrictionsUseMain": false,
           "scmIpSecurityRestrictionsDefaultAction": "Deny",
