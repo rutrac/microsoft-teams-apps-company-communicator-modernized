@@ -256,7 +256,11 @@ function IsResourceNameAvailable {
     }
 
     $uri = $uribyservicetype[$servicetype] -replace ([regex]::escape('{subscriptionid}')), $parameters.subscriptionid.value
-    $nameproperty = if ($servicetype -eq 'cognitiveservice') { "subdomainname" } else { "name" }
+    if ($servicetype -eq 'cognitiveservice') {
+        $nameproperty = "subdomainname"
+    } else {
+        $nameproperty = "name"
+    }
     $body = '"{0}": "{1}", "type": "{2}"' -f $nameproperty, $name, $typebyservicetype[$servicetype]
 
     $response = (invoke-webrequest -uri $uri -method post -body "{$body}" -contenttype "application/json" -headers @{authorization = $authorizationtoken } -usebasicparsing).content
@@ -302,7 +306,11 @@ function CreateAzureADApp {
     )
 
     # Bot Service msaAppType is hard-coded SingleTenant in azuredeploy.json, so AAD apps must match.
-    $signInAudience = if ($MultiTenant) { 'AzureADMultipleOrgs' } else { 'AzureADMyOrg' }
+    if ($MultiTenant) {
+        $signInAudience = 'AzureADMultipleOrgs'
+    } else {
+        $signInAudience = 'AzureADMyOrg'
+    }
 
     try {
         WriteI -message "`r`nCreating Azure AD App: $appName..."
@@ -615,7 +623,11 @@ function InvokeArmDeploymentWithParamsFile {
         --resource-group $parameters.resourceGroupName.Value `
         --subscription $parameters.subscriptionId.Value
 
-    $global:LASTEXITCODE = if ($deployState -eq 'Succeeded') { 0 } else { 1 }
+    if ($deployState -eq 'Succeeded') {
+        $global:LASTEXITCODE = 0
+    } else {
+        $global:LASTEXITCODE = 1
+    }
     return $deployResult
 }
 
@@ -1100,7 +1112,11 @@ function GenerateAppManifestPackage {
         $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
         # webApplicationInfo.resource must target the SSO/main app and contain the iframe host so Teams SSO can match it against the tab origin.
         # Form: api://<appDomain>/<mainAppId>
-        $ssoAppId = if ($graphAppId) { $graphAppId } else { $appId }
+        if ($graphAppId) {
+        $ssoAppId = $graphAppId
+    } else {
+        $ssoAppId = $appId
+    }
         $identifierUri = "api://$azureDomainBase/$ssoAppId"
         $mergeFields = @{
             '<<companyName>>'   = $parameters.companyName.Value
