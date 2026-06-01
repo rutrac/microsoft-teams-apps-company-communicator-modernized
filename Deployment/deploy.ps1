@@ -530,6 +530,12 @@ function InvokeArmDeploymentWithParamsFile {
         [Parameter(Mandatory = $true)] $usersecret
     )
 
+    if ($null -ne $script:DeployerIpToUse) {
+        $deployerIp = $script:DeployerIpToUse
+    } else {
+        $deployerIp = ''
+    }
+
     $armParamsObj = [ordered]@{
         '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
         contentVersion = '1.0.0.0'
@@ -564,7 +570,7 @@ function InvokeArmDeploymentWithParamsFile {
             storageAccountDataFuncRoleNameGuid = @{ value = $parameters.storageAccountDataFuncRoleNameGuid.Value }
             TargetingEnabled                   = @{ value = [System.Convert]::ToBoolean($parameters.TargetingEnabled.Value) }
             MasterAdminUpns                    = @{ value = $parameters.MasterAdminUpns.Value }
-            deployerIpAddress                  = @{ value = (if ($null -ne $script:DeployerIpToUse) { $script:DeployerIpToUse } else { '' }) }
+            deployerIpAddress                  = @{ value = $deployerIp }
         }
     }
 
