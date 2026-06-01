@@ -2,6 +2,19 @@ param(
     [string]$DeployerIp = ""
 )
 
+# Quiet az CLI noise (Python tracebacks on transient Graph timeouts, credential warnings).
+# Full traces still flow into the transcript log below and ~/.azure/*.log.
+$env:AZURE_CORE_ONLY_SHOW_ERRORS = 'true'
+$env:AZURE_CORE_NO_COLOR         = 'true'
+$env:AZURE_HTTP_USER_AGENT       = 'cc-modernized-deploy/5.26'
+
+# Full-fidelity transcript: every Write-Host / stdout / stderr from this session lands on disk.
+$script:DeployLogDir  = Join-Path $PSScriptRoot 'logs'
+if (-not (Test-Path $script:DeployLogDir)) { New-Item -ItemType Directory -Path $script:DeployLogDir | Out-Null }
+$script:DeployLogPath = Join-Path $script:DeployLogDir ("deploy_{0:yyyyMMdd_HHmmss}.log" -f (Get-Date))
+try { Start-Transcript -Path $script:DeployLogPath -Append -IncludeInvocationHeader | Out-Null } catch { }
+Write-Host "Deploy log: $script:DeployLogPath" -ForegroundColor DarkGray
+
 function IsValidateSecureUrl {
     param(
         [Parameter(Mandatory = $true)] [string] $url
@@ -271,17 +284,13 @@ function IsResourceNameAvailable {
 # To get the Azure AD app detail (with retry for transient Graph API timeouts).
 function GetAzureADApp {
     param ($appName)
-    $maxAttempts = 4
-    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        $app = az ad app list --filter "displayName eq '$appName'" | ConvertFrom-Json
-        if ($LASTEXITCODE -eq 0) { return $app }
-        if ($attempt -lt $maxAttempts) {
-            WriteW -message "Graph API timeout looking up '$appName'. Retrying in 15s ($attempt/$maxAttempts)..."
-            Start-Sleep -Seconds 15
-        }
+    try {
+        $json = Invoke-AzWithRetry -Label "ad app list '$appName'" -ScriptBlock { az ad app list --filter "displayName eq '$appName'" }
+        return ($json | ConvertFrom-Json)
+    } catch {
+        WriteE -message $_.Exception.Message
+        return $null
     }
-    WriteE -message "Failed to look up Azure AD app '$appName' after $maxAttempts attempts."
-    return $null
 }
 
 # To get the Azure AD app detail with new secret.
@@ -329,17 +338,12 @@ function CreateAzureADApp {
             if ($updateDecision -eq 0) {
                 WriteI -message "Updating the existing app..."
 
-                $updateSuccess = $false
-                for ($updateAttempt = 1; $updateAttempt -le 4; $updateAttempt++) {
-                    az ad app update --id $app.appId --display-name $appName --sign-in-audience $signInAudience | Out-Null
-                    if ($LASTEXITCODE -eq 0) { $updateSuccess = $true; break }
-                    if ($updateAttempt -lt 4) {
-                        WriteW -message "App update timed out. Retrying in 15s ($updateAttempt/4)..."
-                        Start-Sleep -Seconds 15
-                    }
-                }
-                if (-not $updateSuccess) {
-                    WriteE -message "Failed to update Azure AD app '$appName' after 4 attempts."
+                try {
+                    Invoke-AzWithRetry -Label "ad app update '$appName'" -ScriptBlock {
+                        az ad app update --id $app.appId --display-name $appName --sign-in-audience $signInAudience
+                    } | Out-Null
+                } catch {
+                    WriteE -message "Failed to update Azure AD app '$appName': $($_.Exception.Message)"
                     return $null
                 }
 
@@ -354,17 +358,12 @@ function CreateAzureADApp {
             }
         } else {
             # Create Azure AD app registration using CLI (with retry for transient Graph API timeouts)
-            $createSuccess = $false
-            for ($createAttempt = 1; $createAttempt -le 4; $createAttempt++) {
-                az ad app create --display-name $appName --sign-in-audience $signInAudience | Out-Null
-                if ($LASTEXITCODE -eq 0) { $createSuccess = $true; break }
-                if ($createAttempt -lt 4) {
-                    WriteW -message "App creation timed out. Retrying in 15s ($createAttempt/4)..."
-                    Start-Sleep -Seconds 15
-                }
-            }
-            if (-not $createSuccess) {
-                WriteE -message "Failed to create Azure AD app '$appName' after 4 attempts."
+            try {
+                Invoke-AzWithRetry -Label "ad app create '$appName'" -ScriptBlock {
+                    az ad app create --display-name $appName --sign-in-audience $signInAudience
+                } | Out-Null
+            } catch {
+                WriteE -message "Failed to create Azure AD app '$appName': $($_.Exception.Message)"
                 return $null
             }
 
@@ -405,14 +404,13 @@ function CreateAzureADApp {
                 return $null
             }
             WriteI -message "Updating app secret..."
-            $maxSecretAttempts = 4
-            for ($secretAttempt = 1; $secretAttempt -le $maxSecretAttempts; $secretAttempt++) {
-                $appSecret = az ad app credential reset --id $app.appId --append | ConvertFrom-Json;
-                if ($LASTEXITCODE -eq 0 -and $null -ne $appSecret) { break }
-                if ($secretAttempt -lt $maxSecretAttempts) {
-                    WriteW -message "Secret creation timed out. Retrying in 15s ($secretAttempt/$maxSecretAttempts)..."
-                    Start-Sleep -Seconds 15
+            try {
+                $secretJson = Invoke-AzWithRetry -Label "credential reset '$appName'" -ScriptBlock {
+                    az ad app credential reset --id $app.appId --append
                 }
+                $appSecret = $secretJson | ConvertFrom-Json
+            } catch {
+                WriteE -message "Failed to reset credential for '$appName': $($_.Exception.Message)"
             }
         }
 
@@ -843,9 +841,17 @@ function GrantAdminConsent {
     if ($updateDecision -eq 0) {
         # Grant admin consent for app registration required permissions using CLI
         WriteI -message "Waiting for admin consent to finish..."
-        az ad app permission admin-consent --id $graphAppId
+        $consentOk = $false
+        try {
+            Invoke-AzWithRetry -Label "admin-consent $graphAppId" -ScriptBlock {
+                az ad app permission admin-consent --id $graphAppId
+            } | Out-Null
+            $consentOk = $true
+        } catch {
+            WriteE -message $_.Exception.Message
+        }
 
-        if ($LASTEXITCODE -ne 0) {
+        if (-not $consentOk) {
             WriteE -message $consentErrorMessage
             WriteW -message "`nPlease inform the global admin to consent the app permissions from this link`nhttps://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
             throw "Admin consent failed for appId $graphAppId. Aborting so the deploy does not silently produce a broken Teams app."
@@ -861,6 +867,39 @@ function GrantAdminConsent {
 # Azure AD app update. Assigning Admin-consent,RedirectUris,IdentifierUris,Optionalclaim etc.
 # Rewritten to use az CLI + Microsoft Graph REST API (az rest) instead of the retired AzureAD PS module.
 
+# Classify az/Graph stderr as transient (timeout / 429 / 5xx / connection reset) so we know whether to retry.
+function Test-TransientAzError {
+    Param([string]$ErrText)
+    return ($ErrText -match 'ReadTimeout|Read timed out|WinError 10060|HTTPSConnectionPool|TooManyRequests|\b429\b|\b50[234]\b|RemoteDisconnected|ConnectionError|ServiceUnavailable|GatewayTimeout|Connection aborted')
+}
+
+# Invoke an `az` command with exponential backoff retry on transient Graph failures.
+# Returns stdout (string). Throws after exhausting retries OR on non-transient errors (no wasted wait).
+function Invoke-AzWithRetry {
+    Param(
+        [Parameter(Mandatory)][scriptblock]$ScriptBlock,
+        [string]$Label = 'az call',
+        [int]$MaxAttempts = 5,
+        [int]$InitialDelaySeconds = 10
+    )
+    $delay = $InitialDelaySeconds
+    $errText = ''
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        $output = & $ScriptBlock 2>&1
+        if ($LASTEXITCODE -eq 0) { return ($output -join "`n") }
+        $errText = ($output | Out-String)
+        if (-not (Test-TransientAzError $errText)) {
+            throw "$Label failed (non-transient, attempt $i): $errText"
+        }
+        if ($i -lt $MaxAttempts) {
+            WriteW -message "$Label transient failure (attempt $i/$MaxAttempts). Retrying in ${delay}s..."
+            Start-Sleep -Seconds $delay
+            $delay = [Math]::Min($delay * 2, 60)
+        }
+    }
+    throw "$Label failed after $MaxAttempts attempts. Last error: $errText"
+}
+
 # Helper: write JSON body to a temp file and call az rest PATCH.
 # Avoids PowerShell→external-command argument escaping with complex JSON bodies.
 # Retries on transient failures (Graph ReadTimeout / TCP reset / throttling) and throws on final failure
@@ -869,22 +908,15 @@ function AzRestPatch {
     Param(
         [Parameter(Mandatory=$true)] [string]$Url,
         [Parameter(Mandatory=$true)] [string]$Body,
-        [int]$MaxAttempts = 4,
-        [int]$RetryDelaySeconds = 15
+        [int]$MaxAttempts = 5,
+        [int]$InitialDelaySeconds = 10
     )
     $tmp = [System.IO.Path]::GetTempFileName()
     try {
         [System.IO.File]::WriteAllText($tmp, $Body, [System.Text.Encoding]::UTF8)
-        $lastError = ''
-        for ($i = 1; $i -le $MaxAttempts; $i++) {
-            $lastError = (az rest --method PATCH --url $Url --body "@$tmp" --headers "Content-Type=application/json" 2>&1) -join "`n"
-            if ($LASTEXITCODE -eq 0) { return }
-            if ($i -lt $MaxAttempts) {
-                WriteW -message "Graph PATCH failed (attempt $i/$MaxAttempts). Retrying in ${RetryDelaySeconds}s..."
-                Start-Sleep -Seconds $RetryDelaySeconds
-            }
-        }
-        throw "AzRestPatch failed after $MaxAttempts attempts: $Url`n$lastError"
+        Invoke-AzWithRetry -Label "Graph PATCH $Url" -MaxAttempts $MaxAttempts -InitialDelaySeconds $InitialDelaySeconds -ScriptBlock {
+            az rest --method PATCH --url $Url --body "@$tmp" --headers "Content-Type=application/json"
+        } | Out-Null
     } finally {
         Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
     }
@@ -934,10 +966,10 @@ function ADAppUpdate {
     # Assigning graph permissions FIRST so admin consent below has scopes to grant.
     # Previously consent ran before this and silently no-oped (no scopes on the app yet),
     # leaving the Teams web app to fail every Graph OBO call with AADSTS65001.
-    az ad app update --id $configAppId --required-resource-accesses (Join-Path $PSScriptRoot 'AadAppManifest.json')
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to set required-resource-accesses on appId $configAppId. Aborting."
-    }
+    $manifestPath = Join-Path $PSScriptRoot 'AadAppManifest.json'
+    Invoke-AzWithRetry -Label "ad app update required-resource-accesses" -ScriptBlock {
+        az ad app update --id $configAppId --required-resource-accesses $manifestPath
+    } | Out-Null
 
     # Grant Admin consent AFTER required permissions are written to the app.
     GrantAdminConsent $configAppId
@@ -949,7 +981,7 @@ function ADAppUpdate {
     $applicationObjectId = $appObjRaw.id
 
     # Fetch full application object via Graph API
-    $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+    $app = (Invoke-AzWithRetry -Label "GET application $applicationObjectId" -ScriptBlock { az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" }) | ConvertFrom-Json
 
     # Ensure web settings are correct (redirectUris + implicit id_token issuance for the popup auth flow).
     # PATCH on `web` replaces the whole complex type, so redirectUris and implicitGrantSettings MUST be set together —
@@ -961,7 +993,7 @@ function ADAppUpdate {
             implicitGrantSettings = @{ enableIdTokenIssuance = $true; enableAccessTokenIssuance = $false }
         } } | ConvertTo-Json -Depth 10 -Compress
         AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $webPatch
-        $appAfterWeb = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+        $appAfterWeb = (Invoke-AzWithRetry -Label "GET application (web verify) $applicationObjectId" -ScriptBlock { az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" }) | ConvertFrom-Json
         if ($appAfterWeb.web.redirectUris -notcontains $RedirectUris) {
             throw "Failed to set web.redirectUris to $RedirectUris on the Graph app."
         }
@@ -992,7 +1024,7 @@ function ADAppUpdate {
     $identifierUriPatch = ('{"identifierUris":["' + $IdentifierUris + '"]}')
     AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $identifierUriPatch
 
-    $appAfterIdentifierUriUpdate = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+    $appAfterIdentifierUriUpdate = (Invoke-AzWithRetry -Label "GET application (uri verify) $applicationObjectId" -ScriptBlock { az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" }) | ConvertFrom-Json
     if ($appAfterIdentifierUriUpdate.identifierUris -notcontains $IdentifierUris) {
         throw "Failed to set Application ID URI to $IdentifierUris on the Graph app."
     }
@@ -1045,7 +1077,9 @@ function ADAppUpdateDisplayName{
         [Parameter(Mandatory = $true)] $currentName,
         [Parameter(Mandatory = $true)] $newName
     )
-    az ad app update --id $appId --display-name $newName
+    Invoke-AzWithRetry -Label "ad app update display-name '$newName'" -ScriptBlock {
+        az ad app update --id $appId --display-name $newName
+    } | Out-Null
 }
 
 # Removing existing access of app (used on upgrades to reset the authors app before re-configuring).
@@ -1061,7 +1095,7 @@ function FormatAADApp {
     $applicationObjectId = $appObjRaw.id
 
     # Fetch full application object via Graph API
-    $app = az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" | ConvertFrom-Json
+    $app = (Invoke-AzWithRetry -Label "GET application (FormatAADApp) $applicationObjectId" -ScriptBlock { az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" }) | ConvertFrom-Json
 
     # Do nothing if the app has already been reset
     if ($app.identifierUris.Count -eq 0) {
@@ -1076,19 +1110,20 @@ function FormatAADApp {
     if ($existingScopes.Count -gt 0) {
         $disabledScopes = $existingScopes | ForEach-Object { $_.isEnabled = $false; $_ }
         $disablePatch = @{ api = @{ oauth2PermissionScopes = $disabledScopes } } | ConvertTo-Json -Depth 10 -Compress
-        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-            --body $disablePatch --headers "Content-Type=application/json" | Out-Null
-        az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-            --body '{"api":{"oauth2PermissionScopes":[]}}' --headers "Content-Type=application/json" | Out-Null
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $disablePatch
+        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"oauth2PermissionScopes":[]}}'
     }
 
     # Clear implicit grant, redirect URIs, and identifier URIs in one PATCH
     $resetPatch = '{"web":{"implicitGrantSettings":{"enableIdTokenIssuance":false},"redirectUris":[]},"identifierUris":[]}'
-    az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" `
-        --body $resetPatch --headers "Content-Type=application/json" | Out-Null
+    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $resetPatch
 
-    az ad app update --id $appId --optional-claims './AadOptionalClaims_Reset.json'
-    az ad app update --id $appId --remove requiredResourceAccess
+    Invoke-AzWithRetry -Label "ad app update optional-claims (reset)" -ScriptBlock {
+        az ad app update --id $appId --optional-claims './AadOptionalClaims_Reset.json'
+    } | Out-Null
+    Invoke-AzWithRetry -Label "ad app update remove requiredResourceAccess" -ScriptBlock {
+        az ad app update --id $appId --remove requiredResourceAccess
+    } | Out-Null
 }
 #update manifest file and create a .zip file.
 function GenerateAppManifestPackage {
@@ -1349,3 +1384,5 @@ function logout {
     Write-Host ""
     Write-Host "===== DEPLOYMENT COMPLETED =====" -ForegroundColor Green
     Write-Host ""
+
+try { Stop-Transcript | Out-Null } catch { }
