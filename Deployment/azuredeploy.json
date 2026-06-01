@@ -153,25 +153,12 @@
     "hostingPlanSku": {
       "type": "string",
       "allowedValues": [
-        "Basic",
-        "Standard",
-        "Premium"
+        "P0v3",
+        "P1v3"
       ],
-      "defaultValue": "Standard",
+      "defaultValue": "P1v3",
       "metadata": {
-        "description": "The pricing tier for the hosting plan."
-      }
-    },
-    "hostingPlanSize": {
-      "type": "string",
-      "allowedValues": [
-        "1",
-        "2",
-        "3"
-      ],
-      "defaultValue": "2",
-      "metadata": {
-        "description": "The size of the hosting plan (small, medium, or large)."
+        "description": "App Service Plan SKU. P0v3 = 1 GB RAM (~80 EUR/mo, dev/test). P1v3 = 8 GB RAM (~125 EUR/mo, production). Both support VNet integration and private endpoints."
       }
     },
     "location": {
@@ -339,12 +326,6 @@
     "serviceBusExportQueueName": "company-communicator-export",
     "defaultSASKeyName": "RootManageSharedAccessKey",
     "authRuleResourceId": "[resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', variables('serviceBusNamespaceName'), variables('defaultSASKeyName'))]",
-    "sharedSkus": [
-      "Free",
-      "Shared"
-    ],
-    "isSharedPlan": "[contains(variables('sharedSkus'), parameters('hostingPlanSku'))]",
-    "skuFamily": "[if(equals(parameters('hostingPlanSku'), 'Shared'), 'D', take(parameters('hostingPlanSku'), 1))]",
     "useFrontDoor": "[equals(parameters('customDomainOption'), 'Azure Front Door')]",
     "frontDoorName": "[parameters('baseResourceName')]",
     "frontDoorEndpointName": "[parameters('baseResourceName')]",
@@ -515,11 +496,11 @@
         "numberOfWorkers": 1
       },
       "sku": {
-        "name": "[if(variables('isSharedPlan'), concat(variables('skuFamily'), '1'), concat(variables('skuFamily'), parameters('hostingPlanSize')))]",
-        "tier": "[parameters('hostingPlanSku')]",
-        "size": "[concat(variables('skuFamily'), parameters('hostingPlanSize'))]",
-        "family": "[variables('skuFamily')]",
-        "capacity": 0
+        "name": "[parameters('hostingPlanSku')]",
+        "tier": "PremiumV3",
+        "size": "[parameters('hostingPlanSku')]",
+        "family": "Pv3",
+        "capacity": 1
       }
     },
     {

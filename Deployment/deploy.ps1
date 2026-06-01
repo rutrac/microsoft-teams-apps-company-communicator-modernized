@@ -135,94 +135,6 @@ function ValidateParameters {
     return $isValid
 }
 
-# Interactive sizing wizard. Translates plain-language answers (audience size + delivery
-# speed tolerance) into the hostingPlanSku / hostingPlanSize values consumed by the ARM
-# template. Mutates $parameters in script scope. Skipped if $env:CC_NONINTERACTIVE='1'
-# or if stdin is not interactive.
-function Invoke-SizingWizard {
-    if ($env:CC_NONINTERACTIVE -eq '1' -or -not [Environment]::UserInteractive) {
-        WriteI -message "Non-interactive mode: keeping hostingPlanSku=$($parameters.hostingPlanSku.Value), hostingPlanSize=$($parameters.hostingPlanSize.Value) from parameters.json."
-        return
-    }
-
-    # tier(Basic/Standard/Premium) + size(1/2/3) maps to App Service SKU:
-    #   Basic 1/2/3    = B1 / B2 / B3
-    #   Standard 1/2/3 = S1 / S2 / S3
-    #   Premium 1/2/3  = P1 / P2 / P3   (classic gen, more expensive than modern Pv3 - avoid unless needed)
-    # Matrix: [audienceChoice 1..4][speedChoice 1..3] = "Tier|Size|EurMonth|SendWindow"
-    $matrix = @{
-        '1' = @{ '1' = 'Basic|1|13|10 min';     '2' = 'Basic|1|13|10 min';     '3' = 'Standard|1|60|5 min'    }   # up to 1k
-        '2' = @{ '1' = 'Basic|2|26|45 min';     '2' = 'Standard|1|60|15 min';  '3' = 'Standard|2|120|5 min'   }   # up to 10k
-        '3' = @{ '1' = 'Standard|1|60|3 h';     '2' = 'Standard|2|120|45 min'; '3' = 'Standard|3|240|15 min'  }   # up to 50k
-        '4' = @{ '1' = 'Standard|2|120|6 h';    '2' = 'Standard|3|240|2 h';    '3' = 'Premium|1|185|45 min'   }   # 100k+
-    }
-
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Magenta
-    Write-Host "  Company Communicator - sizing wizard" -ForegroundColor Magenta
-    Write-Host "============================================================" -ForegroundColor Magenta
-    Write-Host "Pick the size that fits this deployment. The defaults give"
-    Write-Host "the cheapest working setup (~13 EUR/month, before networking)."
-    Write-Host "Press Enter to accept the defaults at every prompt."
-    Write-Host ""
-    Write-Host "1) How many users will receive broadcasts?"
-    Write-Host "   [1] Up to 1,000      (dev / pilot / small team)         <- default"
-    Write-Host "   [2] Up to 10,000     (medium organization)"
-    Write-Host "   [3] Up to 50,000     (large organization)"
-    Write-Host "   [4] More than 50,000 (enterprise)"
-    $audience = Read-Host "Choice [1-4]"
-    if ([string]::IsNullOrWhiteSpace($audience)) { $audience = '1' }
-    if ($audience -notin @('1','2','3','4')) {
-        WriteW -message "Invalid choice '$audience', defaulting to 1."
-        $audience = '1'
-    }
-
-    Write-Host ""
-    Write-Host "2) How fast do broadcasts need to be delivered?"
-    Write-Host "   [1] No rush  - delivery within hours is fine (cheapest)  <- default"
-    Write-Host "   [2] Standard - delivery within ~15 min"
-    Write-Host "   [3] Fast     - delivery within ~5 min (premium)"
-    $speed = Read-Host "Choice [1-3]"
-    if ([string]::IsNullOrWhiteSpace($speed)) { $speed = '1' }
-    if ($speed -notin @('1','2','3')) {
-        WriteW -message "Invalid choice '$speed', defaulting to 1."
-        $speed = '1'
-    }
-
-    $parts = $matrix[$audience][$speed] -split '\|'
-    $tier  = $parts[0]
-    $size  = $parts[1]
-    $price = $parts[2]
-    $window= $parts[3]
-    # Single-letter SKU family is used by the template (B/S/P).
-    $skuShort = $tier.Substring(0,1) + $size
-
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "  Recommended configuration" -ForegroundColor Cyan
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host ("  App Service Plan       : {0} ({1})" -f $skuShort, $tier)
-    Write-Host ("  Approx cost            : ~{0} EUR/month (compute only)" -f $price)
-    Write-Host ("  Typical send window    : ~{0} for your selected audience" -f $window)
-    Write-Host  "  All 4 apps share this plan (web + 3 functions)"
-    if ($tier -eq 'Premium') {
-        Write-Host "  NOTE: 'Premium' here is classic gen (P1/P2/P3). Modern PremiumV3" -ForegroundColor Yellow
-        Write-Host "        (P0v3/P1v3) is cheaper for the same RAM but is not wired up yet." -ForegroundColor Yellow
-    }
-    Write-Host ""
-    $confirm = Read-Host "Press Enter to accept, or type 'edit' to change [accept]"
-    if ($confirm -eq 'edit') {
-        WriteI -message "Re-running wizard..."
-        Invoke-SizingWizard
-        return
-    }
-
-    # Mutate in script scope so the rest of the deployment picks up the choice.
-    $parameters.hostingPlanSku.Value  = $tier
-    $parameters.hostingPlanSize.Value = $size
-    WriteS -message "Sizing locked in: $tier / size $size ($skuShort)."
-}
-
 function validateresourcesnames {
     WriteI -message "Checking for resources availability..."
 
@@ -624,7 +536,6 @@ function InvokeArmDeploymentWithParamsFile {
             appIconUrl                         = @{ value = $parameters.appIconUrl.Value }
             tenantId                           = @{ value = $parameters.tenantId.Value }
             hostingPlanSku                     = @{ value = $parameters.hostingPlanSku.Value }
-            hostingPlanSize                    = @{ value = $parameters.hostingPlanSize.Value }
             location                           = @{ value = $parameters.region.Value }
             gitRepoUrl                         = @{ value = $parameters.gitRepoUrl.Value }
             gitBranch                          = @{ value = $parameters.gitBranch.Value }
@@ -1265,10 +1176,6 @@ function logout {
 # Validate all the parameters.
     WriteI -message "Validating all the parameters from parameters.json."
     $parameters = $parametersListContent | ConvertFrom-Json
-
-# Sizing wizard: interactively pick App Service Plan tier+size.
-# Overrides hostingPlanSku/hostingPlanSize unless CC_NONINTERACTIVE=1.
-    Invoke-SizingWizard
 
     if (-not(ValidateParameters)) {
         WriteE -message "Invalid parameters found. Please update the parameters in the parameters.json with valid values and re-run the script."
