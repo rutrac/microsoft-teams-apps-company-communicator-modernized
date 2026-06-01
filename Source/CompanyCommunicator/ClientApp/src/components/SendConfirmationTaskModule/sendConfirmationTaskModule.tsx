@@ -12,7 +12,7 @@ import './sendConfirmationTaskModule.scss';
 import { getDraftNotification, getConsentSummaries, sendDraftNotification, getAppSettings } from '../../apis/messageListApi';
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
-    setCardAuthor, setCardBtns, setCardTargetImage, setCardTargetTitle, setCardTarget
+    setCardAuthor, setCardBtns, setCardTargetImage, setCardTargetTitle, setCardTarget, setCardImportance
 } from '../AdaptiveCard/adaptiveCard';
 import { ImageUtil } from '../../utility/imageutility';
 import { TFunction } from "i18next";
@@ -118,6 +118,7 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
                                 setCardImageLink(this.card, this.state.message.imageLink);
                                 setCardSummary(this.card, this.state.message.summary);
                                 setCardAuthor(this.card, this.state.message.author);
+                                setCardImportance(this.card, !!this.state.message.isImportant);
 
                                 if (this.state.message.buttonTitle && this.state.message.buttonLink && !this.state.message.buttons) {
                                     setCardBtns(this.card, [{

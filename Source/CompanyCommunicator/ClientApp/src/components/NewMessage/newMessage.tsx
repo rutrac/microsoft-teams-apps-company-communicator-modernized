@@ -13,7 +13,7 @@ import Papa from "papaparse";
 import './newMessage.scss';
 import './teamTheme.scss';
 import { getDraftNotification, getTeams, createDraftNotification, updateDraftNotification, searchGroups, getGroups, verifyGroupAccess, getAppSettings, getChannelConfig, getGroupAssociations } from '../../apis/messageListApi';
-import { getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary, setCardAuthor, setCardBtns, setCardTarget, setCardTargetImage, setCardTargetTitle } from '../AdaptiveCard/adaptiveCard';
+import { getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary, setCardAuthor, setCardBtns, setCardTarget, setCardTargetImage, setCardTargetTitle, setCardImportance } from '../AdaptiveCard/adaptiveCard';
 import { getBaseUrl } from '../../configVariables';
 import { ImageUtil } from '../../utility/imageutility';
 import { TFunction } from "i18next";
@@ -615,6 +615,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
             setCardImageLink(this.card, draftMessageDetail.imageLink);
             setCardSummary(this.card, draftMessageDetail.summary);
             setCardAuthor(this.card, draftMessageDetail.author);
+            setCardImportance(this.card, !!draftMessageDetail.isImportant);
 
             // this is to ensure compatibility with older versions
             // if we get empty buttonsJSON and values on buttonTitle and buttonLink, we insert those to values
@@ -1153,9 +1154,12 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
 
     // handler for the important message checkbox
     private onImportantSelected = () => {
+        const next = !this.state.selectedImportant;
+        setCardImportance(this.card, next);
         this.setState({
-            selectedImportant: !this.state.selectedImportant
-        });
+            selectedImportant: next,
+            card: this.card,
+        }, () => this.updateCard());
     }
 
     private onGroupSelected = (event: any, data: any) => {
