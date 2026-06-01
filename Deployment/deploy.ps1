@@ -555,8 +555,6 @@ function InvokeArmDeploymentWithParamsFile {
             tenantId                           = @{ value = $parameters.tenantId.Value }
             hostingPlanSku                     = @{ value = $parameters.hostingPlanSku.Value }
             location                           = @{ value = $parameters.region.Value }
-            gitRepoUrl                         = @{ value = $parameters.gitRepoUrl.Value }
-            gitBranch                          = @{ value = $parameters.gitBranch.Value }
             ProactivelyInstallUserApp          = @{ value = [System.Convert]::ToBoolean($parameters.proactivelyInstallUserApp.Value) }
             UserAppExternalId                  = @{ value = $parameters.userAppExternalId.Value }
             DefaultCulture                     = @{ value = $parameters.defaultCulture.Value }

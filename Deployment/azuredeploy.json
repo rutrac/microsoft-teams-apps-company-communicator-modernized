@@ -182,20 +182,6 @@
         "description": "Unix epoch (seconds) when Key Vault secrets created by this template should expire. Defaults to deployment-time + 2 years. Redeploying refreshes the expiry."
       }
     },
-    "gitRepoUrl": {
-      "type": "string",
-      "metadata": {
-        "description": "The URL to the GitHub repository to deploy."
-      },
-      "defaultValue": "https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized.git"
-    },
-    "gitBranch": {
-      "type": "string",
-      "metadata": {
-        "description": "The branch of the GitHub repository to deploy."
-      },
-      "defaultValue": "main"
-    },
     "serviceBusWebAppRoleNameGuid": {
       "defaultValue": "958380b3-630d-4823-b933-f59d92cdcada",
       "minLength": 1,
@@ -360,8 +346,6 @@
     "AuthorAppSecretName": "[concat(variables('keyVaultName'),'AuthorAppPassword')]",
     "GraphAppSecretName": "[concat(variables('keyVaultName'),'GraphAppPassword')]",
     "StorageAccountSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('StorageAccountSecretName'))]",
-    "ServiceBusSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('ServiceBusSecretName'))]",
-    "AppInsightsSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('AppInsightsSecretName'))]",
     "UserAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('UserAppSecretName'))]",
     "AuthorAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('AuthorAppSecretName'))]",
     "GraphAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('GraphAppSecretName'))]",
