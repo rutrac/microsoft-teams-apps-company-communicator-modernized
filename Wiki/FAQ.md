@@ -47,4 +47,13 @@ The default app service plan for CC deployment is Windows, if you want to use Li
 ### 10. How do I know the version of the app? 
 ![Version of the app](images/version_app.png)
 
+### 11. After deployment I see a `NetworkWatcherRG` resource group in my subscription. Where did it come from?
+This resource group is **not created by the Company Communicator deployment script**. It is auto-provisioned by the Azure platform the first time any networking resource (VNet, NIC, Private Endpoint, etc.) is deployed in a given region in your subscription. Because the modernized template provisions a VNet and Private Endpoints, Azure creates `NetworkWatcherRG` (and a `Microsoft.Network/networkWatchers` instance per region) automatically.
+
+Key points:
+- It is a **subscription-wide, platform-managed** resource group, shared across all VNet workloads in the subscription.
+- It will **not** be deleted when you delete the Company Communicator resource group.
+- Deleting it manually is not recommended — Azure will recreate it on the next networking deployment, and you will lose any Network Watcher data (flow logs, connection monitors, etc.).
+- If your organization disallows the auto-provisioning, register the `Microsoft.Network/AllowNetworkWatcher` feature with the appropriate setting at the subscription level.
+
   
