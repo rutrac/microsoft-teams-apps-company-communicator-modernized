@@ -290,7 +290,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.DraftNotificationPreview
                 draftNotificationEntity.Buttons,
                 string.Empty,
                 draftNotificationEntity.ChannelImage,
-                draftNotificationEntity.ChannelTitle);
+                draftNotificationEntity.ChannelTitle,
+                draftNotificationEntity.IsImportant);
 
             var attachment = new Attachment
             {

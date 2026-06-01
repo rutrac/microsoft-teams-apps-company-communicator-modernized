@@ -33,7 +33,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.AdaptiveCard
                 notificationDataEntity.Buttons,
                 notificationDataEntity.TrackingUrl,
                 notificationDataEntity.ChannelImage,
-                notificationDataEntity.ChannelTitle);
+                notificationDataEntity.ChannelTitle,
+                notificationDataEntity.IsImportant);
         }
 
         /// <summary>
@@ -60,10 +61,30 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.AdaptiveCard
             string buttons,
             string trackingurl,
             string cardimage,
-            string cardtitle)
+            string cardtitle,
+            bool isImportant = false)
         {
-            var version = new AdaptiveSchemaVersion(1, 0);
+            var version = new AdaptiveSchemaVersion(1, 2);
             AdaptiveCard card = new AdaptiveCard(version);
+
+            if (isImportant)
+            {
+                var banner = new AdaptiveContainer
+                {
+                    Style = AdaptiveContainerStyle.Attention,
+                    Bleed = true,
+                };
+                banner.Items.Add(new AdaptiveTextBlock
+                {
+                    Text = "\u2757 IMPORTANT",
+                    Weight = AdaptiveTextWeight.Bolder,
+                    Size = AdaptiveTextSize.Medium,
+                    Color = AdaptiveTextColor.Attention,
+                    Wrap = true,
+                    HorizontalAlignment = AdaptiveHorizontalAlignment.Center,
+                });
+                card.Body.Add(banner);
+            }
 
             if (!string.IsNullOrWhiteSpace(cardimage))
             {
