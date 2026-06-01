@@ -85,7 +85,7 @@
   },
   "hostingPlanSku": {
     "Value": "P1v3",
-    "Description": "App Service Plan SKU (PremiumV3 family). Allowed values: 'P0v3' (1 GB RAM, 1 vCPU, ~80 EUR/month - dev/test only, tight for 4 apps) or 'P1v3' (8 GB RAM, 2 vCPU, ~125 EUR/month - recommended for production). PremiumV3 is required for VNet integration and private endpoints. Plan is shared by the web app and 3 function apps."
+    "Description": "App Service Plan SKU (PremiumV3 family). Allowed values: 'P0v3' (4 GB RAM, 1 vCPU, ~115 EUR/month Windows list price - dev/test, tight for 4 apps) or 'P1v3' (8 GB RAM, 2 vCPU, ~230 EUR/month Windows list price - recommended for production). PremiumV3 is required for VNet integration and private endpoints. Plan is shared by the web app and 3 function apps. Verify actual price in Portal > App Service Plan > Scale up for your region/OS."
   },
   "deployerIpAddress": {
     "Value": "",

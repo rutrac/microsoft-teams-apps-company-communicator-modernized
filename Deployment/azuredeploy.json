@@ -158,7 +158,7 @@
       ],
       "defaultValue": "P1v3",
       "metadata": {
-        "description": "App Service Plan SKU. P0v3 = 1 GB RAM (~80 EUR/mo, dev/test). P1v3 = 8 GB RAM (~125 EUR/mo, production). Both support VNet integration and private endpoints."
+        "description": "App Service Plan SKU. P0v3 = 4 GB RAM, 1 vCPU (~115 EUR/mo Windows list, dev/test). P1v3 = 8 GB RAM, 2 vCPU (~230 EUR/mo Windows list, production). Both support VNet integration and private endpoints. Verify pricing in Portal for your region/OS."
       }
     },
     "deployerIpAddress": {
