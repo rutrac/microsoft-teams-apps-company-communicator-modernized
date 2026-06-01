@@ -517,45 +517,6 @@ function WaitForCodeDeploymentSync {
     return $appserviceCodeSyncSuccess
 }
 
-# Accept the Teams channel Terms of Service for a Bot Service.
-# Without this, Teams shows an "Agree to terms" prompt to the first user who messages the bot
-# and silently drops the activity until accepted. The ARM resource Microsoft.BotService/botServices/channels
-# does not expose acceptedTerms, so we PATCH it directly via the management REST API.
-function AcceptBotMsTeamsChannelTerms {
-    Param(
-        [Parameter(Mandatory = $true)] [string] $resourceGroupName,
-        [Parameter(Mandatory = $true)] [string] $subscriptionId,
-        [Parameter(Mandatory = $true)] [string] $botName
-    )
-
-    $apiVersion = '2022-09-15'
-    $uri = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.BotService/botServices/$botName/channels/MsTeamsChannel?api-version=$apiVersion"
-
-    $body = @{
-        location   = 'global'
-        properties = @{
-            channelName = 'MsTeamsChannel'
-            properties  = @{
-                isEnabled     = $true
-                acceptedTerms = $true
-            }
-        }
-    } | ConvertTo-Json -Depth 6 -Compress
-
-    $tmp = New-TemporaryFile
-    Set-Content -Path $tmp -Value $body -Encoding ascii -NoNewline
-    try {
-        az rest --method patch --uri $uri --body "@$tmp" --headers "Content-Type=application/json" --only-show-errors 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            WriteS -message "Accepted MsTeamsChannel terms for bot '$botName'."
-        } else {
-            WriteW -message "Could not auto-accept MsTeamsChannel terms for bot '$botName'. Accept manually in the Azure Portal (Bot Service > Channels > Microsoft Teams)."
-        }
-    } finally {
-        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-    }
-}
-
 # Build an ARM parameters file from $parameters + runtime AAD values, and invoke az.
 # Using --parameters @file.json avoids the PowerShell 5.1 cmd.exe arg re-tokenization
 # bug that emits a stray "<<" token when many quoted key=value args are passed inline.
@@ -789,11 +750,6 @@ function DeployARMTemplate {
             # `az webapp deployment source config` after ARM completes successfully.
         }
         WriteS -message "Finished deploying resources. ARM template deployment succeeded."
-
-        # Auto-accept the MsTeamsChannel ToS for both bots so the first user message is not
-        # silently dropped pending a portal click-through.
-        AcceptBotMsTeamsChannelTerms -resourceGroupName $parameters.resourceGroupName.Value -subscriptionId $parameters.subscriptionId.Value -botName $parameters.baseResourceName.Value
-        AcceptBotMsTeamsChannelTerms -resourceGroupName $parameters.resourceGroupName.Value -subscriptionId $parameters.subscriptionId.Value -botName "$($parameters.baseResourceName.Value)-author"
 
         # Configure source control on each App Service (post-ARM, Microsoft-recommended pattern).
         WriteI -message "`nConfiguring source control on App Services from $($parameters.gitRepoUrl.Value) (branch: $($parameters.gitBranch.Value))..."
