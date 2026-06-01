@@ -161,6 +161,13 @@
         "description": "App Service Plan SKU. P0v3 = 1 GB RAM (~80 EUR/mo, dev/test). P1v3 = 8 GB RAM (~125 EUR/mo, production). Both support VNet integration and private endpoints."
       }
     },
+    "deployerIpAddress": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Public IPv4 of the operator running this deployment. Used to allow management access through the storage/KeyVault firewalls and to the App Service SCM (Kudu) site. Auto-detected by deploy.ps1 if blank. Pass empty string to skip the IP allow rule."
+      }
+    },
     "location": {
       "type": "string",
       "defaultValue": "[resourceGroup().location]",
@@ -357,7 +364,22 @@
     "AppInsightsSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('AppInsightsSecretName'))]",
     "UserAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('UserAppSecretName'))]",
     "AuthorAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('AuthorAppSecretName'))]",
-    "GraphAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('GraphAppSecretName'))]"
+    "GraphAppSecretResourceId": "[resourceId(resourceGroup().name, 'Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), variables('GraphAppSecretName'))]",
+    "vnetName": "[concat(parameters('baseResourceName'), '-vnet')]",
+    "snetAppsName": "snet-apps",
+    "snetPeName": "snet-pe",
+    "snetAppsId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('snetAppsName'))]",
+    "snetPeId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('snetPeName'))]",
+    "privateDnsZoneBlobName": "privatelink.blob.core.windows.net",
+    "privateDnsZoneKvName": "privatelink.vaultcore.azure.net",
+    "peStorageBlobName": "[concat(variables('storageAccountName'), '-pe-blob')]",
+    "peKeyVaultName": "[concat(variables('keyvaultName'), '-pe')]",
+    "hasDeployerIp": "[not(empty(parameters('deployerIpAddress')))]",
+    "deployerIpRules": "[if(variables('hasDeployerIp'), createArray(createObject('value', parameters('deployerIpAddress'), 'action', 'Allow')), createArray())]",
+    "deployerIpRulesKv": "[if(variables('hasDeployerIp'), createArray(createObject('value', parameters('deployerIpAddress'))), createArray())]",
+    "webAppIpRestrictions": "[concat(createArray(createObject('ipAddress', 'AzureFrontDoor.Backend', 'tag', 'ServiceTag', 'action', 'Allow', 'priority', 100, 'name', 'AllowFrontDoor'), createObject('ipAddress', 'AzureBotService', 'tag', 'ServiceTag', 'action', 'Allow', 'priority', 110, 'name', 'AllowBotService')), if(variables('hasDeployerIp'), createArray(createObject('ipAddress', concat(parameters('deployerIpAddress'), '/32'), 'action', 'Allow', 'priority', 200, 'name', 'AllowOperator')), createArray()))]",
+    "functionAppIpRestrictions": "[if(variables('hasDeployerIp'), createArray(createObject('ipAddress', concat(parameters('deployerIpAddress'), '/32'), 'action', 'Allow', 'priority', 200, 'name', 'AllowOperator')), createArray())]",
+    "scmIpRestrictions": "[if(variables('hasDeployerIp'), createArray(createObject('ipAddress', concat(parameters('deployerIpAddress'), '/32'), 'action', 'Allow', 'priority', 100, 'name', 'AllowOperator')), createArray())]"
   },
   "resources": [
     {
@@ -366,15 +388,23 @@
       "apiVersion": "2023-01-01",
       "location": "[parameters('location')]",
       "kind": "StorageV2",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
       "properties": {
         "supportsHttpsTrafficOnly": true,
         "allowBlobPublicAccess": false,
         "allowSharedKeyAccess": false,
         "minimumTlsVersion": "TLS1_2",
         "defaultToOAuthAuthentication": true,
+        "publicNetworkAccess": "Enabled",
         "networkAcls": {
           "bypass": "AzureServices",
-          "defaultAction": "Allow"
+          "defaultAction": "Deny",
+          "ipRules": "[variables('deployerIpRules')]",
+          "virtualNetworkRules": [
+            { "id": "[variables('snetAppsId')]", "action": "Allow" }
+          ]
         }
       },
       "sku": {
@@ -624,7 +654,7 @@
       ]
     },
     {
-      "apiVersion": "2016-08-01",
+      "apiVersion": "2022-09-01",
       "type": "Microsoft.Web/sites",
       "name": "[variables('botAppName')]",
       "location": "[parameters('location')]",
@@ -643,12 +673,20 @@
         "containerSize": 0,
         "dailyMemoryTimeQuota": 0,
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[variables('snetAppsId')]",
+        "publicNetworkAccess": "Enabled",
         "siteConfig": {
           "ftpsState": "Disabled",
-          "alwaysOn": "[not(variables('isSharedPlan'))]",
+          "alwaysOn": true,
           "netFrameworkVersion": "v8.0",
           "minTlsVersion": "1.2",
           "http20Enabled": true,
+          "vnetRouteAllEnabled": true,
+          "ipSecurityRestrictionsDefaultAction": "Deny",
+          "ipSecurityRestrictions": "[variables('webAppIpRestrictions')]",
+          "scmIpSecurityRestrictionsUseMain": false,
+          "scmIpSecurityRestrictionsDefaultAction": "Deny",
+          "scmIpSecurityRestrictions": "[variables('scmIpRestrictions')]",
           "cors": {
             "supportCredentials": true,
             "allowedOrigins": [
@@ -665,7 +703,8 @@
         "[resourceId('Microsoft.Web/sites', variables('prepFunctionAppName'))]",
         "[resourceId('Microsoft.Web/sites', variables('sendFunctionAppName'))]",
         "[resourceId('Microsoft.Web/sites', variables('dataFunctionAppName'))]",
-        "[resourceId('Microsoft.Cdn/profiles/afdEndpoints', variables('frontDoorName'), variables('frontDoorEndpointName'))]"
+        "[resourceId('Microsoft.Cdn/profiles/afdEndpoints', variables('frontDoorName'), variables('frontDoorEndpointName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "resources": [
         {
@@ -726,7 +765,7 @@
       ]
     },
     {
-      "apiVersion": "2016-08-01",
+      "apiVersion": "2022-09-01",
       "type": "Microsoft.Web/sites",
       "name": "[variables('prepFunctionAppName')]",
       "location": "[parameters('location')]",
@@ -740,18 +779,27 @@
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[variables('snetAppsId')]",
+        "publicNetworkAccess": "Enabled",
         "siteConfig": {
           "ftpsState": "Disabled",
-          "alwaysOn": "[not(variables('isSharedPlan'))]",
+          "alwaysOn": true,
           "netFrameworkVersion": "v8.0",
           "minTlsVersion": "1.2",
-          "http20Enabled": true
+          "http20Enabled": true,
+          "vnetRouteAllEnabled": true,
+          "ipSecurityRestrictionsDefaultAction": "Deny",
+          "ipSecurityRestrictions": "[variables('functionAppIpRestrictions')]",
+          "scmIpSecurityRestrictionsUseMain": false,
+          "scmIpSecurityRestrictionsDefaultAction": "Deny",
+          "scmIpSecurityRestrictions": "[variables('scmIpRestrictions')]"
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]"
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "resources": [
         {
@@ -803,7 +851,7 @@
       ]
     },
     {
-      "apiVersion": "2016-08-01",
+      "apiVersion": "2022-09-01",
       "type": "Microsoft.Web/sites",
       "name": "[variables('sendFunctionAppName')]",
       "location": "[parameters('location')]",
@@ -817,18 +865,27 @@
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[variables('snetAppsId')]",
+        "publicNetworkAccess": "Enabled",
         "siteConfig": {
           "ftpsState": "Disabled",
-          "alwaysOn": "[not(variables('isSharedPlan'))]",
+          "alwaysOn": true,
           "netFrameworkVersion": "v8.0",
           "minTlsVersion": "1.2",
-          "http20Enabled": true
+          "http20Enabled": true,
+          "vnetRouteAllEnabled": true,
+          "ipSecurityRestrictionsDefaultAction": "Deny",
+          "ipSecurityRestrictions": "[variables('functionAppIpRestrictions')]",
+          "scmIpSecurityRestrictionsUseMain": false,
+          "scmIpSecurityRestrictionsDefaultAction": "Deny",
+          "scmIpSecurityRestrictions": "[variables('scmIpRestrictions')]"
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]"
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "resources": [
         {
@@ -877,7 +934,7 @@
       ]
     },
     {
-      "apiVersion": "2016-08-01",
+      "apiVersion": "2022-09-01",
       "type": "Microsoft.Web/sites",
       "name": "[variables('dataFunctionAppName')]",
       "location": "[parameters('location')]",
@@ -891,18 +948,27 @@
         "hostingEnvironment": "",
         "clientAffinityEnabled": false,
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[variables('snetAppsId')]",
+        "publicNetworkAccess": "Enabled",
         "siteConfig": {
           "ftpsState": "Disabled",
-          "alwaysOn": "[not(variables('isSharedPlan'))]",
+          "alwaysOn": true,
           "netFrameworkVersion": "v8.0",
           "minTlsVersion": "1.2",
-          "http20Enabled": true
+          "http20Enabled": true,
+          "vnetRouteAllEnabled": true,
+          "ipSecurityRestrictionsDefaultAction": "Deny",
+          "ipSecurityRestrictions": "[variables('functionAppIpRestrictions')]",
+          "scmIpSecurityRestrictionsUseMain": false,
+          "scmIpSecurityRestrictionsDefaultAction": "Deny",
+          "scmIpSecurityRestrictions": "[variables('scmIpRestrictions')]"
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]"
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespaceName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "resources": [
         {
@@ -957,7 +1023,9 @@
       "name": "[variables('keyvaultName')]",
       "apiVersion": "2023-07-01",
       "location": "[parameters('location')]",
-
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
       "tags": {
         "displayName": "KeyVault"
       },
@@ -973,9 +1041,14 @@
           "name": "Standard",
           "family": "A"
         },
+        "publicNetworkAccess": "Enabled",
         "networkAcls": {
           "bypass": "AzureServices",
-          "defaultAction": "Allow"
+          "defaultAction": "Deny",
+          "ipRules": "[variables('deployerIpRulesKv')]",
+          "virtualNetworkRules": [
+            { "id": "[variables('snetAppsId')]" }
+          ]
         }
       },
       "resources": [
@@ -1598,6 +1671,171 @@
           { "category": "AllMetrics", "enabled": true }
         ]
       }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": { "addressPrefixes": [ "10.50.0.0/24" ] },
+        "subnets": [
+          {
+            "name": "[variables('snetAppsName')]",
+            "properties": {
+              "addressPrefix": "10.50.0.0/27",
+              "serviceEndpoints": [
+                { "service": "Microsoft.Storage" },
+                { "service": "Microsoft.KeyVault" }
+              ],
+              "delegations": [
+                {
+                  "name": "appservice-delegation",
+                  "properties": { "serviceName": "Microsoft.Web/serverFarms" }
+                }
+              ],
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          },
+          {
+            "name": "[variables('snetPeName')]",
+            "properties": {
+              "addressPrefix": "10.50.0.32/27",
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsZoneBlobName')]",
+      "location": "global",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsZoneKvName')]",
+      "location": "global",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[concat(variables('privateDnsZoneBlobName'), '/', variables('vnetName'), '-link')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneBlobName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": { "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[concat(variables('privateDnsZoneKvName'), '/', variables('vnetName'), '-link')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneKvName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": { "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('peStorageBlobName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "subnet": { "id": "[variables('snetPeId')]" },
+        "privateLinkServiceConnections": [
+          {
+            "name": "blob",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+              "groupIds": [ "blob" ]
+            }
+          }
+        ]
+      },
+      "resources": [
+        {
+          "type": "privateDnsZoneGroups",
+          "apiVersion": "2023-09-01",
+          "name": "default",
+          "dependsOn": [
+            "[resourceId('Microsoft.Network/privateEndpoints', variables('peStorageBlobName'))]",
+            "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneBlobName'))]"
+          ],
+          "properties": {
+            "privateDnsZoneConfigs": [
+              {
+                "name": "blob",
+                "properties": {
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneBlobName'))]"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('peKeyVaultName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]"
+      ],
+      "properties": {
+        "subnet": { "id": "[variables('snetPeId')]" },
+        "privateLinkServiceConnections": [
+          {
+            "name": "vault",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', variables('keyvaultName'))]",
+              "groupIds": [ "vault" ]
+            }
+          }
+        ]
+      },
+      "resources": [
+        {
+          "type": "privateDnsZoneGroups",
+          "apiVersion": "2023-09-01",
+          "name": "default",
+          "dependsOn": [
+            "[resourceId('Microsoft.Network/privateEndpoints', variables('peKeyVaultName'))]",
+            "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneKvName'))]"
+          ],
+          "properties": {
+            "privateDnsZoneConfigs": [
+              {
+                "name": "vault",
+                "properties": {
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneKvName'))]"
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "outputs": {

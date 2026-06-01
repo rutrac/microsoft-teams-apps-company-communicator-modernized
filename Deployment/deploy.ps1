@@ -1,3 +1,7 @@
+param(
+    [string]$DeployerIp = ""
+)
+
 function IsValidateSecureUrl {
     param(
         [Parameter(Mandatory = $true)] [string] $url
@@ -552,6 +556,7 @@ function InvokeArmDeploymentWithParamsFile {
             storageAccountDataFuncRoleNameGuid = @{ value = $parameters.storageAccountDataFuncRoleNameGuid.Value }
             TargetingEnabled                   = @{ value = [System.Convert]::ToBoolean($parameters.TargetingEnabled.Value) }
             MasterAdminUpns                    = @{ value = $parameters.MasterAdminUpns.Value }
+            deployerIpAddress                  = @{ value = (if ($null -ne $script:DeployerIpToUse) { $script:DeployerIpToUse } else { '' }) }
         }
     }
 
@@ -1176,6 +1181,23 @@ function logout {
 # Validate all the parameters.
     WriteI -message "Validating all the parameters from parameters.json."
     $parameters = $parametersListContent | ConvertFrom-Json
+
+# Resolve deployer IP (used for storage/KV firewall and SCM access restrictions).
+    if ($DeployerIp) {
+        $script:DeployerIpToUse = $DeployerIp.Trim()
+        WriteI -message "Deployer IP (from -DeployerIp): $script:DeployerIpToUse"
+    } elseif ($parameters.PSObject.Properties.Match('deployerIpAddress') -and $parameters.deployerIpAddress.Value) {
+        $script:DeployerIpToUse = ([string]$parameters.deployerIpAddress.Value).Trim()
+        WriteI -message "Deployer IP (from parameters.json): $script:DeployerIpToUse"
+    } else {
+        try {
+            $script:DeployerIpToUse = ((Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 10) -as [string]).Trim()
+            WriteI -message "Deployer IP (auto-detected via api.ipify.org): $script:DeployerIpToUse"
+        } catch {
+            $script:DeployerIpToUse = ''
+            WriteW -message "Could not auto-detect deployer IP ($($_.Exception.Message)). Continuing without operator IP allow rule; you will not be able to reach storage/KV/SCM from this machine."
+        }
+    }
 
     if (-not(ValidateParameters)) {
         WriteE -message "Invalid parameters found. Please update the parameters in the parameters.json with valid values and re-run the script."
