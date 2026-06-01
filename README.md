@@ -23,8 +23,6 @@ When you're ready to try out Company Communicator, or to use it in your own orga
     * **Recommended** Use this option to deploy the Company Communicator v5.0 using powershell script. The entire set-up is done by the powershell script.
 * [Deployment guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/Deployment-guide).
     * Use this option to deploy the Company Communicator v5.0 with client secrets.
-* [Deployment guide certificate](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/Deployment-guide-certificate).
-    * Use this option to deploy the Company Communicator v5.0 with certificates.
 
 ## Migration 
 

@@ -103,14 +103,6 @@ To begin, you will need:
 
     - `isUpgrade` - If this is an upgrade for old version of the app template, then value should be true. Otherwise, false is default (First-time deployment).
 
-    - `useCertificate` - If certificate authentication is being used, then value should be true. Otherwise, false is default (Client-secret will be used).
-
-    - `authorAppCertName` - If certificate authentication is being used, then give the name for the new certificate of author bot Azure AD app to be created in Azure Key vault.
-
-    - `userAppCertName` - If certificate authentication is being used, then give the name for the new certificate of user bot Azure AD app to be created in Azure Key vault.
-
-    - `graphAppCertName` - If certificate authentication is being used, then give the name for the new certificate of graph app Azure AD app to be created in Azure Key vault.
-    
     - `customDomainOption` - How the app will be hosted on a domain that is not \*.azurewebsites.net. Azure Front Door is an easy option that the template can set up automatically, but it comes with ongoing monthly costs.
     > **NOTE**:  If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Custom-domain-option) first.
     

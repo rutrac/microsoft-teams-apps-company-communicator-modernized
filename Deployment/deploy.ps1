@@ -510,13 +510,7 @@ function CollectARMDeploymentLogs {
 
     $logsFolder = New-Item -ItemType Directory -Force -Path $logsPath
 
-    if($parameters.useCertificate.value)
-    {
-    az deployment operation group list --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --name azuredeploywithcert --query "[?properties.provisioningState=='Failed'].properties.statusMessage.error" | Set-Content $deploymentLogPath
-    }
-    else{
     az deployment operation group list --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --name azuredeploy --query "[?properties.provisioningState=='Failed'].properties.statusMessage.error" | Set-Content $deploymentLogPath
-    }
 
     $activityLog = $null
     $retryCount = 5
@@ -561,12 +555,7 @@ function CollectARMDeploymentLogs {
 
 function IsSourceControlTimeOut {
     $failedResourcesList = $null
-    if($parameters.useCertificate.Value){
-    $failedResourcesList = az deployment operation group list --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --name azuredeploywithcert --query "[?properties.provisioningState=='Failed']" | ConvertFrom-Json
-    }
-    else{
     $failedResourcesList = az deployment operation group list --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --name azuredeploy --query "[?properties.provisioningState=='Failed']" | ConvertFrom-Json
-    }
     $nonCodeSyncErrors = $failedResourcesList | Where-Object {($null -ne $_.properties.targetResource -and 'Microsoft.Web/sites/sourcecontrols' -ne $_.properties.targetResource.resourceType)}
     return (0 -ne $failedResourcesList.length -and 0 -eq $nonCodeSyncErrors.length)
 }
@@ -760,12 +749,7 @@ function DeployARMTemplate {
 
         # Deploy ARM templates
         WriteI -message "`nDeploying app services, Azure function, bot service, and other supporting resources... (this step can take over an hour)"
-        if($parameters.useCertificate.Value){
-        $armDeploymentResult = az deployment group create --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --template-file 'azuredeploywithcert.json' --parameters "baseResourceName=$($parameters.baseResourceName.Value)" "authorClientId=$authorappId" "authorAppCertName=$($parameters.authorAppCertName.Value)" "graphAppId=$graphappid" "graphAppCertName=$($parameters.graphAppCertName.Value)" "userClientId=$userappId" "userAppCertName=$($parameters.userAppCertName.Value)" "senderUPNList=$($parameters.senderUPNList.Value)" "customDomainOption=$($parameters.customDomainOption.Value)" "appDisplayName=$($parameters.appDisplayName.Value)" "appDescription=$($parameters.appDescription.Value)" "appIconUrl=$($parameters.appIconUrl.Value)" "tenantId=$($parameters.tenantId.Value)" "hostingPlanSku=$($parameters.hostingPlanSku.Value)" "hostingPlanSize=$($parameters.hostingPlanSize.Value)" "location=$($parameters.region.Value)" "gitRepoUrl=$($parameters.gitRepoUrl.Value)" "gitBranch=$($parameters.gitBranch.Value)" "ProactivelyInstallUserApp=$($parameters.proactivelyInstallUserApp.Value)" "objectId=$($parameters.UserObjectId.Value)" "UserAppExternalId=$($parameters.userAppExternalId.Value)" "DefaultCulture=$($parameters.defaultCulture.Value)" "SupportedCultures=$($parameters.supportedCultures.Value)" "serviceBusWebAppRoleNameGuid=$($parameters.serviceBusWebAppRoleNameGuid.Value)" "serviceBusPrepFuncRoleNameGuid=$($parameters.serviceBusPrepFuncRoleNameGuid.Value)" "serviceBusSendFuncRoleNameGuid=$($parameters.serviceBusSendFuncRoleNameGuid.Value)" "serviceBusDataFuncRoleNameGuid=$($parameters.serviceBusDataFuncRoleNameGuid.Value)" "storageAccountWebAppRoleNameGuid=$($parameters.storageAccountWebAppRoleNameGuid.Value)" "storageAccountPrepFuncRoleNameGuid=$($parameters.storageAccountPrepFuncRoleNameGuid.Value)" "storageAccountDataFuncRoleNameGuid=$($parameters.storageAccountDataFuncRoleNameGuid.Value)" "TargetingEnabled=$($parameters.TargetingEnabled.Value)" "MasterAdminUpns=$($parameters.MasterAdminUpns.Value)"
-        }
-        else{
         $armDeploymentResult = InvokeArmDeploymentWithParamsFile $graphappid $authorappId $userappId $graphappsecret $authorsecret $usersecret
-        }
 
         $deploymentExceptionMessage = "ERROR: ARM template deployment error."
         if ($LASTEXITCODE -ne 0) {
@@ -775,7 +759,7 @@ function DeployARMTemplate {
             WriteI -message "Fetching deployment status to check if deployment really failed..."
 
             # Check if deployment reached Azure despite the connection error
-            $deployName = if ($parameters.useCertificate.Value) { 'azuredeploywithcert' } else { 'azuredeploy' }
+            $deployName = 'azuredeploy'
             $existingDeployState = az deployment group show `
                 --name $deployName `
                 --resource-group $parameters.resourceGroupName.Value `
@@ -811,12 +795,7 @@ function DeployARMTemplate {
 
                 if($appserviceCodeSyncSuccess){
                     WriteI -message "Re-running deployment to fetch output..."
-                    if($parameters.useCertificate.Value){
-                        $armDeploymentResult = az deployment group create --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --template-file 'azuredeploywithcert.json' --parameters "baseResourceName=$($parameters.baseResourceName.Value)" "authorClientId=$authorappId" "authorAppCertName=$($parameters.authorAppCertName.Value)" "graphAppId=$graphappid" "graphAppCertName=$($parameters.graphAppCertName.Value)" "userClientId=$userappId" "userAppCertName=$($parameters.userAppCertName.Value)" "senderUPNList=$($parameters.senderUPNList.Value)" "customDomainOption=$($parameters.customDomainOption.Value)" "appDisplayName=$($parameters.appDisplayName.Value)" "appDescription=$($parameters.appDescription.Value)" "appIconUrl=$($parameters.appIconUrl.Value)" "tenantId=$($parameters.tenantId.Value)" "hostingPlanSku=$($parameters.hostingPlanSku.Value)" "hostingPlanSize=$($parameters.hostingPlanSize.Value)" "location=$($parameters.region.Value)" "gitRepoUrl=$($parameters.gitRepoUrl.Value)" "gitBranch=$($parameters.gitBranch.Value)" "ProactivelyInstallUserApp=$($parameters.proactivelyInstallUserApp.Value)" "objectId=$($parameters.UserObjectId.Value)" "UserAppExternalId=$($parameters.userAppExternalId.Value)" "DefaultCulture=$($parameters.defaultCulture.Value)" "SupportedCultures=$($parameters.supportedCultures.Value)"  "serviceBusWebAppRoleNameGuid=$($parameters.serviceBusWebAppRoleNameGuid.Value)" "serviceBusPrepFuncRoleNameGuid=$($parameters.serviceBusPrepFuncRoleNameGuid.Value)" "serviceBusSendFuncRoleNameGuid=$($parameters.serviceBusSendFuncRoleNameGuid.Value)" "serviceBusDataFuncRoleNameGuid=$($parameters.serviceBusDataFuncRoleNameGuid.Value)" "storageAccountWebAppRoleNameGuid=$($parameters.storageAccountWebAppRoleNameGuid.Value)" "storageAccountPrepFuncRoleNameGuid=$($parameters.storageAccountPrepFuncRoleNameGuid.Value)" "storageAccountDataFuncRoleNameGuid=$($parameters.storageAccountDataFuncRoleNameGuid.Value)" "TargetingEnabled=$($parameters.TargetingEnabled.Value)" "MasterAdminUpns=$($parameters.MasterAdminUpns.Value)"
-                    }
-                    else{
                        $armDeploymentResult = InvokeArmDeploymentWithParamsFile $graphappid $authorappId $userappId $graphappsecret $authorsecret $usersecret
-                    }
                 } else{
                     CollectARMDeploymentLogs
                     Throw $deploymentExceptionMessage
@@ -824,11 +803,6 @@ function DeployARMTemplate {
             } else {
                 # Deployment never reached Azure — retry once
                 WriteW -message "Deployment not found in Azure (connection reset before submission). Retrying ARM deployment..."
-                if ($parameters.useCertificate.Value) {
-                    $armDeploymentResult = az deployment group create --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value --template-file 'azuredeploywithcert.json' --parameters "baseResourceName=$($parameters.baseResourceName.Value)" "authorClientId=$authorappId" "authorAppCertName=$($parameters.authorAppCertName.Value)" "graphAppId=$graphappid" "graphAppCertName=$($parameters.graphAppCertName.Value)" "userClientId=$userappId" "userAppCertName=$($parameters.userAppCertName.Value)" "senderUPNList=$($parameters.senderUPNList.Value)" "customDomainOption=$($parameters.customDomainOption.Value)" "appDisplayName=$($parameters.appDisplayName.Value)" "appDescription=$($parameters.appDescription.Value)" "appIconUrl=$($parameters.appIconUrl.Value)" "tenantId=$($parameters.tenantId.Value)" "hostingPlanSku=$($parameters.hostingPlanSku.Value)" "hostingPlanSize=$($parameters.hostingPlanSize.Value)" "location=$($parameters.region.Value)" "gitRepoUrl=$($parameters.gitRepoUrl.Value)" "gitBranch=$($parameters.gitBranch.Value)" "ProactivelyInstallUserApp=$($parameters.proactivelyInstallUserApp.Value)" "objectId=$($parameters.UserObjectId.Value)" "UserAppExternalId=$($parameters.userAppExternalId.Value)" "DefaultCulture=$($parameters.defaultCulture.Value)" "SupportedCultures=$($parameters.supportedCultures.Value)"  "serviceBusWebAppRoleNameGuid=$($parameters.serviceBusWebAppRoleNameGuid.Value)" "serviceBusPrepFuncRoleNameGuid=$($parameters.serviceBusPrepFuncRoleNameGuid.Value)" "serviceBusSendFuncRoleNameGuid=$($parameters.serviceBusSendFuncRoleNameGuid.Value)" "serviceBusDataFuncRoleNameGuid=$($parameters.serviceBusDataFuncRoleNameGuid.Value)" "storageAccountWebAppRoleNameGuid=$($parameters.storageAccountWebAppRoleNameGuid.Value)" "storageAccountPrepFuncRoleNameGuid=$($parameters.storageAccountPrepFuncRoleNameGuid.Value)" "storageAccountDataFuncRoleNameGuid=$($parameters.storageAccountDataFuncRoleNameGuid.Value)" "TargetingEnabled=$($parameters.TargetingEnabled.Value)" "MasterAdminUpns=$($parameters.MasterAdminUpns.Value)"
-                } else {
-                    $armDeploymentResult = InvokeArmDeploymentWithParamsFile $graphappid $authorappId $userappId $graphappsecret $authorsecret $usersecret
-                }
                 if ($LASTEXITCODE -ne 0) {
                     CollectARMDeploymentLogs
                     Throw $deploymentExceptionMessage
@@ -887,14 +861,7 @@ function DeployARMTemplate {
 
         #get the output of current deployment
         $deploymentOutput = $null
-        if($parameters.useCertificate.value)
-        {
-            $deploymentOutput = az deployment group show --name azuredeploywithcert --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value | ConvertFrom-Json
-        }
-        else
-        {
             $deploymentOutput = az deployment group show --name azuredeploy --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value | ConvertFrom-Json
-        }
 
         # Sync only in upgrades & if no source branch conflict detected
         if($parameters.isUpgrade.Value -and (-not $codeSynced)){
@@ -919,68 +886,6 @@ function DeployARMTemplate {
     }
 }
 
-function CreateCertificateInKeyVault {
-    Param(
-        [Parameter(Mandatory= $true)] $certificateName,
-        [Parameter(Mandatory= $true)] $keyVaultName,
-        [Parameter(Mandatory= $true)] $domainName
-    )
-
-     #Get existing Azure Key Vault information
-    $azKeyVault = Get-AzKeyVault -Name $keyVaultName -ErrorAction SilentlyContinue
-    if ($null -eq $azKeyVault)
-    {
-        Write-Host "Didn't find Key Vault with name Azure:- $keyVaultName" -BackgroundColor DarkRed
-        break
-    }
-    else
-    {
-        Write-Host "Found Key Vault Name:- $keyVaultName" -BackgroundColor DarkGreen
-    }
-     #Generate new Azure Key Vault Certificate
-    Write-Host "Processing creation of Azure Key Vault Certificate" -ForegroundColor Yellow
-    $certSubjectName = 'cn=' + $domainName
-    $azKeyVaultCertPolicy = New-AzKeyVaultCertificatePolicy -SecretContentType "application/x-pkcs12" -SubjectName $certSubjectName -IssuerName "Self" -ValidityInMonths 24 -ReuseKeyOnRenewal
-    $azKeyVaultCertStatus = Add-AzKeyVaultCertificate -VaultName $keyVaultName -Name $CertificateName -CertificatePolicy $azKeyVaultCertPolicy
-
-    #Wait for certificate to generate
-    $counter = 1
-    While ($azKeyVaultCertStatus.Status -eq 'inProgress') {
-        Start-Sleep -Milliseconds 50
-        Write-Host "`r$counter% creation in progress" -NoNewline -ForegroundColor Yellow
-        $azKeyVaultCertStatus = Get-AzKeyVaultCertificateOperation -VaultName $keyVaultName -Name $CertificateName
-        $counter++
-    }
-    Write-Host "`r100% Completed. Checking status... " -ForegroundColor Yellow
-    if ($azKeyVaultCertStatus.Status -ne 'completed') {
-        Write-Host $($azKeyVaultCertStatus.StatusDetails) -ForegroundColor Magenta
-    }
-    else {
-        Write-Host "Generated Key Vault Certificate successfully" -BackgroundColor DarkGreen
-        Write-Output $azKeyVaultCertStatus
-    }
-}
-
-function UpdateAadAppWithCertificate {
-        Param(
-        [Parameter(Mandatory = $true)] $appId,
-        [Parameter(Mandatory = $true)] $keyVaultName,
-        [Parameter(Mandatory = $true)] $certificateName
-        )
-        # Update AAD app with keyvault certificate
-        az ad app credential reset --id $appId --keyvault $keyVaultName --cert $certificateName --append
-}
-
-function ImportKeyVaultCertificate{
-    Param(
-        [Parameter(Mandatory = $true)] $keyVaultName,
-        [Parameter(Mandatory = $true)] $appName
-        )
-        Set-AzKeyVaultAccessPolicy -VaultName $keyVaultName -ServicePrincipalName abfa0a7c-a6b6-4736-8310-5855508787cd -PermissionsToSecrets get
-        az webapp config ssl import --resource-group $parameters.resourceGroupName.Value --name $appName --subscription $parameters.subscriptionId.Value --key-vault $keyVaultName --key-vault-certificate-name $parameters.authorAppCertName.Value
-        az webapp config ssl import --resource-group $parameters.resourceGroupName.Value --name $appName --subscription $parameters.subscriptionId.Value --key-vault $keyVaultName --key-vault-certificate-name $parameters.userAppCertName.Value
-        az webapp config ssl import --resource-group $parameters.resourceGroupName.Value --name $appName --subscription $parameters.subscriptionId.Value --key-vault $keyVaultName --key-vault-certificate-name $parameters.graphAppCertName.Value
-}
 
 # Grant Admin consent
 function GrantAdminConsent {
@@ -1348,11 +1253,10 @@ function logout {
     }
 
 # Check optional modules
-    # Az module is only required when useCertificate=true (Key Vault certificate operations).
     if ((Get-Module -ListAvailable -Name "Az.*")) {
         WriteI -message "Az module is available."
     } else {
-        WriteI -message "Az module is not installed. It is only required when useCertificate=true."
+        WriteI -message "Az module is not installed. (optional)."
     }
 
 # Load Parameters from JSON meta-data file
@@ -1446,46 +1350,6 @@ function logout {
 # Function call to Deploy ARM Template
     $deploymentOutput = $null
     $appDisplayName = $null
-    if($parameters.useCertificate.Value){
-        $deploymentOutput = DeployARMTemplate $graphAppCred.appId $authorAppCred.appId $userAppCred.appId
-
-        # Reading the deployment output.
-        WriteI -message "Reading deployment outputs..."
-        if(($null -eq $deploymentOutput) -or ($null -eq $deploymentOutput.properties) -or ($null -eq $deploymentOutput.properties.Outputs) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName) -or ($null -eq $deploymentOutput.properties.Outputs.keyVaultName.Value))
-        {
-            $keyVaultName = $parameters.BaseResourceName.Value + 'vault'
-            if($parameters.customDomainOption.Value -eq 'Azure Front Door')
-            {
-               WriteW -message "ARM deployment outputs are missing. The AFD Standard endpoint hostname is Azure-generated (format <name>-<hash>.z01.azurefd.net) and cannot be derived from the base resource name like AFD Classic could."
-               WriteW -message "Retrieve the real hostname from the Azure portal (Front Door profile -> endpoint -> Endpoint hostname) or run: az afd endpoint show -n $($parameters.BaseResourceName.Value) --profile-name $($parameters.BaseResourceName.Value) -g <resourceGroup> --query hostName -o tsv"
-               $appdomainName = '<retrieve-from-azure-portal-afd-standard-endpoint-hostname>'
-            }
-            else
-            {
-                $appdomainName = 'Please create a custom domain name for ' + $parameters.BaseResourceName.Value + ' and use that in the manifest'
-            }
-        }
-        else
-        {
-         $keyVaultName = $deploymentOutput.properties.Outputs.keyVaultName.Value
-         $appdomainName = $deploymentOutput.properties.Outputs.appDomain.Value
-        }
-
-        CreateCertificateInKeyVault $parameters.authorAppCertName.value $keyVaultName $appdomainName
-        CreateCertificateInKeyVault $parameters.userAppCertName.value $keyVaultName $appdomainName
-        CreateCertificateInKeyVault $parameters.graphAppCertName.value $keyVaultName $appdomainName
-
-        ImportKeyVaultCertificate $keyVaultName $parameters.BaseResourceName.Value
-        ImportKeyVaultCertificate $keyVaultName "$($parameters.BaseResourceName.Value)-prep-function"
-        ImportKeyVaultCertificate $keyVaultName "$($parameters.BaseResourceName.Value)-function"
-        ImportKeyVaultCertificate $keyVaultName "$($parameters.BaseResourceName.Value)-data-function"
-
-        UpdateAadAppWithCertificate $authorAppCred.appId $keyVaultName $parameters.authorAppCertName.value
-        UpdateAadAppWithCertificate $userAppCred.appId $keyVaultName $parameters.userAppCertName.value
-        UpdateAadAppWithCertificate $graphAppCred.appId $keyVaultName $parameters.graphAppCertName.value
-    }
-    else
-    {
         $deploymentOutput = DeployARMTemplate $graphAppCred.appId $authorAppCred.appId $userAppCred.appId $graphAppCred.password $authorAppCred.password $userAppCred.password
 
         # Reading the deployment output.
@@ -1509,7 +1373,6 @@ function logout {
             # Assigning return values to variable.
             $appdomainName = $deploymentOutput.properties.Outputs.appDomain.Value
         }
-    }
     if ($null -eq $deploymentOutput) {
         WriteE -message "Encountered an error during ARM template deployment. Exiting..."
         logout
