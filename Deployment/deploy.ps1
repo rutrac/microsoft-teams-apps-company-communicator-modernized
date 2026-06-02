@@ -817,29 +817,56 @@ function DeployARMTemplate {
 }
 
 
+# Read a single Y/N keystroke with a timeout. Returns 'Y', 'N', or 'TIMEOUT'.
+# Falls back to a blocking Read-Host when no interactive console is attached (CI).
+function Read-YesNoWithTimeout {
+    Param(
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+        [Parameter(Mandatory = $true)][ValidateSet('Y','N')][string]$DefaultOnTimeout
+    )
+
+    # If no real console (redirected/non-interactive), can't poll keys — just return default.
+    if ([Console]::IsInputRedirected) {
+        return 'TIMEOUT'
+    }
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastShown = -1
+    while ((Get-Date) -lt $deadline) {
+        $remaining = [int][Math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)
+        if ($remaining -ne $lastShown) {
+            Write-Host -NoNewline ("`r[Y/N] (default $DefaultOnTimeout in {0,2}s): " -f $remaining)
+            $lastShown = $remaining
+        }
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            $ch = ([string]$key.KeyChar).ToUpper()
+            if ($ch -eq 'Y' -or $ch -eq 'N') {
+                Write-Host ("`r[Y/N] (default $DefaultOnTimeout): $ch                    ")
+                return $ch
+            }
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    Write-Host ("`r[Y/N] (timeout — defaulting to $DefaultOnTimeout)            ")
+    return 'TIMEOUT'
+}
+
 # Grant Admin consent
+# Behaviour: 30s prompt, default = N (skip). On skip OR failure, records the appId in
+# $script:AdminConsentPending so the end-of-deploy summary can surface the admin URL.
+# Never throws — the deploy continues either way (consent can be granted post-deploy).
 function GrantAdminConsent {
     Param(
         [Parameter(Mandatory = $true)] $graphAppId
         )
 
-    $confirmationTitle = "Admin consent permissions is required for app registration using CLI"
-    $confirmationQuestion = "Do you want to proceed?"
-    $confirmationChoices = "&Yes", "&No" # 0 = Yes, 1 = No
-    $consentErrorMessage = "Current user does not have the privilege to consent the below permissions on this app.
-    * AppCatalog.Read.All(Delegated)
-    * GroupMember.Read.All(Delegated)
-    * GroupMember.Read.All(Application)
-    * TeamsAppInstallation.ReadWriteForUser.All(Application)
-    * User.Read.All(Delegated)
-    * User.Read(Application)
-    Please ask the tenant's global administrator to consent."
+    Write-Host ""
+    Write-Host "Admin consent is required for the Company Communicator bot app registration." -ForegroundColor Yellow
+    Write-Host "Grant admin consent now? (requires you to be a Global Admin or Privileged Role Administrator)" -ForegroundColor Yellow
+    $answer = Read-YesNoWithTimeout -TimeoutSeconds 30 -DefaultOnTimeout 'N'
 
-    # Default to Yes (0). Unattended/detached runs would otherwise silently skip consent
-    # and the Teams app would later fail with AADSTS65001 on every Graph OBO call.
-    $updateDecision = $Host.UI.PromptForChoice($confirmationTitle, $confirmationQuestion, $confirmationChoices, 0)
-    if ($updateDecision -eq 0) {
-        # Grant admin consent for app registration required permissions using CLI
+    if ($answer -eq 'Y') {
         WriteI -message "Waiting for admin consent to finish..."
         $consentOk = $false
         try {
@@ -851,16 +878,19 @@ function GrantAdminConsent {
             WriteE -message $_.Exception.Message
         }
 
-        if (-not $consentOk) {
-            WriteE -message $consentErrorMessage
-            WriteW -message "`nPlease inform the global admin to consent the app permissions from this link`nhttps://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
-            throw "Admin consent failed for appId $graphAppId. Aborting so the deploy does not silently produce a broken Teams app."
-        } else {
+        if ($consentOk) {
             WriteS -message "Admin consent has been granted."
+            return
         }
+        WriteW -message "Admin consent grant failed (caller may lack admin rights). Deploy will continue; consent must be granted manually."
     } else {
-        WriteW -message "`nPlease inform the global admin to consent the app permissions from this link`nhttps://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
-        throw "Admin consent was declined for appId $graphAppId. Aborting deploy."
+        WriteW -message "Admin consent skipped. Deploy will continue; consent must be granted manually before the app can be used."
+    }
+
+    if (-not $script:AdminConsentPending) { $script:AdminConsentPending = @() }
+    $script:AdminConsentPending += [PSCustomObject]@{
+        AppId = $graphAppId
+        ConsentUrl = "https://login.microsoftonline.com/$($parameters.tenantId.value)/adminconsent?client_id=$graphAppId"
     }
 }
 
@@ -1384,5 +1414,22 @@ function logout {
     Write-Host ""
     Write-Host "===== DEPLOYMENT COMPLETED =====" -ForegroundColor Green
     Write-Host ""
+
+    if ($script:AdminConsentPending -and $script:AdminConsentPending.Count -gt 0) {
+        Write-Host ""
+        Write-Host "================================================================" -ForegroundColor Yellow
+        Write-Host " ADMIN CONSENT NOT GRANTED" -ForegroundColor Yellow
+        Write-Host "================================================================" -ForegroundColor Yellow
+        Write-Host "The deploy completed, but the Company Communicator app will not" -ForegroundColor Yellow
+        Write-Host "work until a Global Admin (or Privileged Role Administrator)" -ForegroundColor Yellow
+        Write-Host "grants admin consent to the bot app registration." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Open this URL signed in as an AAD admin:" -ForegroundColor Yellow
+        foreach ($p in $script:AdminConsentPending) {
+            Write-Host ("  $($p.ConsentUrl)") -ForegroundColor Cyan
+        }
+        Write-Host "================================================================" -ForegroundColor Yellow
+        Write-Host ""
+    }
 
 try { Stop-Transcript | Out-Null } catch { }
