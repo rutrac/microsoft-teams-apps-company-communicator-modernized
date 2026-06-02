@@ -37,7 +37,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
         {
             this.teamsDataCapture = teamsDataCapture ?? throw new ArgumentNullException(nameof(teamsDataCapture));
             this.sentNotificationDataRepository = sentNotificationDataRepository ?? throw new ArgumentNullException(nameof(sentNotificationDataRepository));
-
         }
 
         /// <summary>
@@ -106,7 +105,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                     sentNotificationDataEntity.Reactions = reaction.Type;
                     await this.sentNotificationDataRepository.InsertOrMergeAsync(sentNotificationDataEntity);
 
-                    // the code below can be used if you want to send a reply message back to the channel 
+                    // the code below can be used if you want to send a reply message back to the channel
                     // string newReaction = $"You reacted with '{reaction.Type}' to the following message: '{notificationId}' in the conversation ID: '{turnContext.Activity.Conversation.Id}'. This is a 1:1 message!'";
                     // Activity replyActivity = MessageFactory.Text(newReaction);
                     // await turnContext.SendActivityAsync(replyActivity, cancellationToken);
@@ -129,7 +128,5 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
 
             return UserTeamsActivityHandler.TeamRenamedEventType.Equals(channelData.EventType, StringComparison.OrdinalIgnoreCase);
         }
-
-
     }
 }

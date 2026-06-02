@@ -1,0 +1,45 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+charset = utf-8-bom
+insert_final_newline = true
+trim_trailing_whitespace = true
+end_of_line = crlf
+
+# StyleCop: documentation rules — disabled. The codebase predates this policy and
+# adding 100+ XML doc comments to existing members yields no engineering value.
+dotnet_diagnostic.SA1600.severity = none  # ElementsMustBeDocumented
+dotnet_diagnostic.SA1601.severity = none  # PartialElementsMustBeDocumented
+dotnet_diagnostic.SA1602.severity = none  # EnumerationItemsMustBeDocumented
+dotnet_diagnostic.SA1611.severity = none  # ElementParametersMustBeDocumented
+dotnet_diagnostic.SA1615.severity = none  # ElementReturnValueMustBeDocumented
+dotnet_diagnostic.SA1623.severity = none  # PropertySummaryDocumentationMustMatchAccessors
+dotnet_diagnostic.SA1624.severity = none  # PropertySummaryDocumentationMustOmitSetAccessorWithRestrictedAccess
+dotnet_diagnostic.SA1629.severity = none  # DocumentationTextMustEndWithAPeriod
+dotnet_diagnostic.SA1633.severity = none  # FileMustHaveHeader (legacy headers vary)
+dotnet_diagnostic.SA1638.severity = none  # FileHeaderFileNameDocumentationMustMatchFileName
+dotnet_diagnostic.SA1649.severity = none  # FileNameMustMatchTypeName
+
+# StyleCop: relaxed naming rules
+dotnet_diagnostic.SA1300.severity = none  # ElementMustBeginWithUpperCaseLetter (interfere with lowerCamelCase model props)
+
+# StyleCop: cosmetic rules that conflict with modern C# conventions
+dotnet_diagnostic.SA1101.severity = none  # PrefixLocalCallsWithThis is a matter of taste; modern style omits.
+dotnet_diagnostic.SA1309.severity = none  # FieldNamesMustNotBeginWithUnderscore (modern convention permits _field)
+dotnet_diagnostic.SA1402.severity = none  # FileMayOnlyContainASingleType (some test/dto files group small types)
+
+# SA1200 (UsingDirectivesMustBePlacedCorrectly) is intentionally kept off:
+# the codebase has namespace names that collide with imported types (e.g. local
+# Users namespace vs Microsoft.Graph.Models.User). Usings INSIDE the namespace
+# block resolve those collisions in favor of the imported type, which is what
+# the code expects. Moving them outside breaks compilation.
+dotnet_diagnostic.SA1200.severity = none
+
+# StyleCop: member-ordering rules — disabled. Pure aesthetics; reordering risks
+# git churn and merge conflicts without functional benefit.
+dotnet_diagnostic.SA1201.severity = none  # ElementsMustAppearInTheCorrectOrder
+dotnet_diagnostic.SA1202.severity = none  # ElementsMustBeOrderedByAccess
+dotnet_diagnostic.SA1204.severity = none  # StaticElementsMustAppearBeforeInstanceElements
+dotnet_diagnostic.SA1500.severity = none  # BracesForMultiLineStatementsMustNotShareLine

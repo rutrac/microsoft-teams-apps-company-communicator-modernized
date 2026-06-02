@@ -36,7 +36,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Mappers
             this.Map(x => x.Reactions).Name(this.localizer.GetString("ColumnName_Reactions"));
             this.Map(x => x.ButtonTracking).Name(this.localizer.GetString("ColumnName_ButtonTracking"));
             this.Map(x => x.Error).Name(this.localizer.GetString("ColumnName_Error"));
-
         }
     }
 }

@@ -68,7 +68,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
 
             await this.channelDataRepository.CreateorUpdateChannelConfig(channeltoupdate);
             return this.Ok();
-
         }
     }
 }

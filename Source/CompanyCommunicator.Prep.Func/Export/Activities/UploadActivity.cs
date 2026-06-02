@@ -13,7 +13,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Activities
     using System.Threading.Tasks;
     using CsvHelper;
     using global::Azure.Storage.Blobs.Models;
-        using Microsoft.Azure.Functions.Worker;
+    using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Localization;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Clients;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;

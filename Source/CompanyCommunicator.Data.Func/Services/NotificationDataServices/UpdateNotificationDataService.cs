@@ -134,6 +134,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
             }
 
             var instanceId = functionPayload;
+
             // Backwards compatibility: legacy persisted full HttpManagementPayload JSON.
             if (functionPayload.TrimStart().StartsWith("{"))
             {

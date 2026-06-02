@@ -8,7 +8,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using System;
     using System.Net;
     using System.Threading.Tasks;
-        using Microsoft.Azure.Functions.Worker;
+    using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;

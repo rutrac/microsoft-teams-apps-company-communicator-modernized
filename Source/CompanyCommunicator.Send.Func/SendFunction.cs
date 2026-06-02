@@ -286,14 +286,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Send.Func
 
         private string GetButtonTrackingUrl(string notification, string notificationId, string key)
         {
-
             var result = JsonConvert.DeserializeObject<RootSendingAdaptiveCard>(notification);
 
             if (result.actions == null)
             {
                 return notification;
             }
-            
+
             string host = string.Empty;
 
             foreach (var item in result.body)

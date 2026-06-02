@@ -35,7 +35,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
     using Microsoft.Teams.Apps.CompanyCommunicator.Models;
     using Newtonsoft.Json;
 
-
     /// <summary>
     /// Controller for the sent notification data.
     /// </summary>
@@ -124,7 +123,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
 
             // TODO: double-check it
            // draftNotification.Buttons = this.GetButtonTrackingUrl(draftNotification);
-
             var draftNotificationDataEntity = await this.notificationDataRepository.GetAsync(
                 NotificationDataTableNames.DraftNotificationsPartition,
                 draftNotification.Id);
@@ -243,7 +241,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> TrackButtonClick(string id, string key, string buttonid, string redirecturl)
         {
-
             // id cannot be null
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -276,12 +273,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             // if the notification entity is null it means it doesnt exist or is not a sent message yet
             if (notificationEntity != null)
             {
-
                 List<TrackingButtonClicks> result;
 
                 if (notificationEntity.ButtonTrackingClicks is null)
                 {
-
                     result = new List<TrackingButtonClicks>();
 
                     var click = new TrackingButtonClicks { name = buttonid, clicks = 1 };
@@ -301,7 +296,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                     {
                         button.clicks++;
                     }
-
                 }
 
                 notificationEntity.ButtonTrackingClicks = JsonConvert.SerializeObject(result);
@@ -311,7 +305,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
 
                 // save the user button clicked
                 await this.UpdateButtonClickedByUser(id, key, buttonid);
-
             }
 
             return this.Redirect(WebUtility.UrlDecode(redirecturl));
@@ -325,12 +318,10 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             // if we have a instance that was sent to a user
             if (sentnotificationEntity != null)
             {
-
                 List<TrackingUserClicks> result;
 
                 if (sentnotificationEntity.ButtonTracking is null)
                 {
-
                     result = new List<TrackingUserClicks>();
 
                     var click = new TrackingUserClicks { name = buttonid, clicks = 1, datetime = DateTime.Now };
@@ -338,7 +329,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 }
                 else
                 {
-
                     result = JsonConvert.DeserializeObject<List<TrackingUserClicks>>(sentnotificationEntity.ButtonTracking);
 
                     var button = result.Find(p => p.name == buttonid);
@@ -352,7 +342,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                         button.clicks++;
                         button.datetime = DateTime.Now;
                     }
-
                 }
 
                 sentnotificationEntity.ButtonTracking = JsonConvert.SerializeObject(result);
@@ -436,7 +425,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 0xE7, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
                 0x44, 0xAE, 0x42, 0x60, 0x82,
             };
-
 
             // Return the fake image data as JSON
             return File(imageBytes, "image/png");

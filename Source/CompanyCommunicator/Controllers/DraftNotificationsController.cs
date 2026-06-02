@@ -130,6 +130,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             {
                 return uriResult.Scheme == Uri.UriSchemeHttps;
             }
+
             return false;
         }
 
@@ -154,7 +155,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                     {
                         BlobContainerName = blobContainerClient.Name,
                         BlobName = blob.Name,
-                        Resource = "b"
+                        Resource = "b",
                     };
 
                     sasBuilder.ExpiresOn = DateTimeOffset.UtcNow.AddHours(this.userAppOptions.ImageUploadBlobStorageSasDurationHours);
@@ -220,11 +221,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 await this.UploadToBlobStorage(notification);
             }
 
-
             // TODO: double-check it
            // notification.Buttons = this.GetButtonTrackingUrl(notification);
-
-
             var notificationEntity = new NotificationDataEntity
             {
                 PartitionKey = NotificationDataTableNames.DraftNotificationsPartition,

@@ -15,7 +15,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
     /// </summary>
     public static class GroupAssociationRepositoryExtensions
     {
-
         /// <summary>
         /// Create a new Group Association based on the GroupAssociation data.
         /// </summary>
@@ -29,6 +28,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
             var tmpGroupAssociation = new GroupAssociationDataEntity
             {
                 PartitionKey = GroupAssociationTableNames.GroupDataPartition,
+
                 // RowKey = draftGroupAssociationData.GroupId,
                 RowKey = Guid.NewGuid().ToString(),
                 ChannelId = draftGroupAssociationData.ChannelId,

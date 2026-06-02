@@ -196,7 +196,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.Export.Streams
                     Reactions = sentNotification.Reactions,
                     StatusReason = this.GetStatusReason(sentNotification.ErrorMessage, sentNotification.StatusCode, notificationStatus),
                     Error = sentNotification.Exception,
-                }) ;
+                });
             }
 
             return userdatalist;

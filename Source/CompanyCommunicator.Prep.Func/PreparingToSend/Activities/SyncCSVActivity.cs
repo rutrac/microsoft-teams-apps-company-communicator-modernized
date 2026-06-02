@@ -12,7 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using System.Net;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
-        using Microsoft.Azure.Functions.Worker;
+    using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Localization;
     using Microsoft.Extensions.Logging;
     using Microsoft.Graph;
@@ -23,11 +23,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.UserData;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Resources;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph;
-    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.Recipients;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.User;
     using Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend.Extensions;
     using Newtonsoft.Json;
+    using CcUserType = Microsoft.Teams.Apps.CompanyCommunicator.Common.Services.MicrosoftGraph.UserType;
 
     /// <summary>
     /// Syncs users of the CSV file to Sent notification table.
@@ -91,8 +91,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Prep.Func.PreparingToSend
 
             // sync users from the csv file
             List<User> users = new List<User>();
-            // string strtp = notification.CsvUsers.Substring(2, notification.CsvUsers.Length - 4);
 
+            // string strtp = notification.CsvUsers.Substring(2, notification.CsvUsers.Length - 4);
             string strtp = Regex.Replace(notification.CsvUsers, @"\[|\]|\""|\s+", string.Empty);
 
             var csvUsersArray = strtp.Split(",");

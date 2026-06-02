@@ -14,7 +14,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
     /// </summary>
     public static class ChannelDataRepositoryExtensions
     {
-
         /// <summary>
         /// Creates or updates a channel config based on the channelData.
         /// </summary>

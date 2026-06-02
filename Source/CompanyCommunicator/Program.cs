@@ -28,7 +28,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
             // CrashDumps folder before we can read it, so write a sentinel to D:\home\LogFiles
             // (the only persisted location accessible from Kudu vfs).
             AppDomain.CurrentDomain.UnhandledException += (sender, e) => WriteFatal("UnhandledException", e.ExceptionObject as Exception, e.IsTerminating);
-            TaskScheduler.UnobservedTaskException += (sender, e) => { WriteFatal("UnobservedTaskException", e.Exception, false); e.SetObserved(); };
+            TaskScheduler.UnobservedTaskException += (sender, e) => { WriteFatal("UnobservedTaskException", e.Exception, false);
+                e.SetObserved(); };
             AppDomain.CurrentDomain.ProcessExit += (sender, e) => WriteFatal("ProcessExit", null, true);
 
             CreateHostBuilder(args).Build().Run();

@@ -20,7 +20,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.GroupAsso
         /// <returns>A <see cref="Task{TResult}"/> representing the result of the asynchronous operation.</returns>
         public Task<IEnumerable<GroupAssociationDataEntity>> GetGroupAssociationByChannelId(string channelId);
 
-
         /// <summary>
         /// Deletes the group association based on the key (group id).
         /// </summary>
