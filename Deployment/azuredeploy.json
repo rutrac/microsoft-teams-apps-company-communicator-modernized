@@ -355,8 +355,12 @@
     "snetAppsId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('snetAppsName'))]",
     "snetPeId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('snetPeName'))]",
     "privateDnsZoneBlobName": "privatelink.blob.core.windows.net",
+    "privateDnsZoneTableName": "privatelink.table.core.windows.net",
+    "privateDnsZoneQueueName": "privatelink.queue.core.windows.net",
     "privateDnsZoneKvName": "privatelink.vaultcore.azure.net",
     "peStorageBlobName": "[concat(variables('storageAccountName'), '-pe-blob')]",
+    "peStorageTableName": "[concat(variables('storageAccountName'), '-pe-table')]",
+    "peStorageQueueName": "[concat(variables('storageAccountName'), '-pe-queue')]",
     "peKeyVaultName": "[concat(variables('keyvaultName'), '-pe')]",
     "hasDeployerIp": "[not(empty(parameters('deployerIpAddress')))]",
     "deployerIpRules": "[if(variables('hasDeployerIp'), createArray(createObject('value', parameters('deployerIpAddress'), 'action', 'Allow')), createArray())]",
@@ -1814,6 +1818,134 @@
                 "name": "vault",
                 "properties": {
                   "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneKvName'))]"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsZoneTableName')]",
+      "location": "global",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsZoneQueueName')]",
+      "location": "global",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[concat(variables('privateDnsZoneTableName'), '/', variables('vnetName'), '-link')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneTableName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": { "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[concat(variables('privateDnsZoneQueueName'), '/', variables('vnetName'), '-link')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneQueueName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": { "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('peStorageTableName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "subnet": { "id": "[variables('snetPeId')]" },
+        "privateLinkServiceConnections": [
+          {
+            "name": "table",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+              "groupIds": [ "table" ]
+            }
+          }
+        ]
+      },
+      "resources": [
+        {
+          "type": "privateDnsZoneGroups",
+          "apiVersion": "2023-09-01",
+          "name": "default",
+          "dependsOn": [
+            "[resourceId('Microsoft.Network/privateEndpoints', variables('peStorageTableName'))]",
+            "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneTableName'))]"
+          ],
+          "properties": {
+            "privateDnsZoneConfigs": [
+              {
+                "name": "table",
+                "properties": {
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneTableName'))]"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('peStorageQueueName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "subnet": { "id": "[variables('snetPeId')]" },
+        "privateLinkServiceConnections": [
+          {
+            "name": "queue",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+              "groupIds": [ "queue" ]
+            }
+          }
+        ]
+      },
+      "resources": [
+        {
+          "type": "privateDnsZoneGroups",
+          "apiVersion": "2023-09-01",
+          "name": "default",
+          "dependsOn": [
+            "[resourceId('Microsoft.Network/privateEndpoints', variables('peStorageQueueName'))]",
+            "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneQueueName'))]"
+          ],
+          "properties": {
+            "privateDnsZoneConfigs": [
+              {
+                "name": "queue",
+                "properties": {
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneQueueName'))]"
                 }
               }
             ]
