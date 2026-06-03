@@ -77,11 +77,13 @@ class DraftMessages extends React.Component<IMessageProps, IMessageState> {
         }, 60000);
     }
 
-    public componentWillReceiveProps(nextProps: any) {
-        this.setState({
-            message: nextProps.messages,
-            loader: false
-        })
+    public componentDidUpdate(prevProps: any) {
+        if (prevProps.messages !== this.props.messages) {
+            this.setState({
+                message: this.props.messages,
+                loader: false
+            });
+        }
     }
 
     public componentWillUnmount() {

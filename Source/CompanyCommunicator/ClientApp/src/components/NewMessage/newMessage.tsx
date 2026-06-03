@@ -781,7 +781,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                                             checkedValue={this.state.selectedRadioBtn}
                                             onCheckedValueChange={this.onGroupSelected}
                                             vertical={true}
-                                            items={[
+                                            items={([
                                                 {
                                                     name: "teams",
                                                     key: "teams",
@@ -952,7 +952,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                                                         )
                                                     },
                                                 }
-                                            ]}
+                                            ]) as any}
                                         >
                                         </RadioGroup>
 

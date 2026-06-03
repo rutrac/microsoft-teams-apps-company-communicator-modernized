@@ -65,10 +65,10 @@ class Messages extends React.Component<IMessageProps, IMessageState> {
         clearInterval(this.interval);
     }
 
-    public componentWillReceiveProps(nextProps: any) {
-        if (this.props !== nextProps) {
+    public componentDidUpdate(prevProps: any) {
+        if (prevProps.messagesList !== this.props.messagesList) {
             this.setState({
-                message: nextProps.messagesList,
+                message: this.props.messagesList,
                 loader: false
             });
         }

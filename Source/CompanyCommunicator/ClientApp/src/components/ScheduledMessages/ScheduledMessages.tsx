@@ -79,10 +79,10 @@ class ScheduledMessages extends React.Component<IMessageProps, IMessageState> {
         }, 60000);
     }
 
-    public componentWillReceiveProps(nextProps: any) {
-        if (this.props !== nextProps) {
+    public componentDidUpdate(prevProps: any) {
+        if (prevProps.messages !== this.props.messages) {
             this.setState({
-                message: nextProps.messages,
+                message: this.props.messages,
                 loader: false
             });
         }
