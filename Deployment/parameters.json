@@ -91,6 +91,10 @@
     "Value": "",
     "Description": "Public IPv4 of the operator running the deployment. Used in IP allowlists for Storage/Key Vault firewalls and App Service SCM (Kudu) restrictions. Leave blank for deploy.ps1 to auto-detect via api.ipify.org. Pass empty string to skip operator IP allow rules entirely (relies on VNet + Front Door only)."
   },
+  "policyDiagnosticSettings": {
+    "Value": [],
+    "Description": "OPTIONAL array of tenant 'deployIfNotExists' diagnostic-setting policy entries to pre-create on every site (web + 3 function apps) BEFORE the policy can fire. Pre-creation makes the policy's existenceCondition immediately compliant, preventing a remediation UpdateWebSite cascade that can race the .NET-isolated worker startup and leave a function host wedged. Each entry: { \"name\": \"<diagnostic-setting-name>\", \"workspaceId\": \"/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>\" }. Look up your tenant's expected name(s) in Portal > Policy > Definitions > <your DINE policy> > existenceCondition (the 'name' field is the diagnostic-setting name; the workspace is the policy's deployment parameter). Example: [{ \"name\": \"<policy-diag-setting-name>\", \"workspaceId\": \"/subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\" }]. Leave [] for tenants with no such policy — deploy.ps1 still runs an auto-replicate safety net that copies any setting already on one site to its siblings, reducing blast radius from 4 wedges to 1."
+  },
   "gitRepoUrl": {
     "Value": "https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized.git",
     "Description": "The URL to the GitHub repository to deploy."

@@ -952,6 +952,182 @@ function AzRestPatch {
     }
 }
 
+# Pre-create diagnostic settings on every site BEFORE tenant 'deployIfNotExists' policies fire their
+# remediation. Each policy remediation triggers an internal Microsoft.Web UpdateWebSite, which recycles
+# the .NET-isolated worker. When the new worker loses the race to rebind local gRPC port 4001 to the
+# prior worker, the host enters an unrecoverable 'Failed to start language worker process' loop and the
+# function app silently wedges (no telemetry). Pre-creating the setting makes the policy's
+# existenceCondition immediately compliant -> no remediation.
+#
+# Two modes (both run, complementary):
+#   1. EXPLICIT: caller passes -SettingsSpec — array of @{ name=...; workspaceId=... } pairs sourced
+#      from parameters.json:policyDiagnosticSettings. Best for tenants with known DINE policies.
+#   2. AUTO-REPLICATE: any diagnostic setting present on a SUBSET of the 4 sites is copied to the missing
+#      ones. Catches unknown-tenant policies that hit one site faster than another, reducing blast radius
+#      from N wedges to 1. Always runs as a safety net.
+function Set-PolicyDiagnosticSettings {
+    Param(
+        [Parameter(Mandatory=$true)][string]$ResourceGroup,
+        [Parameter(Mandatory=$true)][string]$BaseResourceName,
+        [Parameter(Mandatory=$true)][string]$SubscriptionId,
+        # Array of [pscustomobject]@{ name=<string>; workspaceId=<armId> } (explicit known-tenant entries).
+        $SettingsSpec = @()
+    )
+
+    $apiVersion = '2021-05-01-preview'
+    $sites = @(
+        @{ name = $BaseResourceName;                       kind = 'web'      },
+        @{ name = "$BaseResourceName-function";            kind = 'function' },
+        @{ name = "$BaseResourceName-prep-function";       kind = 'function' },
+        @{ name = "$BaseResourceName-data-function";       kind = 'function' }
+    )
+
+    # --- Snapshot current diagnostic settings on every site ---
+    WriteI -message "Scanning existing diagnostic settings across $($sites.Count) sites..."
+    $perSite = @{}        # site name -> hashtable(settingName -> setting object)
+    $catsBySite = @{}     # site name -> log-category names array (cached for the PUT phase)
+    foreach ($s in $sites) {
+        $perSite[$s.name] = @{}
+        $url = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$($s.name)/providers/Microsoft.Insights/diagnosticSettings?api-version=$apiVersion"
+        $raw = az rest --method GET --url $url 2>$null
+        if ($LASTEXITCODE -eq 0 -and $raw) {
+            try {
+                foreach ($d in (($raw | ConvertFrom-Json).value)) { $perSite[$s.name][$d.name] = $d }
+            } catch { }
+        }
+    }
+
+    # --- Build the union of (settingName -> workspaceId) targets ---
+    # Priority: explicit SettingsSpec wins; otherwise infer from any site that already has the setting.
+    $targets = @{}   # settingName -> workspaceId
+    foreach ($spec in $SettingsSpec) {
+        if ($spec -and $spec.name -and $spec.workspaceId) {
+            $targets[[string]$spec.name] = [string]$spec.workspaceId
+        }
+    }
+    foreach ($siteName in $perSite.Keys) {
+        foreach ($settingName in $perSite[$siteName].Keys) {
+            if (-not $targets.ContainsKey($settingName)) {
+                $ws = $perSite[$siteName][$settingName].properties.workspaceId
+                if ($ws) { $targets[$settingName] = $ws }
+            }
+        }
+    }
+
+    if ($targets.Count -eq 0) {
+        WriteI -message "No explicit policyDiagnosticSettings configured and no existing diagnostic settings found. Skipping (safe no-op for tenants without diagnostic-setting policies)."
+        return
+    }
+
+    # --- Helper: lazy-load log categories for a site ---
+    $getCats = {
+        Param([string]$siteName)
+        if ($catsBySite.ContainsKey($siteName)) { return $catsBySite[$siteName] }
+        $catsUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$siteName/providers/Microsoft.Insights/diagnosticSettingsCategories?api-version=$apiVersion"
+        $catsRaw = az rest --method GET --url $catsUrl 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $catsRaw) { return $null }
+        $names = @()
+        foreach ($c in (($catsRaw | ConvertFrom-Json).value)) {
+            if ($c.properties.categoryType -eq 'Logs') { $names += $c.name }
+        }
+        $catsBySite[$siteName] = $names
+        return $names
+    }
+
+    # --- For each target setting, PUT it on every site missing it ---
+    foreach ($settingName in $targets.Keys) {
+        $workspaceId = $targets[$settingName]
+        WriteI -message "Setting '$settingName' (workspace: $workspaceId)"
+
+        foreach ($s in $sites) {
+            if ($perSite[$s.name].ContainsKey($settingName)) {
+                WriteI -message "  [$($s.name)] already present — skipping."
+                continue
+            }
+
+            $catNames = & $getCats $s.name
+            if (-not $catNames -or $catNames.Count -eq 0) {
+                WriteW -message "  [$($s.name)] could not list categories — skipping."
+                continue
+            }
+
+            $primary = if ($s.kind -eq 'function') { 'FunctionAppLogs' } else { 'AppServiceHTTPLogs' }
+            $logsArr = @()
+            foreach ($cn in $catNames) {
+                $logsArr += @{
+                    category = $cn
+                    enabled  = ($cn -eq $primary)
+                    retentionPolicy = @{ enabled = $false; days = 0 }
+                }
+            }
+            $metricsArr = @( @{ category = 'AllMetrics'; enabled = $false; retentionPolicy = @{ enabled = $false; days = 0 } } )
+
+            $bodyObj  = @{ properties = @{ workspaceId = $workspaceId; metrics = $metricsArr; logs = $logsArr } }
+            $bodyJson = $bodyObj | ConvertTo-Json -Depth 10 -Compress
+
+            $putUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$($s.name)/providers/Microsoft.Insights/diagnosticSettings/$settingName" + "?api-version=$apiVersion"
+            $tmp = [System.IO.Path]::GetTempFileName()
+            try {
+                [System.IO.File]::WriteAllText($tmp, $bodyJson, [System.Text.Encoding]::UTF8)
+                try {
+                    Invoke-AzWithRetry -Label "PUT diagnostic setting '$settingName' on $($s.name)" -ScriptBlock {
+                        az rest --method PUT --url $putUrl --body "@$tmp" --headers "Content-Type=application/json"
+                    } | Out-Null
+                    WriteS -message "  [$($s.name)] pre-created ($primary enabled)."
+                } catch {
+                    WriteW -message "  [$($s.name)] PUT failed: $($_.Exception.Message). Policy may fire its own remediation here."
+                }
+            } finally {
+                Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
+# Defense-in-depth: enable Proactive Auto-Heal on every site so App Service automatically recycles
+# instances that exceed memory thresholds or show signs of wedge. This is a built-in App Service
+# feature (no autoHealRules to author) that complements the policy-hardening mitigation above — if
+# a host ever does wedge for any reason, it self-recovers within minutes instead of hours.
+# Only writes the setting when missing or false to avoid an unnecessary recycle on idempotent re-runs.
+function Enable-ProactiveAutoHeal {
+    Param(
+        [Parameter(Mandatory=$true)][string]$ResourceGroup,
+        [Parameter(Mandatory=$true)][string]$BaseResourceName
+    )
+
+    $appSettingName  = 'WEBSITE_PROACTIVE_AUTOHEAL_ENABLED'
+    $appSettingValue = 'true'
+    $sites = @(
+        $BaseResourceName,
+        "$BaseResourceName-function",
+        "$BaseResourceName-prep-function",
+        "$BaseResourceName-data-function"
+    )
+
+    foreach ($name in $sites) {
+        $current = az webapp config appsettings list --name $name --resource-group $ResourceGroup --query "[?name=='$appSettingName'].value | [0]" -o tsv 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            WriteW -message "  [$name] could not read appsettings — skipping."
+            continue
+        }
+        if ($current -eq $appSettingValue) {
+            WriteI -message "  [$name] $appSettingName already set to '$appSettingValue' — skipping."
+            continue
+        }
+
+        try {
+            az webapp config appsettings set --name $name --resource-group $ResourceGroup --settings "$appSettingName=$appSettingValue" --output none 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                WriteS -message "  [$name] enabled Proactive Auto-Heal."
+            } else {
+                WriteW -message "  [$name] az webapp config appsettings set returned $LASTEXITCODE."
+            }
+        } catch {
+            WriteW -message "  [$name] failed to set Proactive Auto-Heal: $($_.Exception.Message)"
+        }
+    }
+}
+
 # Resolve an application's object ID from its appId, retrying through AAD replication lag.
 # After 'az ad app create' the new app may take several seconds to be queryable by appId; without this
 # retry, downstream Graph PATCHes hit https://graph.microsoft.com/v1.0/applications/ (empty id) and 405.
@@ -1391,6 +1567,29 @@ function logout {
         WriteE -message "Encountered an error during ARM template deployment. Exiting..."
         logout
         Exit
+    }
+
+# Tenant-policy hardening: pre-create diagnostic settings on every site BEFORE any tenant
+# 'deployIfNotExists' policy can fire its remediation (which triggers UpdateWebSite -> host recycle
+# race -> .NET-isolated worker wedge). Combines an explicit list from parameters.json with an
+# auto-replicate safety net that copies any setting already on one site to its siblings.
+    WriteI -message "Applying tenant-policy hardening (diagnostic-setting pre-creation)..."
+    try {
+        $diagSpec = @()
+        if ($parameters.PSObject.Properties.Match('policyDiagnosticSettings') -and $parameters.policyDiagnosticSettings.Value) {
+            $diagSpec = @($parameters.policyDiagnosticSettings.Value)
+        }
+        Set-PolicyDiagnosticSettings -ResourceGroup $parameters.resourceGroupName.Value -BaseResourceName $parameters.baseResourceName.Value -SubscriptionId $parameters.subscriptionId.Value -SettingsSpec $diagSpec
+    } catch {
+        WriteW -message "Diagnostic-setting pre-creation step failed: $($_.Exception.Message). Continuing — tenant policy may perform its own remediation (may cause one-time worker recycle)."
+    }
+
+# Defense-in-depth: enable Proactive Auto-Heal on every site so any future wedge self-recovers.
+    WriteI -message "Enabling Proactive Auto-Heal across all sites..."
+    try {
+        Enable-ProactiveAutoHeal -ResourceGroup $parameters.resourceGroupName.Value -BaseResourceName $parameters.baseResourceName.Value
+    } catch {
+        WriteW -message "Enable-ProactiveAutoHeal step failed: $($_.Exception.Message). Continuing."
     }
 
 # Function call to update reply-urls and uris for registered app.
