@@ -5,8 +5,7 @@ import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from "react-i18next";
-import { initializeIcons } from 'office-ui-fabric-react';
-import { Loader, List, Flex, Text } from '@fluentui/react-northstar';
+import { Spinner, Text } from '@fluentui/react-components';
 import { app, dialog } from "@microsoft/teams-js";
 import { getScheduledMessagesList, getDraftMessagesList, getMessagesList } from '../../actions';
 import { getBaseUrl } from '../../configVariables';
@@ -22,7 +21,13 @@ export interface IMessage {
     responses?: string;
 }
 
-initializeIcons();
+const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: '0.2rem 0.2rem 0 0',
+    padding: '0.25rem 0.5rem',
+};
 
 const ScheduledMessages: React.FC = () => {
     const { t } = useTranslation();
@@ -71,54 +76,44 @@ const ScheduledMessages: React.FC = () => {
         }
     };
 
-    const processLabels = () => ([{
-        key: "labels",
-        content: (
-            <Flex vAlign="center" fill gap="gap.small">
-                <Flex.Item grow={1}>
-                    <Text truncated weight="bold" content={t("TitleText")} />
-                </Flex.Item>
-                <Flex.Item push size="24%" shrink={0}>
-                    <Text truncated content={t("ScheduledDate")} weight="bold" />
-                </Flex.Item>
-                <Flex.Item shrink={0} align="end">
-                    <Overflow message="" />
-                </Flex.Item>
-            </Flex>
-        ),
-        styles: { margin: '0.2rem 0.2rem 0 0' },
-    }]);
-
-    let keyCount = 0;
-    const processItem = (message: any) => {
-        keyCount++;
-        return {
-            key: keyCount,
-            content: (
-                <Flex vAlign="center" fill gap="gap.small">
-                    <Flex.Item grow={1}>
-                        <Text>{message.title}</Text>
-                    </Flex.Item>
-                    <Flex.Item push size="24%" shrink={0}>
-                        <Text truncated className="semiBold" content={message.scheduledDate} />
-                    </Flex.Item>
-                    <Flex.Item shrink={0} align="end">
-                        <Overflow message={message} title="" />
-                    </Flex.Item>
-                </Flex>
-            ),
-            styles: { margin: '0.2rem 0.2rem 0 0' },
-            onClick: (): void => {
-                const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
-                onOpenTaskModule(url, t("EditMessage"));
-            },
-        };
-    };
-
-    if (loader) return <Loader />;
+    if (loader) return <Spinner />;
     if (messages.length === 0) return <div className="results">{t("EmptyScheduledMessages")}</div>;
-    const allScheduledMessages = [...processLabels(), ...messages.map(processItem)];
-    return <List selectable items={allScheduledMessages} className="list" />;
+
+    return (
+        <div className="list">
+            <div style={rowStyle}>
+                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                    <Text truncate weight="semibold">{t("TitleText")}</Text>
+                </div>
+                <div style={{ flex: '0 0 24%' }}>
+                    <Text truncate weight="semibold">{t("ScheduledDate")}</Text>
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                    <Overflow message="" />
+                </div>
+            </div>
+            {messages.map((message, idx) => (
+                <div
+                    key={idx}
+                    style={{ ...rowStyle, cursor: 'pointer' }}
+                    onClick={() => {
+                        const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
+                        onOpenTaskModule(url, t("EditMessage"));
+                    }}
+                >
+                    <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                        <Text>{message.title}</Text>
+                    </div>
+                    <div style={{ flex: '0 0 24%' }}>
+                        <Text truncate className="semiBold">{message.scheduledDate}</Text>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                        <Overflow message={message} title="" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 };
 
 export default ScheduledMessages;

@@ -5,8 +5,7 @@ import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from "react-i18next";
-import { initializeIcons } from 'office-ui-fabric-react/lib/Icons';
-import { Loader, List, Flex, Text } from '@fluentui/react-northstar';
+import { Spinner, Text } from '@fluentui/react-components';
 import { app, dialog } from "@microsoft/teams-js";
 import './draftMessages.scss';
 import { getDraftMessagesList, getScheduledMessagesList, getMessagesList } from '../../actions';
@@ -23,7 +22,13 @@ export interface IMessage {
     responses?: string;
 }
 
-initializeIcons();
+const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: '0.2rem 0.2rem 0 0',
+    padding: '0.25rem 0.5rem',
+};
 
 const DraftMessages: React.FC = () => {
     const { t } = useTranslation();
@@ -72,49 +77,39 @@ const DraftMessages: React.FC = () => {
         }
     };
 
-    const processLabels = () => ([{
-        key: "labels",
-        content: (
-            <Flex vAlign="center" fill gap="gap.small">
-                <Flex.Item>
-                    <Text truncated weight="bold" content={t("TitleText")} />
-                </Flex.Item>
-            </Flex>
-        ),
-        styles: { margin: '0.2rem 0.2rem 0 0' },
-    }]);
-
-    let keyCount = 0;
-    const processItem = (message: any) => {
-        keyCount++;
-        return {
-            key: keyCount,
-            content: (
-                <Flex vAlign="center" fill gap="gap.small">
-                    <Flex.Item shrink={0} grow={1}>
-                        <Text>{message.title}</Text>
-                    </Flex.Item>
-                    <Flex.Item shrink={0} align="end">
-                        <Overflow message={message} title="" />
-                    </Flex.Item>
-                </Flex>
-            ),
-            styles: { margin: '0.2rem 0.2rem 0 0' },
-            onClick: (): void => {
-                const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
-                onOpenTaskModule(url, t("EditMessage"));
-            },
-        };
-    };
-
     if (loader) {
-        return <Loader />;
+        return <Spinner />;
     }
     if (messages.length === 0) {
         return <div className="results">{t("EmptyDraftMessages")}</div>;
     }
-    const allDraftMessages = [...processLabels(), ...messages.map(processItem)];
-    return <List selectable items={allDraftMessages} className="list" />;
+
+    return (
+        <div className="list">
+            <div style={rowStyle}>
+                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                    <Text truncate weight="semibold">{t("TitleText")}</Text>
+                </div>
+            </div>
+            {messages.map((message, idx) => (
+                <div
+                    key={idx}
+                    style={{ ...rowStyle, cursor: 'pointer' }}
+                    onClick={() => {
+                        const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
+                        onOpenTaskModule(url, t("EditMessage"));
+                    }}
+                >
+                    <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                        <Text truncate>{message.title}</Text>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                        <Overflow message={message} title="" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 };
 
 export default DraftMessages;

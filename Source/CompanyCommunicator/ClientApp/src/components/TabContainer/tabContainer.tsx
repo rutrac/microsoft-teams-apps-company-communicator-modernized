@@ -11,7 +11,10 @@ import ScheduledMessages from '../ScheduledMessages/ScheduledMessages';
 import './tabContainer.scss';
 import { app, dialog } from "@microsoft/teams-js";
 import { getBaseUrl } from '../../configVariables';
-import { Accordion, Button, Flex, Label } from '@fluentui/react-northstar';
+import {
+    Accordion, AccordionItem, AccordionHeader, AccordionPanel,
+    Badge, Button,
+} from '@fluentui/react-components';
 import { getDraftMessagesList, getScheduledMessagesList } from '../../actions';
 import { getAppSettings } from "../../apis/messageListApi";
 
@@ -91,40 +94,42 @@ const TabContainer: React.FC = () => {
     };
 
     const isMaster = isMasterAdmin(masterAdminUpnsRef.current, userPrincipalName);
-    const panels = [
-        {
-            title: t('DraftMessagesSectionTitle'),
-            content: { key: 'sent', content: <DraftMessages /> },
-        },
-        {
-            title: t('ScheduledMessagesSectionTitle'),
-            content: { key: 'scheduled', content: <div className="messages"><ScheduledMessages /></div> },
-        },
-        {
-            title: t('SentMessagesSectionTitle'),
-            content: { key: 'draft', content: <Messages /> },
-        },
-    ];
 
     return (
-        <Flex className="tabContainer" column fill gap="gap.small">
-            <Flex className="newPostBtn" hAlign="end" vAlign="end" gap="gap.small">
+        <div className="tabContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="newPostBtn" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', gap: '0.5rem' }}>
                 {targetingEnabledRef.current && (
-                    <div><Label circular content={teamName} /> <Label circular content={channelName} /></div>
+                    <div>
+                        <Badge appearance="filled" shape="circular">{teamName}</Badge>{' '}
+                        <Badge appearance="filled" shape="circular">{channelName}</Badge>
+                    </div>
                 )}
-                <Flex.Item push>
-                    <Button content={t("NewMessage")} onClick={onNewMessage} primary />
-                </Flex.Item>
+                <div style={{ marginLeft: 'auto' }}>
+                    <Button appearance="primary" onClick={onNewMessage}>{t("NewMessage")}</Button>
+                </div>
                 {targetingEnabledRef.current && isMaster && (
-                    <Button content={t("ManageGroups")} onClick={onManageGroups} />
+                    <Button onClick={onManageGroups}>{t("ManageGroups")}</Button>
                 )}
-            </Flex>
-            <Flex className="messageContainer">
-                <Flex.Item grow={1}>
-                    <Accordion defaultActiveIndex={[0, 1, 2]} panels={panels} />
-                </Flex.Item>
-            </Flex>
-        </Flex>
+            </div>
+            <div className="messageContainer" style={{ display: 'flex' }}>
+                <div style={{ flex: '1 1 auto' }}>
+                    <Accordion multiple defaultOpenItems={[0, 1, 2]} collapsible>
+                        <AccordionItem value={0}>
+                            <AccordionHeader>{t('DraftMessagesSectionTitle')}</AccordionHeader>
+                            <AccordionPanel><DraftMessages /></AccordionPanel>
+                        </AccordionItem>
+                        <AccordionItem value={1}>
+                            <AccordionHeader>{t('ScheduledMessagesSectionTitle')}</AccordionHeader>
+                            <AccordionPanel><div className="messages"><ScheduledMessages /></div></AccordionPanel>
+                        </AccordionItem>
+                        <AccordionItem value={2}>
+                            <AccordionHeader>{t('SentMessagesSectionTitle')}</AccordionHeader>
+                            <AccordionPanel><Messages /></AccordionPanel>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
+            </div>
+        </div>
     );
 };
 

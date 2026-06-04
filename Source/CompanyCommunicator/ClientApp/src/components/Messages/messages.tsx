@@ -5,8 +5,13 @@ import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from "react-i18next";
-import { TooltipHost } from 'office-ui-fabric-react';
-import { Loader, List, Flex, Text, AcceptIcon, CloseIcon, ExclamationCircleIcon, ExclamationTriangleIcon } from '@fluentui/react-northstar';
+import { Spinner, Text, Tooltip, tokens } from '@fluentui/react-components';
+import {
+    CheckmarkCircleRegular,
+    DismissCircleRegular,
+    ErrorCircleRegular,
+    WarningRegular,
+} from '@fluentui/react-icons';
 import { app, dialog } from "@microsoft/teams-js";
 
 import { getMessagesList } from '../../actions';
@@ -23,6 +28,14 @@ export interface IMessage {
     reactions?: string;
     responses?: string;
 }
+
+const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: '0.2rem 0.2rem 0 0',
+    padding: '0.25rem 0.5rem',
+};
 
 const Messages: React.FC = () => {
     const { t } = useTranslation();
@@ -78,12 +91,9 @@ const Messages: React.FC = () => {
     const renderSendingText = (message: any) => {
         let text = "";
         switch (message.status) {
-            case "Queued":
-                text = t("Queued"); break;
-            case "SyncingRecipients":
-                text = t("SyncingRecipients"); break;
-            case "InstallingApp":
-                text = t("InstallingApp"); break;
+            case "Queued": text = t("Queued"); break;
+            case "SyncingRecipients": text = t("SyncingRecipients"); break;
+            case "InstallingApp": text = t("InstallingApp"); break;
             case "Sending": {
                 const sentCount =
                     (message.succeeded ? message.succeeded : 0) +
@@ -92,99 +102,94 @@ const Messages: React.FC = () => {
                 text = t("SendingMessages", { "SentCount": formatNumber(sentCount), "TotalCount": formatNumber(message.totalMessageCount) });
                 break;
             }
-            case "Canceling":
-                text = t("Canceling"); break;
+            case "Canceling": text = t("Canceling"); break;
             case "Canceled":
             case "Sent":
             case "Failed":
                 text = "";
         }
-        return <Text truncated content={text} />;
+        return <Text truncate>{text}</Text>;
     };
 
-    const messageContent = (message: any) => (
-        <Flex className="listContainer" vAlign="center" fill gap="gap.small">
-            <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }} grow={1}>
-                <Text truncated content={message.title} />
-            </Flex.Item>
-            <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }}>
-                {renderSendingText(message)}
-            </Flex.Item>
-            <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }} shrink={false}>
-                <div>
-                    <TooltipHost content={t("TooltipSuccess")} calloutProps={{ gapSpace: 0 }}>
-                        <AcceptIcon xSpacing="after" className="succeeded" outline />
-                        <span className="semiBold">{formatNumber(message.succeeded)}</span>
-                    </TooltipHost>
-                    <TooltipHost content={t("TooltipFailure")} calloutProps={{ gapSpace: 0 }}>
-                        <CloseIcon xSpacing="both" className="failed" outline />
-                        <span className="semiBold">{formatNumber(message.failed)}</span>
-                    </TooltipHost>
-                    {message.canceled && (
-                        <TooltipHost content="Canceled" calloutProps={{ gapSpace: 0 }}>
-                            <ExclamationCircleIcon xSpacing="both" className="canceled" outline />
-                            <span className="semiBold">{formatNumber(message.canceled)}</span>
-                        </TooltipHost>
-                    )}
-                    {message.unknown && (
-                        <TooltipHost content="Unknown" calloutProps={{ gapSpace: 0 }}>
-                            <ExclamationTriangleIcon xSpacing="both" className="unknown" outline />
-                            <span className="semiBold">{formatNumber(message.unknown)}</span>
-                        </TooltipHost>
-                    )}
-                </div>
-            </Flex.Item>
-            <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }}>
-                <Text truncated className="semiBold" content={message.sentDate} />
-            </Flex.Item>
-            <Flex.Item shrink={0}>
-                <Overflow message={message} title="" />
-            </Flex.Item>
-        </Flex>
+    const headerRow = (
+        <div style={rowStyle}>
+            <div style={{ flex: '1 1 24%', minWidth: 0 }}>
+                <Text truncate weight="semibold">{t("TitleText")}</Text>
+            </div>
+            <div style={{ flex: '0 0 24%' }}><Text></Text></div>
+            <div style={{ flex: '0 0 24%' }}>
+                <Text truncate weight="semibold">{t("Recipients")}</Text>
+            </div>
+            <div style={{ flex: '0 0 24%' }}>
+                <Text truncate weight="semibold">{t("Sent")}</Text>
+            </div>
+            <div style={{ flexShrink: 0 }}>
+                <Overflow title="" />
+            </div>
+        </div>
     );
 
-    const processLabels = () => ([{
-        key: "labels",
-        content: (
-            <Flex vAlign="center" fill gap="gap.small">
-                <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }} grow={1}>
-                    <Text truncated weight="bold" content={t("TitleText")} />
-                </Flex.Item>
-                <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }}>
-                    <Text></Text>
-                </Flex.Item>
-                <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }} shrink={false}>
-                    <Text truncated content={t("Recipients")} weight="bold" />
-                </Flex.Item>
-                <Flex.Item size="size.quarter" variables={{ 'size.quarter': '24%' }}>
-                    <Text truncated content={t("Sent")} weight="bold" />
-                </Flex.Item>
-                <Flex.Item shrink={0}>
-                    <Overflow title="" />
-                </Flex.Item>
-            </Flex>
-        ),
-        styles: { margin: '0.2rem 0.2rem 0 0' },
-    }]);
-
-    let keyCount = 0;
-    const processItem = (message: any) => {
-        keyCount++;
-        return {
-            key: keyCount,
-            content: messageContent(message),
-            onClick: (): void => {
-                const url = getBaseUrl() + "/viewstatus/" + message.id + "?locale={locale}";
-                onOpenTaskModule(url, t("ViewStatus"));
-            },
-            styles: { margin: '0.2rem 0.2rem 0 0' },
-        };
-    };
-
-    if (loader) return <Loader />;
+    if (loader) return <Spinner />;
     if (messagesList.length === 0) return <div className="results">{t("EmptySentMessages")}</div>;
-    const allMessages = [...processLabels(), ...messagesList.map(processItem)];
-    return <List selectable items={allMessages} className="list" />;
+
+    return (
+        <div className="list">
+            {headerRow}
+            {messagesList.map((message: any, idx) => (
+                <div
+                    key={idx}
+                    style={{ ...rowStyle, cursor: 'pointer' }}
+                    onClick={() => {
+                        const url = getBaseUrl() + "/viewstatus/" + message.id + "?locale={locale}";
+                        onOpenTaskModule(url, t("ViewStatus"));
+                    }}
+                >
+                    <div style={{ flex: '1 1 24%', minWidth: 0 }}>
+                        <Text truncate>{message.title}</Text>
+                    </div>
+                    <div style={{ flex: '0 0 24%' }}>
+                        {renderSendingText(message)}
+                    </div>
+                    <div style={{ flex: '0 0 24%' }}>
+                        <Tooltip content={t("TooltipSuccess")} relationship="label">
+                            <span>
+                                <CheckmarkCircleRegular className="succeeded" style={{ marginRight: 4, color: tokens.colorPaletteGreenForeground1 }} />
+                                <span className="semiBold">{formatNumber(message.succeeded)}</span>
+                            </span>
+                        </Tooltip>
+                        <Tooltip content={t("TooltipFailure")} relationship="label">
+                            <span>
+                                <DismissCircleRegular className="failed" style={{ margin: '0 4px', color: tokens.colorPaletteRedForeground1 }} />
+                                <span className="semiBold">{formatNumber(message.failed)}</span>
+                            </span>
+                        </Tooltip>
+                        {message.canceled && (
+                            <Tooltip content="Canceled" relationship="label">
+                                <span>
+                                    <ErrorCircleRegular className="canceled" style={{ margin: '0 4px' }} />
+                                    <span className="semiBold">{formatNumber(message.canceled)}</span>
+                                </span>
+                            </Tooltip>
+                        )}
+                        {message.unknown && (
+                            <Tooltip content="Unknown" relationship="label">
+                                <span>
+                                    <WarningRegular className="unknown" style={{ margin: '0 4px' }} />
+                                    <span className="semiBold">{formatNumber(message.unknown)}</span>
+                                </span>
+                            </Tooltip>
+                        )}
+                    </div>
+                    <div style={{ flex: '0 0 24%' }}>
+                        <Text truncate className="semiBold">{message.sentDate}</Text>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                        <Overflow message={message} title="" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 };
 
 export default Messages;
