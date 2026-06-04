@@ -4,7 +4,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Text } from '@fluentui/react-northstar';
+import { Text, tokens } from '@fluentui/react-components';
 import './errorPage.scss';
 
 const ErrorPage: React.FunctionComponent = () => {
@@ -24,7 +24,13 @@ const ErrorPage: React.FunctionComponent = () => {
     }
 
     return (
-        <Text content={parseErrorMessage()} className="error-message" error size="medium" />
+        <Text
+            className="error-message"
+            size={300}
+            style={{ color: tokens.colorPaletteRedForeground1 }}
+        >
+            {parseErrorMessage()}
+        </Text>
     );
 };
 

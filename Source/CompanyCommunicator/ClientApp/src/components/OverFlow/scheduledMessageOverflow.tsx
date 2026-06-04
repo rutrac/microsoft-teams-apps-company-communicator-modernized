@@ -1,10 +1,13 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from "react-i18next";
-import { Menu, MoreIcon } from '@fluentui/react-northstar';
+import {
+    Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Button,
+} from '@fluentui/react-components';
+import { MoreHorizontalRegular } from '@fluentui/react-icons';
 import { app, dialog } from "@microsoft/teams-js";
 
 import { getBaseUrl } from '../../configVariables';
@@ -17,7 +20,7 @@ export interface OverflowProps {
     title?: string;
 }
 
-const Overflow: React.FC<OverflowProps> = ({ message, styles, title }) => {
+const Overflow: React.FC<OverflowProps> = ({ message, title }) => {
     const { t } = useTranslation();
     const dispatch = useDispatch<any>();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -51,78 +54,58 @@ const Overflow: React.FC<OverflowProps> = ({ message, styles, title }) => {
         }, submitHandler);
     };
 
-    const items = [
-        {
-            key: 'more',
-            icon: <MoreIcon outline={true} />,
-            menuOpen: menuOpen,
-            active: menuOpen,
-            indicator: false,
-            menu: {
-                items: [
-                    {
-                        key: 'send',
-                        content: t("SendNow"),
-                        onClick: (event: any) => {
-                            event.stopPropagation();
-                            setMenuOpen(false);
-                            const url = getBaseUrl() + "/sendconfirmation/" + message.id + "?locale={locale}";
-                            onOpenTaskModule(url, t("SendConfirmation"));
-                        }
-                    },
-                    {
-                        key: 'preview',
-                        content: t("PreviewInThisChannel"),
-                        onClick: (event: any) => {
-                            event.stopPropagation();
-                            setMenuOpen(false);
-                            const payload = {
-                                draftNotificationId: message.id,
-                                teamsTeamId: teamsTeamId,
-                                teamsChannelId: teamsChannelId,
-                            };
-                            sendPreview(payload).then((response) => response.status).catch((error) => error);
-                        }
-                    },
-                    {
-                        key: 'edit',
-                        content: t("Edit"),
-                        onClick: (event: any) => {
-                            event.stopPropagation();
-                            setMenuOpen(false);
-                            const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
-                            onOpenTaskModule(url, t("EditMessage"));
-                        }
-                    },
-                    {
-                        key: 'duplicate',
-                        content: t("Duplicate"),
-                        onClick: async (event: any) => {
-                            event.stopPropagation();
-                            setMenuOpen(false);
-                            try { await duplicateDraftNotification(message.id); } catch { /* ignore */ }
-                            dispatch(getDraftMessagesList());
-                        }
-                    },
-                    {
-                        key: 'delete',
-                        content: t("Delete"),
-                        onClick: async (event: any) => {
-                            event.stopPropagation();
-                            setMenuOpen(false);
-                            try { await deleteDraftNotification(message.id); } catch { /* ignore */ }
-                            dispatch(getScheduledMessagesList());
-                        }
-                    },
-                ],
-            },
-            onMenuOpenChange: (_e: any, _info: any) => {
-                setMenuOpen((prev) => !prev);
-            },
-        },
-    ];
+    const stop = (e: React.MouseEvent) => e.stopPropagation();
 
-    return <Menu className="menuContainer" iconOnly items={items} styles={styles} title={title} />;
+    return (
+        <Menu open={menuOpen} onOpenChange={(_e, data) => setMenuOpen(data.open)}>
+            <MenuTrigger disableButtonEnhancement>
+                <Button
+                    appearance="transparent"
+                    icon={<MoreHorizontalRegular />}
+                    aria-label={title || "More"}
+                    onClick={stop}
+                />
+            </MenuTrigger>
+            <MenuPopover>
+                <MenuList>
+                    <MenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        const url = getBaseUrl() + "/sendconfirmation/" + message.id + "?locale={locale}";
+                        onOpenTaskModule(url, t("SendConfirmation"));
+                    }}>{t("SendNow")}</MenuItem>
+                    <MenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        const payload = {
+                            draftNotificationId: message.id,
+                            teamsTeamId: teamsTeamId,
+                            teamsChannelId: teamsChannelId,
+                        };
+                        sendPreview(payload).then((response) => response.status).catch((error) => error);
+                    }}>{t("PreviewInThisChannel")}</MenuItem>
+                    <MenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
+                        onOpenTaskModule(url, t("EditMessage"));
+                    }}>{t("Edit")}</MenuItem>
+                    <MenuItem onClick={async (e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        try { await duplicateDraftNotification(message.id); } catch { /* ignore */ }
+                        dispatch(getDraftMessagesList());
+                    }}>{t("Duplicate")}</MenuItem>
+                    <MenuItem onClick={async (e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        try { await deleteDraftNotification(message.id); } catch { /* ignore */ }
+                        dispatch(getScheduledMessagesList());
+                    }}>{t("Delete")}</MenuItem>
+                </MenuList>
+            </MenuPopover>
+        </Menu>
+    );
 };
 
 export default Overflow;

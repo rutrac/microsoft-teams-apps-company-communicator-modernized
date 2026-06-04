@@ -3,7 +3,7 @@
 
 import React from "react";
 import { useTranslation } from 'react-i18next';
-import { Text, Button } from "@fluentui/react-northstar";
+import { Text, Button } from "@fluentui/react-components";
 import { authentication } from "@microsoft/teams-js";
 import "./signInPage.scss";
 import i18n from "../../i18n";
@@ -26,12 +26,9 @@ const SignInPage: React.FunctionComponent = () => {
 
     return (
         <div className="sign-in-content-container">
-            <Text
-                content={errorMessage}
-                size="medium"
-            />
+            <Text size={300}>{errorMessage}</Text>
             <div className="space"></div>
-            <Button content={t("SignIn")} primary className="sign-in-button" onClick={onSignIn} />
+            <Button appearance="primary" className="sign-in-button" onClick={onSignIn}>{t("SignIn")}</Button>
         </div>
     );
 };

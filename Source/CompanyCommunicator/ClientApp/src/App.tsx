@@ -9,10 +9,21 @@ import NewMessage from './components/NewMessage/newMessage';
 import ManageGroups from './components/ManageGroups/ManageGroups';
 import StatusTaskModule from './components/StatusTaskModule/statusTaskModule';
 import './App.scss';
-import { Provider, teamsTheme, teamsDarkTheme, teamsHighContrastTheme } from '@fluentui/react-northstar';
+import {
+    FluentProvider,
+    teamsLightTheme,
+    teamsDarkTheme,
+    teamsHighContrastTheme,
+    type Theme,
+} from '@fluentui/react-components';
+import {
+    Provider as NorthstarProvider,
+    teamsTheme as nsTeamsTheme,
+    teamsDarkTheme as nsTeamsDarkTheme,
+    teamsHighContrastTheme as nsTeamsHighContrastTheme,
+} from '@fluentui/react-northstar';
 import SendConfirmationTaskModule from './components/SendConfirmationTaskModule/sendConfirmationTaskModule';
 import { app } from "@microsoft/teams-js";
-import { TeamsThemeContext, getContext, ThemeStyle } from 'msteams-ui-components-react';
 import ErrorPage from "./components/ErrorPage/errorPage";
 import SignInPage from "./components/SignInPage/signInPage";
 import SignInSimpleStart from "./components/SignInPage/signInSimpleStart";
@@ -20,10 +31,22 @@ import SignInSimpleEnd from "./components/SignInPage/signInSimpleEnd";
 import { updateLocale } from './i18n';
 import i18n from 'i18next';
 
-const themeStyleFor = (theme: string): number => {
-    if (theme === "dark") return ThemeStyle.Dark;
-    if (theme === "contrast") return ThemeStyle.HighContrast;
-    return ThemeStyle.Light;
+const themeFor = (theme: string): Theme => {
+    if (theme === "dark") return teamsDarkTheme;
+    if (theme === "contrast") return teamsHighContrastTheme;
+    return teamsLightTheme;
+};
+
+const northstarThemeFor = (theme: string) => {
+    if (theme === "dark") return nsTeamsDarkTheme;
+    if (theme === "contrast") return nsTeamsHighContrastTheme;
+    return nsTeamsTheme;
+};
+
+const containerClassFor = (theme: string): string => {
+    if (theme === "dark") return "darkContainer";
+    if (theme === "contrast") return "highContrastContainer";
+    return "defaultContainer";
 };
 
 const App: React.FC = () => {
@@ -46,58 +69,35 @@ const App: React.FC = () => {
         return () => { cancelled = true; };
     }, []);
 
-    const themeStyle = themeStyleFor(theme);
     const rtl = i18n.dir() === "rtl";
 
-    const appDom = (
-        <TeamsThemeContext.Provider value={getContext({ baseFontSize: 10, style: themeStyle })}>
-            <Suspense fallback={<div></div>}>
-                <div className="appContainer">
-                    <BrowserRouter>
-                        <Routes>
-                            <Route path="/configtab" element={<Configuration />} />
-                            <Route path="/messages" element={<TabContainer />} />
-                            <Route path="/newmessage" element={<NewMessage />} />
-                            <Route path="/newmessage/:id" element={<NewMessage />} />
-                            <Route path="/viewstatus/:id" element={<StatusTaskModule />} />
-                            <Route path="/sendconfirmation/:id" element={<SendConfirmationTaskModule />} />
-                            <Route path="/errorpage" element={<ErrorPage />} />
-                            <Route path="/errorpage/:id" element={<ErrorPage />} />
-                            <Route path="/signin" element={<SignInPage />} />
-                            <Route path="/signin-simple-start" element={<SignInSimpleStart />} />
-                            <Route path="/signin-simple-end" element={<SignInSimpleEnd />} />
-                            <Route path="/managegroups" element={<ManageGroups />} />
-                        </Routes>
-                    </BrowserRouter>
-                </div>
-            </Suspense>
-        </TeamsThemeContext.Provider>
-    );
-
-    if (theme === "dark") {
-        return (
-            <div>
-                <Provider theme={teamsDarkTheme} rtl={rtl}>
-                    <div className="darkContainer">{appDom}</div>
-                </Provider>
-            </div>
-        );
-    }
-    if (theme === "contrast") {
-        return (
-            <div>
-                <Provider theme={teamsHighContrastTheme} rtl={rtl}>
-                    <div className="highContrastContainer">{appDom}</div>
-                </Provider>
-            </div>
-        );
-    }
     return (
-        <div>
-            <Provider theme={teamsTheme} rtl={rtl}>
-                <div className="defaultContainer">{appDom}</div>
-            </Provider>
-        </div>
+        <FluentProvider theme={themeFor(theme)} dir={rtl ? "rtl" : "ltr"}>
+            <NorthstarProvider theme={northstarThemeFor(theme)} rtl={rtl}>
+            <div className={containerClassFor(theme)}>
+                <Suspense fallback={<div></div>}>
+                    <div className="appContainer">
+                        <BrowserRouter>
+                            <Routes>
+                                <Route path="/configtab" element={<Configuration />} />
+                                <Route path="/messages" element={<TabContainer />} />
+                                <Route path="/newmessage" element={<NewMessage />} />
+                                <Route path="/newmessage/:id" element={<NewMessage />} />
+                                <Route path="/viewstatus/:id" element={<StatusTaskModule />} />
+                                <Route path="/sendconfirmation/:id" element={<SendConfirmationTaskModule />} />
+                                <Route path="/errorpage" element={<ErrorPage />} />
+                                <Route path="/errorpage/:id" element={<ErrorPage />} />
+                                <Route path="/signin" element={<SignInPage />} />
+                                <Route path="/signin-simple-start" element={<SignInSimpleStart />} />
+                                <Route path="/signin-simple-end" element={<SignInSimpleEnd />} />
+                                <Route path="/managegroups" element={<ManageGroups />} />
+                            </Routes>
+                        </BrowserRouter>
+                    </div>
+                </Suspense>
+            </div>
+            </NorthstarProvider>
+        </FluentProvider>
     );
 };
 
