@@ -9,7 +9,9 @@
 /coverage
 
 # production
-/build
+# /build  -- intentionally tracked: deploy.app.cmd skips npm install + vite build
+#            when ClientApp/build/index.html exists. Local build -> commit -> push
+#            -> Kudu deploys pre-built artifact (~3 min vs ~14 min server-side).
 
 # misc
 .DS_Store

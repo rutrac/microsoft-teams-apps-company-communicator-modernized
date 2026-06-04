@@ -30,6 +30,7 @@ local.settings.json
 x64/
 x86/
 build/
+!Source/CompanyCommunicator/ClientApp/build/
 bld/
 [Bb]in/
 [Oo]bj/
