@@ -14,7 +14,7 @@ import {
     DeleteRegular, AddRegular, ArrowUploadRegular,
 } from '@fluentui/react-icons';
 import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/dist/style.css';
+import 'react-day-picker/style.css';
 import { app, dialog } from "@microsoft/teams-js";
 import Resizer from 'react-image-file-resizer';
 import Papa from "papaparse";
@@ -1085,9 +1085,10 @@ const NewMessage: React.FC = () => {
                                     value={state.selectedRadioBtn}
                                     onChange={onRadioChange}
                                 >
+                                    <div>
                                     <Radio value="teams" label={t("SendToGeneralChannel")} disabled={teamsDisabled} />
                                     {state.teamsOptionSelected && (
-                                        <div style={{ paddingLeft: 24 }}>
+                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
                                             <div className="selectTeamsContainer" style={{ display: 'flex', gap: '0.5rem', marginBottom: 4 }}>
                                                 <Button onClick={onSelectAllTeams}>{t("SelectAll")}</Button>
                                                 <Button onClick={onUnselectAllTeams}>{t("UnselectAll")}</Button>
@@ -1101,6 +1102,7 @@ const NewMessage: React.FC = () => {
                                                 selectedOptions={selectedTeamKeys}
                                                 onOptionSelect={onTeamsComboSelect}
                                                 disabled={teamsDisabled}
+                                                positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                             >
                                                 {teamItemsFiltered.length === 0 && (
                                                     <Option key="__none" value="__none" disabled>{t("NoMatchMessage")}</Option>
@@ -1111,10 +1113,12 @@ const NewMessage: React.FC = () => {
                                             </Combobox>
                                         </div>
                                     )}
+                                    </div>
 
+                                    <div>
                                     <Radio value="rosters" label={t("SendToRosters")} disabled={teamsDisabled} />
                                     {state.rostersOptionSelected && (
-                                        <div style={{ paddingLeft: 24 }}>
+                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
                                             <div className="selectTeamsContainer" style={{ display: 'flex', gap: '0.5rem', marginBottom: 4 }}>
                                                 <Button onClick={onSelectAllRosters}>{t("SelectAll")}</Button>
                                                 <Button onClick={onUnselectAllRosters}>{t("UnselectAll")}</Button>
@@ -1127,6 +1131,7 @@ const NewMessage: React.FC = () => {
                                                 onInput={(e: any) => setRostersSearchQuery(e.target.value)}
                                                 selectedOptions={selectedRosterKeys}
                                                 onOptionSelect={onRostersComboSelect}
+                                                positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                             >
                                                 {rosterItemsFiltered.length === 0 && (
                                                     <Option key="__none" value="__none" disabled>{t("NoMatchMessage")}</Option>
@@ -1137,19 +1142,23 @@ const NewMessage: React.FC = () => {
                                             </Combobox>
                                         </div>
                                     )}
+                                    </div>
 
+                                    <div>
                                     <Radio value="allUsers" label={t("SendToAllUsers")} disabled={teamsDisabled} />
                                     {state.allUsersOptionSelected && (
-                                        <div style={{ paddingLeft: 24 }}>
+                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
                                             <div className="noteText">
                                                 <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToAllUsersNote")}</Text>
                                             </div>
                                         </div>
                                     )}
+                                    </div>
 
+                                    <div>
                                     <Radio value="groups" label={t("SendToGroups")} />
                                     {state.groupsOptionSelected && (
-                                        <div style={{ paddingLeft: 24 }}>
+                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
                                             {targetingEnabledRef.current && !isMaster ? (
                                                 <Combobox
                                                     className="hideToggle"
@@ -1157,6 +1166,7 @@ const NewMessage: React.FC = () => {
                                                     placeholder="Select groups from the authorized list"
                                                     selectedOptions={selectedGroupKeys}
                                                     onOptionSelect={onGroupsComboSelect}
+                                                    positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                                 >
                                                     {groupItems.map(item => (
                                                         <Option key={item.key} value={item.key} text={item.header}>{item.header}{item.content ? ` (${item.content})` : ''}</Option>
@@ -1181,6 +1191,7 @@ const NewMessage: React.FC = () => {
                                                         }}
                                                         selectedOptions={selectedGroupKeys}
                                                         onOptionSelect={onGroupsComboSelect}
+                                                        positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                                     >
                                                         {state.loading && (
                                                             <Option key="__loading" value="__loading" disabled>{t("LoadingText")}</Option>
@@ -1199,10 +1210,12 @@ const NewMessage: React.FC = () => {
                                             )}
                                         </div>
                                     )}
+                                    </div>
 
+                                    <div>
                                     <Radio value="csv" label={t("SendToCSV")} disabled={teamsDisabled} />
                                     {state.csvOptionSelected && (
-                                        <div style={{ paddingLeft: 24 }}>
+                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
                                             <div className="csvUpload" style={{ display: 'flex', gap: '0.25rem', alignItems: 'flex-end' }}>
                                                 <Input
                                                     style={{ flex: '1 1 auto' }}
@@ -1225,6 +1238,7 @@ const NewMessage: React.FC = () => {
                                             )}
                                         </div>
                                     )}
+                                    </div>
                                 </RadioGroup>
 
                                 <div style={{ display: 'flex' }}>
@@ -1255,6 +1269,7 @@ const NewMessage: React.FC = () => {
                                             value={state.DMYHour}
                                             selectedOptions={[state.DMYHour]}
                                             onOptionSelect={handleHourChange}
+                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                         >
                                             {hours.map(h => <Option key={h} value={h}>{h}</Option>)}
                                         </Combobox>
@@ -1266,6 +1281,7 @@ const NewMessage: React.FC = () => {
                                             value={state.DMYMins}
                                             selectedOptions={[state.DMYMins]}
                                             onOptionSelect={handleMinsChange}
+                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                         >
                                             {minutes.map(m => <Option key={m} value={m}>{m}</Option>)}
                                         </Combobox>

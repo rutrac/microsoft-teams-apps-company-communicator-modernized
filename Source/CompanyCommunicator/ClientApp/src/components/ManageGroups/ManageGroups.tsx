@@ -327,6 +327,7 @@ const ManageGroups: React.FC = () => {
                                             onInput={(e: any) => onComboQueryChange(e, { value: e.target.value })}
                                             onOptionSelect={onComboSelect}
                                             selectedOptions={selectedKeys}
+                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
                                         >
                                             {loading && <Option key="__loading" value="__loading" disabled>{t("LoadingText")}</Option>}
                                             {!loading && comboItems.length === 0 && noResultMessage && (
