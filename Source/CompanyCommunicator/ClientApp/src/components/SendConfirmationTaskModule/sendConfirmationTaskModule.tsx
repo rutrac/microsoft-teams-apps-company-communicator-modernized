@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { RouteComponentProps } from 'react-router-dom';
+import { IRouterProps, withRouter } from '../../utils/withRouter';
 import { withTranslation, WithTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Loader, Button, Text, List, Image, Flex } from '@fluentui/react-northstar';
@@ -45,7 +45,7 @@ export interface IMessage {
     channelImage?: string,
 }
 
-export interface SendConfirmationTaskModuleProps extends RouteComponentProps, WithTranslation {
+export interface SendConfirmationTaskModuleProps extends IRouterProps, WithTranslation {
 }
 
 export interface IStatusState {
@@ -298,4 +298,4 @@ class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskMod
 }
 
 const sendConfirmationTaskModuleWithTranslation = withTranslation()(SendConfirmationTaskModule);
-export default sendConfirmationTaskModuleWithTranslation;
+export default withRouter(sendConfirmationTaskModuleWithTranslation as any);

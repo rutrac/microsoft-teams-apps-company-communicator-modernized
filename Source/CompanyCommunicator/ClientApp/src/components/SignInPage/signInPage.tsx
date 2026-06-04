@@ -2,14 +2,13 @@
 // Licensed under the MIT License.
 
 import React from "react";
-import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { Text, Button } from "@fluentui/react-northstar";
 import { authentication } from "@microsoft/teams-js";
 import "./signInPage.scss";
 import i18n from "../../i18n";
 
-const SignInPage: React.FunctionComponent<RouteComponentProps> = props => {
+const SignInPage: React.FunctionComponent = () => {
     const { t } = useTranslation();
     const errorMessage = t("SignInPromptMessage");
 

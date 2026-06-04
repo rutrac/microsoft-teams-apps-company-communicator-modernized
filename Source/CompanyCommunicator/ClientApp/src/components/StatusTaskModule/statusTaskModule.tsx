@@ -5,7 +5,7 @@ import * as React from 'react';
 import { withTranslation, WithTranslation } from "react-i18next";
 import './statusTaskModule.scss';
 import { getSentNotification, exportNotification } from '../../apis/messageListApi';
-import { RouteComponentProps } from 'react-router-dom';
+import { IRouterProps, withRouter } from '../../utils/withRouter';
 import * as AdaptiveCards from "adaptivecards";
 import { TooltipHost } from 'office-ui-fabric-react';
 import { Loader, List, Image, Button, DownloadIcon, AcceptIcon, Flex } from '@fluentui/react-northstar';
@@ -63,7 +63,7 @@ export interface IStatusState {
     teamId?: string;
 }
 
-interface StatusTaskModuleProps extends RouteComponentProps, WithTranslation { }
+interface StatusTaskModuleProps extends IRouterProps, WithTranslation { }
 
 class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusState> {
     readonly localize: TFunction;
@@ -419,4 +419,4 @@ class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusSta
 }
 
 const StatusTaskModuleWithTranslation = withTranslation()(StatusTaskModule);
-export default StatusTaskModuleWithTranslation;
+export default withRouter(StatusTaskModuleWithTranslation as any);

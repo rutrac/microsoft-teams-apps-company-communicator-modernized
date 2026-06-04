@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { RouteComponentProps } from 'react-router-dom';
+import { IRouterProps, withRouter } from '../../utils/withRouter';
 import { withTranslation, WithTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar'
@@ -122,7 +122,7 @@ export interface formState {
     isMaxNumberOfTeamsError: boolean
 }
 
-export interface INewMessageProps extends RouteComponentProps, WithTranslation {
+export interface INewMessageProps extends IRouterProps, WithTranslation {
     getDraftMessagesList?: any;
 }
 
@@ -1710,4 +1710,4 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
 }
 
 const newMessageWithTranslation = withTranslation()(NewMessage);
-export default newMessageWithTranslation;
+export default withRouter(newMessageWithTranslation as any);

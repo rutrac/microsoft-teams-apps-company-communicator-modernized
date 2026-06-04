@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 
 import React from 'react';
-import { RouteComponentProps } from 'react-router-dom';
 import { app, pages } from "@microsoft/teams-js";
 import { getBaseUrl } from '../configVariables';
 import { getAppSettings } from "../apis/messageListApi";
@@ -19,7 +18,7 @@ export interface IConfigState {
     userPrincipalName?: string;
 }
 
-export interface ConfigProps extends RouteComponentProps, WithTranslation {
+export interface ConfigProps extends WithTranslation {
 }
 
 class Configuration extends React.Component<ConfigProps, IConfigState> {

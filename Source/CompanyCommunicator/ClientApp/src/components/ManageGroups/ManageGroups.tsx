@@ -4,7 +4,6 @@ import { app, dialog } from "@microsoft/teams-js";
 import { TFunction } from "i18next";
 import * as React from 'react';
 import { withTranslation, WithTranslation } from "react-i18next";
-import { RouteComponentProps } from 'react-router-dom';
 import { createGroupAssociation, searchGroups, getGroupAssociations, deleteGroupAssociation, updateChannelConfig, getChannelConfig } from "../../apis/messageListApi";
 import { ImageUtil } from '../../utility/imageutility';
 import './ManageGroups.scss';
@@ -56,7 +55,7 @@ export interface formState {
     channelTitle?: string,
 }
 
-export interface IManageGroupsProps extends RouteComponentProps, WithTranslation {
+export interface IManageGroupsProps extends WithTranslation {
 }
 
 class ManageGroups extends React.Component<IManageGroupsProps, formState> {

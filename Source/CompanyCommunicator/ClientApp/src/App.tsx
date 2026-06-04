@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import React, { Suspense } from 'react';
-import { BrowserRouter, Route, Switch } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Configuration from './components/config';
 import TabContainer from './components/TabContainer/tabContainer';
 import NewMessage from './components/NewMessage/newMessage';
@@ -113,20 +113,20 @@ class App extends React.Component<{}, IAppState> {
                 <Suspense fallback={<div></div>}>
                     <div className="appContainer">
                         <BrowserRouter>
-                            <Switch>
-                                <Route exact path="/configtab" component={Configuration} />
-                                <Route exact path="/messages" component={TabContainer} />
-                                <Route exact path="/newmessage" component={NewMessage} />
-                                <Route exact path="/newmessage/:id" component={NewMessage} />
-                                <Route exact path="/viewstatus/:id" component={StatusTaskModule} />
-                                <Route exact path="/sendconfirmation/:id" component={SendConfirmationTaskModule} />
-                                <Route exact path="/errorpage" component={ErrorPage} />
-                                <Route exact path="/errorpage/:id" component={ErrorPage} />
-                                <Route exact path="/signin" component={SignInPage} />
-                                <Route exact path="/signin-simple-start" component={SignInSimpleStart} />
-                                <Route exact path="/signin-simple-end" component={SignInSimpleEnd} />
-                                <Route exact path="/managegroups" component={ManageGroups} />
-                            </Switch>
+                            <Routes>
+                                <Route path="/configtab" element={<Configuration />} />
+                                <Route path="/messages" element={<TabContainer />} />
+                                <Route path="/newmessage" element={<NewMessage />} />
+                                <Route path="/newmessage/:id" element={<NewMessage />} />
+                                <Route path="/viewstatus/:id" element={<StatusTaskModule />} />
+                                <Route path="/sendconfirmation/:id" element={<SendConfirmationTaskModule />} />
+                                <Route path="/errorpage" element={<ErrorPage />} />
+                                <Route path="/errorpage/:id" element={<ErrorPage />} />
+                                <Route path="/signin" element={<SignInPage />} />
+                                <Route path="/signin-simple-start" element={<SignInSimpleStart />} />
+                                <Route path="/signin-simple-end" element={<SignInSimpleEnd />} />
+                                <Route path="/managegroups" element={<ManageGroups />} />
+                            </Routes>
                         </BrowserRouter>
                     </div>
                 </Suspense>

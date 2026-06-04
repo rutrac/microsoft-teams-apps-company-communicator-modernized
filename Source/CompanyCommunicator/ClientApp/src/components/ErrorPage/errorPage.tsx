@@ -2,16 +2,16 @@
 // Licensed under the MIT License.
 
 import React from 'react';
-import { RouteComponentProps } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@fluentui/react-northstar';
 import './errorPage.scss';
 
-const ErrorPage: React.FunctionComponent<RouteComponentProps> = props => {
+const ErrorPage: React.FunctionComponent = () => {
     const { t } = useTranslation();
+    const params = useParams();
 
     function parseErrorMessage(): string {
-        const params = props.match.params;
         if ('id' in params) {
             const id = params['id'] as string;
             if (id === "401") {
