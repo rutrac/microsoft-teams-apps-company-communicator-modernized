@@ -16,12 +16,6 @@ import {
     teamsHighContrastTheme,
     type Theme,
 } from '@fluentui/react-components';
-import {
-    Provider as NorthstarProvider,
-    teamsTheme as nsTeamsTheme,
-    teamsDarkTheme as nsTeamsDarkTheme,
-    teamsHighContrastTheme as nsTeamsHighContrastTheme,
-} from '@fluentui/react-northstar';
 import SendConfirmationTaskModule from './components/SendConfirmationTaskModule/sendConfirmationTaskModule';
 import { app } from "@microsoft/teams-js";
 import ErrorPage from "./components/ErrorPage/errorPage";
@@ -35,12 +29,6 @@ const themeFor = (theme: string): Theme => {
     if (theme === "dark") return teamsDarkTheme;
     if (theme === "contrast") return teamsHighContrastTheme;
     return teamsLightTheme;
-};
-
-const northstarThemeFor = (theme: string) => {
-    if (theme === "dark") return nsTeamsDarkTheme;
-    if (theme === "contrast") return nsTeamsHighContrastTheme;
-    return nsTeamsTheme;
 };
 
 const containerClassFor = (theme: string): string => {
@@ -73,7 +61,6 @@ const App: React.FC = () => {
 
     return (
         <FluentProvider theme={themeFor(theme)} dir={rtl ? "rtl" : "ltr"}>
-            <NorthstarProvider theme={northstarThemeFor(theme)} rtl={rtl}>
             <div className={containerClassFor(theme)}>
                 <Suspense fallback={<div></div>}>
                     <div className="appContainer">
@@ -96,7 +83,6 @@ const App: React.FC = () => {
                     </div>
                 </Suspense>
             </div>
-            </NorthstarProvider>
         </FluentProvider>
     );
 };
