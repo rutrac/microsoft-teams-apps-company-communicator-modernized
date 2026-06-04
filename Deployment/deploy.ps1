@@ -1128,6 +1128,50 @@ function Enable-ProactiveAutoHeal {
     }
 }
 
+# Eliminate cold-start delay on the first message of the day. Even though azuredeploy.json declares
+# siteConfig.alwaysOn=true, the ARM Microsoft.Web/sites resource for kind=functionapp is observed to
+# silently leave alwaysOn=false post-deploy (and use32BitWorkerProcess=true) on Premium plans. Without
+# alwaysOn the dotnet-isolated worker idles out after ~20min and the next Service Bus message must
+# cold-start the host — observed to take up to ~9 minutes due to a worker-process startup race.
+# This belt-and-suspenders step PATCHes siteConfig on all 4 sites to enforce the values.
+# Idempotent: skips the PATCH (which would otherwise recycle the site) if both values already match.
+function Set-AlwaysOnAnd64Bit {
+    Param(
+        [Parameter(Mandatory=$true)][string]$ResourceGroup,
+        [Parameter(Mandatory=$true)][string]$BaseResourceName
+    )
+
+    $sites = @(
+        $BaseResourceName,
+        "$BaseResourceName-function",
+        "$BaseResourceName-prep-function",
+        "$BaseResourceName-data-function"
+    )
+
+    foreach ($name in $sites) {
+        $cfg = az webapp config show --name $name --resource-group $ResourceGroup -o json 2>$null | ConvertFrom-Json
+        if (-not $cfg) {
+            WriteW -message "  [$name] could not read siteConfig — skipping."
+            continue
+        }
+        if ($cfg.alwaysOn -eq $true -and $cfg.use32BitWorkerProcess -eq $false) {
+            WriteI -message "  [$name] alwaysOn=true, use32BitWorkerProcess=false already — skipping."
+            continue
+        }
+
+        try {
+            az webapp config set --name $name --resource-group $ResourceGroup --always-on true --use-32bit-worker-process false --output none 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                WriteS -message "  [$name] set alwaysOn=true, use32BitWorkerProcess=false (was alwaysOn=$($cfg.alwaysOn), use32Bit=$($cfg.use32BitWorkerProcess))."
+            } else {
+                WriteW -message "  [$name] az webapp config set returned $LASTEXITCODE."
+            }
+        } catch {
+            WriteW -message "  [$name] failed to enforce alwaysOn/64-bit: $($_.Exception.Message)"
+        }
+    }
+}
+
 # Resolve an application's object ID from its appId, retrying through AAD replication lag.
 # After 'az ad app create' the new app may take several seconds to be queryable by appId; without this
 # retry, downstream Graph PATCHes hit https://graph.microsoft.com/v1.0/applications/ (empty id) and 405.
@@ -1590,6 +1634,15 @@ function logout {
         Enable-ProactiveAutoHeal -ResourceGroup $parameters.resourceGroupName.Value -BaseResourceName $parameters.baseResourceName.Value
     } catch {
         WriteW -message "Enable-ProactiveAutoHeal step failed: $($_.Exception.Message). Continuing."
+    }
+
+# Cold-start fix: enforce alwaysOn=true + 64-bit worker on all 4 sites (ARM declares these but does
+# not reliably apply them on function apps — verified post-deploy that siteConfig.alwaysOn stays false).
+    WriteI -message "Enforcing siteConfig alwaysOn=true and 64-bit worker process across all sites..."
+    try {
+        Set-AlwaysOnAnd64Bit -ResourceGroup $parameters.resourceGroupName.Value -BaseResourceName $parameters.baseResourceName.Value
+    } catch {
+        WriteW -message "Set-AlwaysOnAnd64Bit step failed: $($_.Exception.Message). Continuing."
     }
 
 # Function call to update reply-urls and uris for registered app.
