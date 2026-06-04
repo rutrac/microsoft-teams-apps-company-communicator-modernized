@@ -4,10 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from "react-i18next";
-import {
-    Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Button,
-} from '@fluentui/react-components';
-import { MoreHorizontalRegular } from '@fluentui/react-icons';
+import { Menu, MoreIcon } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 
 import { getBaseUrl } from '../../configVariables';
@@ -20,7 +17,7 @@ export interface OverflowProps {
     title?: string;
 }
 
-const Overflow: React.FC<OverflowProps> = ({ message, title }) => {
+const Overflow: React.FC<OverflowProps> = ({ message, styles, title }) => {
     const { t } = useTranslation();
     const dispatch = useDispatch<any>();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -44,44 +41,55 @@ const Overflow: React.FC<OverflowProps> = ({ message, title }) => {
         }, (_result: any) => { /* no-op */ });
     };
 
-    const stop = (e: React.MouseEvent) => e.stopPropagation();
-
-    return (
-        <Menu open={menuOpen} onOpenChange={(_e, data) => setMenuOpen(data.open)}>
-            <MenuTrigger disableButtonEnhancement>
-                <Button
-                    appearance="transparent"
-                    icon={<MoreHorizontalRegular />}
-                    aria-label={title || "More"}
-                    onClick={stop}
-                />
-            </MenuTrigger>
-            <MenuPopover>
-                <MenuList>
-                    <MenuItem onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
-                        const url = getBaseUrl() + "/viewstatus/" + message.id + "?locale={locale}";
-                        onOpenTaskModule(url, t("ViewStatus"));
-                    }}>{t("ViewStatus")}</MenuItem>
-                    <MenuItem onClick={async (e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
-                        try { await duplicateDraftNotification(message.id); } catch { /* ignore */ }
-                        dispatch(getDraftMessagesList());
-                    }}>{t("Duplicate")}</MenuItem>
-                    {!shouldNotShowCancel && (
-                        <MenuItem onClick={async (e) => {
-                            e.stopPropagation();
+    const items = [
+        {
+            key: 'more',
+            icon: <MoreIcon outline={true} />,
+            menuOpen: menuOpen,
+            active: menuOpen,
+            indicator: false,
+            menu: {
+                items: [
+                    {
+                        key: 'status',
+                        content: t("ViewStatus"),
+                        onClick: (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            const url = getBaseUrl() + "/viewstatus/" + message.id + "?locale={locale}";
+                            onOpenTaskModule(url, t("ViewStatus"));
+                        }
+                    },
+                    {
+                        key: 'duplicate',
+                        content: t("Duplicate"),
+                        onClick: async (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            try { await duplicateDraftNotification(message.id); } catch { /* ignore */ }
+                            dispatch(getDraftMessagesList());
+                        }
+                    },
+                    {
+                        key: 'cancel',
+                        content: t("Cancel"),
+                        hidden: shouldNotShowCancel,
+                        onClick: async (event: any) => {
+                            event.stopPropagation();
                             setMenuOpen(false);
                             try { await cancelSentNotification(message.id); } catch { /* ignore */ }
                             dispatch(getMessagesList());
-                        }}>{t("Cancel")}</MenuItem>
-                    )}
-                </MenuList>
-            </MenuPopover>
-        </Menu>
-    );
+                        }
+                    },
+                ],
+            },
+            onMenuOpenChange: (_e: any, { menuOpen: open }: any) => {
+                setMenuOpen(open);
+            },
+        },
+    ];
+
+    return <Menu className="menuContainer" iconOnly items={items} styles={styles} title={title} />;
 };
 
 export default Overflow;

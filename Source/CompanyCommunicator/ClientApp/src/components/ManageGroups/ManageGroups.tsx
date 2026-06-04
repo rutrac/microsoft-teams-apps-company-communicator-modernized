@@ -1,24 +1,16 @@
-// Copyright (c) Microsoft Corporation.
+﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { ArrowRightIcon, TrashCanIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar';
+import { Button, Dropdown, Flex, Image, Layout, Label, List, Text, Loader, Input } from '@fluentui/react-northstar';
+import { app, dialog } from "@microsoft/teams-js";
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from "react-i18next";
-import { app, dialog } from "@microsoft/teams-js";
-import {
-    Button, Spinner, Text, Input, Field, Combobox, Option, Badge, tokens,
-} from '@fluentui/react-components';
-import {
-    ArrowRightRegular, DeleteRegular, ArrowUploadRegular,
-} from '@fluentui/react-icons';
-import Resizer from 'react-image-file-resizer';
-
-import {
-    createGroupAssociation, searchGroups, getGroupAssociations,
-    deleteGroupAssociation, updateChannelConfig, getChannelConfig,
-} from "../../apis/messageListApi";
+import { createGroupAssociation, searchGroups, getGroupAssociations, deleteGroupAssociation, updateChannelConfig, getChannelConfig } from "../../apis/messageListApi";
 import { ImageUtil } from '../../utility/imageutility';
 import './ManageGroups.scss';
+import Resizer from 'react-image-file-resizer';
 
 const maxCardSize = 30720;
 
@@ -43,14 +35,6 @@ export interface IChannel {
     ChannelImage: string,
 }
 
-interface IAssociated {
-    id: number;
-    key: string;
-    header: string;
-    content: string;
-    rowKey: string;
-}
-
 const ManageGroups: React.FC = () => {
     const { t } = useTranslation();
     const fileInput = useRef<HTMLInputElement | null>(null);
@@ -63,42 +47,46 @@ const ManageGroups: React.FC = () => {
     const [groups, setGroups] = useState<any[]>([]);
     const [noResultMessage, setNoResultMessage] = useState("");
     const [selectedGroups, setSelectedGroups] = useState<dropdownItem[]>([]);
-    const [allGroups, setAllGroups] = useState<IAssociated[]>([]);
+    const [, setSelectedGroupsNum] = useState(0);
+    const [allGroups, setAllGroups] = useState<any[]>([]);
+    const [, setAllGroupsNum] = useState(0);
     const [groupAlreadyIncluded, setGroupAlreadyIncluded] = useState(false);
     const [imageLink, setImageLink] = useState<string>("");
     const [errorImageUrlMessage, setErrorImageUrlMessage] = useState("");
     const [channelTitle, setChannelTitle] = useState<string>("");
-    const [comboQuery, setComboQuery] = useState("");
 
     const channelIdRef = useRef<string | undefined>("");
     channelIdRef.current = channelId;
 
-    const onDeleteGroup = useCallback(async (rowKey: string) => {
-        try { await deleteGroupAssociation(rowKey); } catch { /* ignore */ }
+    const onDeleteGroup = useCallback(async (_id: number, key: string) => {
+        try { await deleteGroupAssociation(key); } catch { /* ignore */ }
         await getAllGroupsAssociated();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const getAllGroupsAssociated = useCallback(async () => {
-        const resultListItems: IAssociated[] = [];
+        const resultListItems: any[] = [];
         try {
             const response = await getGroupAssociations(channelIdRef.current);
             const inputGroups = response.data;
             let x = 0;
             inputGroups.forEach((element: any) => {
+                const idx = x;
                 resultListItems.push({
                     id: x,
                     key: element.groupId,
                     header: element.groupName,
                     content: element.groupEmail,
-                    rowKey: element.rowKey,
+                    endMedia: <Button circular size="small" onClick={() => onDeleteGroup(idx, element.rowKey)} icon={<TrashCanIcon />} />,
+                    media: <Image src={ImageUtil.makeInitialImage(element.groupName)} avatar />,
                 });
                 x++;
             });
             setAllGroups(resultListItems);
+            setAllGroupsNum(resultListItems.length);
             setLoader(false);
         } catch { /* ignore */ }
-    }, []);
+    }, [onDeleteGroup]);
 
     const GetChannelInfo = useCallback(async (cid: string) => {
         try {
@@ -156,18 +144,18 @@ const ManageGroups: React.FC = () => {
         fileInput.current?.click();
     };
 
-    const onChannelTitleChange = (_event: any, data: { value: string }) => {
-        setChannelTitle(data.value);
+    const onChannelTitleChange = (event: any) => {
+        setChannelTitle(event.target.value);
     };
 
-    const onImageLinkChanged = (_event: any, data: { value: string }) => {
-        const url = data.value.toLowerCase();
+    const onImageLinkChanged = (event: any) => {
+        const url = event.target.value.toLowerCase();
         if (!((url === "") || url.startsWith("https://") || url.startsWith("data:image/png;base64,") || url.startsWith("data:image/jpeg;base64,") || url.startsWith("data:image/gif;base64,"))) {
             setErrorImageUrlMessage(t("ErrorURLMessage"));
         } else {
             setErrorImageUrlMessage("");
         }
-        setImageLink(data.value);
+        setImageLink(event.target.value);
     };
 
     const makeDropdownItems = (items: any[] | undefined): dropdownItem[] => {
@@ -188,45 +176,39 @@ const ManageGroups: React.FC = () => {
 
     const getGroupItems = () => groups ? makeDropdownItems(groups) : [];
 
-    const performGroupSearch = async (query: string) => {
-        if (!query) {
+    const onGroupsChange = (_event: any, itemsData: any) => {
+        setSelectedGroups(itemsData.value);
+        setSelectedGroupsNum(itemsData.value.length);
+        setGroups([]);
+        setGroupAlreadyIncluded(false);
+    };
+
+    const onGroupSearchQueryChange = async (_event: any, itemsData: any) => {
+        if (!itemsData.searchQuery) {
             setGroups([]);
             setNoResultMessage("");
             return;
         }
-        if (query.length <= 2) {
+        if (itemsData.searchQuery && itemsData.searchQuery.length <= 2) {
             setLoading(false);
             setNoResultMessage(t("NoMatchMessage"));
             return;
         }
-        setLoading(true);
-        setNoResultMessage("");
-        try {
-            const q = encodeURIComponent(query);
-            const response = await searchGroups(q);
-            setGroups(response.data);
-            setLoading(false);
-            setNoResultMessage(t("NoMatchMessage"));
-        } catch {
-            setLoading(false);
+        if (itemsData.searchQuery && itemsData.searchQuery.length > 2) {
+            const result = itemsData.items && itemsData.items.find(
+                (item: { header: string }) => item.header.toLowerCase() === itemsData.searchQuery.toLowerCase()
+            );
+            if (result) return;
+            setLoading(true);
+            setNoResultMessage("");
+            try {
+                const query = encodeURIComponent(itemsData.searchQuery);
+                const response = await searchGroups(query);
+                setGroups(response.data);
+                setLoading(false);
+                setNoResultMessage(t("NoMatchMessage"));
+            } catch { /* ignore */ }
         }
-    };
-
-    const onComboQueryChange = (_event: any, data: { value: string }) => {
-        setComboQuery(data.value);
-        performGroupSearch(data.value);
-    };
-
-    const onComboSelect = (_event: any, data: { selectedOptions: string[] }) => {
-        const items = getGroupItems();
-        const picked = items.filter(i => data.selectedOptions.includes(i.key));
-        // Merge with already-selected items to retain any previously selected (from earlier search results)
-        const merged = [...selectedGroups];
-        picked.forEach(p => { if (!merged.some(m => m.key === p.key)) merged.push(p); });
-        // Drop any deselected
-        const final = merged.filter(m => data.selectedOptions.includes(m.key));
-        setSelectedGroups(final);
-        setGroupAlreadyIncluded(false);
     };
 
     const onAddGroups = () => {
@@ -240,7 +222,7 @@ const ManageGroups: React.FC = () => {
             if (!allGroups.some(e => e.key === element.key)) {
                 try { await createGroupAssociation(draftGroup); } catch { /* ignore */ }
                 setSelectedGroups([]);
-                setComboQuery("");
+                setSelectedGroupsNum(0);
                 getAllGroupsAssociated();
             } else {
                 setGroupAlreadyIncluded(true);
@@ -259,126 +241,104 @@ const ManageGroups: React.FC = () => {
     };
 
     if (loader) {
-        return (<div className="Loader"><Spinner /></div>);
+        return (
+            <div className="Loader">
+                <Loader />
+            </div>
+        );
     }
-
-    const comboItems = getGroupItems();
-    const selectedKeys = selectedGroups.map(g => g.key);
 
     return (
         <div className="taskModule">
-            <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'white' }}>
-                <div className="nonScrollableContent" style={{ display: 'flex' }}>
-                    <div style={{ flex: '0 0 50%' }}>
-                        <div className="formContentContainer" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Flex column className="formContainer" vAlign="stretch" gap="gap.small" styles={{ background: "white" }}>
+                <Flex className="nonScrollableContent">
+                    <Flex.Item size="size.half">
+                        <Flex column className="formContentContainer">
                             <div style={{ minHeight: 30 }} />
-                            <div style={{ minHeight: 40, display: 'flex', gap: 4 }}>
-                                <Badge appearance="filled" shape="circular">{teamName}</Badge>
-                                <Badge appearance="filled" shape="circular">{channelName}</Badge>
+                            <div style={{ minHeight: 40 }}>
+                                <Label circular content={teamName} />
+                                <Label circular content={channelName} />
                             </div>
                             <div>
-                                <Text>{t("CardImage")}</Text>
+                                <Text content={t("CardImage")} />
                             </div>
-                            <div style={{ maxWidth: 400, maxHeight: 110 }}>
-                                {imageLink && <img src={imageLink} alt="" style={{ maxWidth: '100%', maxHeight: 110 }} />}
+                            <div>
+                                <Layout
+                                    styles={{ maxWidth: '400px', maxHeight: '110px' }}
+                                    renderMainArea={() => <Image src={imageLink} />}
+                                />
                             </div>
                             <div style={{ minHeight: 40 }}>
-                                <div className="inputField" style={{ display: 'flex', gap: '0.25rem', alignItems: 'flex-end' }}>
-                                    <div style={{ flex: '1 1 auto' }}>
-                                        <Field validationState={errorImageUrlMessage ? 'error' : 'none'} validationMessage={errorImageUrlMessage || undefined}>
-                                            <Input
-                                                value={imageLink}
-                                                placeholder={t("ImageURLPlaceHolder")}
-                                                onChange={onImageLinkChanged}
-                                                autoComplete="off"
-                                            />
-                                        </Field>
-                                    </div>
+                                <Flex gap="gap.smaller" vAlign="end" className="inputField">
+                                    <Input
+                                        value={imageLink}
+                                        placeholder={t("ImageURLPlaceHolder")}
+                                        onChange={onImageLinkChanged}
+                                        error={!(errorImageUrlMessage === "")}
+                                        autoComplete="off"
+                                        fluid
+                                    />
                                     <input type="file" accept="image/"
                                         style={{ display: 'none' }}
                                         onChange={handleImageSelection}
                                         ref={fileInput} />
-                                    <Button
-                                        shape="circular"
-                                        size="small"
-                                        onClick={handleUploadClick}
-                                        icon={<ArrowUploadRegular />}
-                                        title={t("UploadImage")}
-                                    />
-                                </div>
+                                    <Flex.Item push>
+                                        <Button circular onClick={handleUploadClick}
+                                            size="small"
+                                            icon={<FilesUploadIcon />}
+                                            title={t("UploadImage")}
+                                        />
+                                    </Flex.Item>
+                                </Flex>
                             </div>
                             <div style={{ minHeight: 60 }}>
-                                <Field label={t("CardTitle")}>
-                                    <Input
-                                        value={channelTitle}
-                                        onChange={onChannelTitleChange}
-                                    />
-                                </Field>
+                                <Input
+                                    value={channelTitle}
+                                    onChange={onChannelTitleChange}
+                                    label={t("CardTitle")}
+                                    fluid
+                                />
                             </div>
                             <div>
-                                <Text>{t("TargetGroups")}</Text>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <div style={{ flex: '1 1 auto' }}>
-                                        <Combobox
-                                            multiselect
-                                            freeform
-                                            placeholder={t("SendToGroupsPlaceHolder")}
-                                            value={comboQuery}
-                                            onInput={(e: any) => onComboQueryChange(e, { value: e.target.value })}
-                                            onOptionSelect={onComboSelect}
-                                            selectedOptions={selectedKeys}
-                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                        >
-                                            {loading && <Option key="__loading" value="__loading" disabled>{t("LoadingText")}</Option>}
-                                            {!loading && comboItems.length === 0 && noResultMessage && (
-                                                <Option key="__none" value="__none" disabled>{noResultMessage}</Option>
-                                            )}
-                                            {comboItems.map(item => (
-                                                <Option key={item.key} value={item.key} text={item.header}>
-                                                    {item.header}{item.content ? ` (${item.content})` : ''}
-                                                </Option>
-                                            ))}
-                                        </Combobox>
-                                    </div>
-                                    <Button
-                                        appearance="transparent"
-                                        icon={<ArrowRightRegular />}
-                                        iconPosition="after"
-                                        onClick={onAddGroups}
-                                    >Add</Button>
-                                </div>
+                                <Text content={t("TargetGroups")} />
+                                <Flex gap="gap.small">
+                                    <Dropdown
+                                        search
+                                        placeholder={t("SendToGroupsPlaceHolder")}
+                                        loadingMessage={t("LoadingText")}
+                                        onSearchQueryChange={onGroupSearchQueryChange}
+                                        noResultsMessage={noResultMessage}
+                                        loading={loading}
+                                        items={getGroupItems()}
+                                        onChange={onGroupsChange}
+                                        value={selectedGroups}
+                                        multiple
+                                    />
+                                    <Flex.Item><Button content="Add" icon={<ArrowRightIcon />} iconPosition="after" text onClick={onAddGroups} /></Flex.Item>
+                                </Flex>
                             </div>
                             <div className={groupAlreadyIncluded ? "ErrorMessage" : "hide"}>
                                 <div className="noteText">
-                                    <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t('GroupAlreadyIncluded')}</Text>
+                                    <Text error content={t('GroupAlreadyIncluded')} />
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div style={{ flex: '0 0 50%' }}>
+                        </Flex>
+                    </Flex.Item>
+                    <Flex.Item size="size.half">
                         <div>
-                            <Text align="center">{t("TargetGroups") + ' for ' + teamName + '/' + channelName}</Text>
+                            <Text align="center" content={t("TargetGroups") + ' for ' + teamName + '/' + channelName} />
                             <div className="scrollableContent">
-                                {allGroups.map((g) => (
-                                    <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-                                        <img src={ImageUtil.makeInitialImage(g.header)} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
-                                        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600 }}>{g.header}</div>
-                                            <div style={{ fontSize: 12, opacity: 0.7 }}>{g.content}</div>
-                                        </div>
-                                        <Button shape="circular" size="small" icon={<DeleteRegular />} onClick={() => onDeleteGroup(g.rowKey)} />
-                                    </div>
-                                ))}
+                                <List items={allGroups} selectable />
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div className="footerContainer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
-                    <div className="buttonContainer" style={{ display: 'flex', gap: '0.5rem' }}>
-                        <Button onClick={onClose}>{t('CloseText')}</Button>
-                    </div>
-                </div>
-            </div>
+                    </Flex.Item>
+                </Flex>
+            </Flex>
+            <Flex className="footerContainer" vAlign="end" hAlign="end">
+                <Flex className="buttonContainer" gap="gap.medium">
+                    <Button content={t('CloseText')} onClick={onClose} />
+                </Flex>
+            </Flex>
         </div>
     );
 };

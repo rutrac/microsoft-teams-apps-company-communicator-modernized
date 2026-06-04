@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { app, pages } from "@microsoft/teams-js";
 import { getBaseUrl } from '../configVariables';
 import { getAppSettings } from "../apis/messageListApi";
-import { Spinner, Badge } from '@fluentui/react-components';
+import { Loader, Label } from '@fluentui/react-northstar';
 import { useTranslation } from "react-i18next";
 
 const isMasterAdmin = (masterAdminUpns: string, userUpn?: string): boolean => {
@@ -70,7 +70,7 @@ const Configuration: React.FC = () => {
                     <div>
                         <h3>{t("TargetingConfig")}</h3>
                         <p>{t("TargetingTeamChannel")}</p>
-                        <Badge appearance="filled" shape="circular">{teamName}</Badge> <Badge appearance="filled" shape="circular">{channelName}</Badge>
+                        <Label circular content={teamName} /> <Label circular content={channelName} />
                         <p><b>{t("TargetingLoggedUsr")}</b> {userPrincipalName} </p>
                         <h3>{t("ConfigSave")}</h3>
                     </div>
@@ -91,7 +91,7 @@ const Configuration: React.FC = () => {
 
     return (
         <div className="configContainer">
-            {loading && <Spinner label={t("LoadingText")} />}
+            {loading && <Loader label={t("LoadingText")} />}
             {!loading && renderTargetingMessage()}
         </div>
     );

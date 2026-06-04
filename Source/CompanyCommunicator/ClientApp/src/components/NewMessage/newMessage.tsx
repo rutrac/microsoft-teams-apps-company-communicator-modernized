@@ -2,33 +2,19 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
-import {
-    Button, Spinner, Text, Input, Textarea, Field, Combobox, Option,
-    RadioGroup, Radio, Checkbox, Badge, tokens,
-} from '@fluentui/react-components';
-import {
-    DeleteRegular, AddRegular, ArrowUploadRegular,
-} from '@fluentui/react-icons';
-import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/style.css';
+import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar';
+import { TrashCanIcon, AddIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 import Resizer from 'react-image-file-resizer';
 import Papa from "papaparse";
-
 import './newMessage.scss';
 import './teamTheme.scss';
-import {
-    getDraftNotification, getTeams, createDraftNotification, updateDraftNotification,
-    searchGroups, getGroups, verifyGroupAccess, getAppSettings, getChannelConfig, getGroupAssociations,
-} from '../../apis/messageListApi';
-import {
-    getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary, setCardAuthor,
-    setCardBtns, setCardTarget, setCardTargetImage, setCardTargetTitle, setCardImportance,
-} from '../AdaptiveCard/adaptiveCard';
+import { getDraftNotification, getTeams, createDraftNotification, updateDraftNotification, searchGroups, getGroups, verifyGroupAccess, getAppSettings, getChannelConfig, getGroupAssociations } from '../../apis/messageListApi';
+import { getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary, setCardAuthor, setCardBtns, setCardTarget, setCardTargetImage, setCardTargetTitle, setCardImportance } from '../AdaptiveCard/adaptiveCard';
 import { getBaseUrl } from '../../configVariables';
 import { ImageUtil } from '../../utility/imageutility';
 import { OpenUrlAction } from 'adaptivecards';
@@ -213,10 +199,6 @@ const NewMessage: React.FC = () => {
     const imageUploadBlobStorageRef = useRef<boolean>(false);
     const imageSizeRef = useRef<number>(0);
 
-    const [groupSearchQuery, setGroupSearchQuery] = useState("");
-    const [teamsSearchQuery, setTeamsSearchQuery] = useState("");
-    const [rostersSearchQuery, setRostersSearchQuery] = useState("");
-
     const setDefaultCard = useCallback((card: any) => {
         setCardTitle(card, t("TitleText"));
         const imgUrl = getBaseUrl() + "/image/imagePlaceholder.png";
@@ -330,6 +312,7 @@ const NewMessage: React.FC = () => {
             await app.initialize();
             document.addEventListener("keydown", escFunction, false);
 
+            // group access
             try {
                 await verifyGroupAccess();
                 if (!cancelled) set({ groupAccess: true });
@@ -339,11 +322,13 @@ const NewMessage: React.FC = () => {
                 }
             }
 
+            // max teams
             try {
                 const response = await axios.get(baseAxiosUrl + "/options");
                 if (!cancelled) set({ maxNumberOfTeams: response.data });
             } catch { /* keep default */ }
 
+            // teams context
             const context = await app.getContext();
             if (cancelled) return;
             set({
@@ -353,6 +338,7 @@ const NewMessage: React.FC = () => {
                 userPrincipalName: context.user?.userPrincipalName,
             });
 
+            // channel info
             try {
                 if (context.channel?.id) {
                     const channelRes = await getChannelConfig(context.channel.id);
@@ -365,6 +351,7 @@ const NewMessage: React.FC = () => {
                 }
             } catch { /* ignore */ }
 
+            // app settings
             try {
                 const settings = await getAppSettings();
                 if (settings.data) {
@@ -377,6 +364,7 @@ const NewMessage: React.FC = () => {
             radioControl();
             setCardTarget(cardRef.current, targetingEnabledRef.current);
 
+            // teams list
             let teamsData: any[] = [];
             try {
                 const teamsRes = await getTeams();
@@ -563,7 +551,8 @@ const NewMessage: React.FC = () => {
     const getItems = (): dropdownItem[] => {
         const resultedTeams: dropdownItem[] = [];
         if (state.teams) {
-            state.teams.forEach((element) => {
+            const remainingUserTeams = state.teams;
+            remainingUserTeams.forEach((element) => {
                 resultedTeams.push({
                     key: element.id,
                     header: element.name,
@@ -604,13 +593,11 @@ const NewMessage: React.FC = () => {
         set({ isMaxNumberOfTeamsError: false, selectedRosters: [], selectedRostersNum: 0 });
     };
 
-    const onTeamsComboSelect = (_event: any, data: { selectedOptions: string[] }) => {
-        const all = getItems();
-        const next = all.filter(i => data.selectedOptions.includes(i.key));
+    const onTeamsChange = (_event: any, itemsData: any) => {
         set({
-            isMaxNumberOfTeamsError: next.length > state.maxNumberOfTeams,
-            selectedTeams: next,
-            selectedTeamsNum: next.length,
+            isMaxNumberOfTeamsError: itemsData.value.length > state.maxNumberOfTeams,
+            selectedTeams: itemsData.value,
+            selectedTeamsNum: itemsData.value.length,
             selectedRosters: [],
             selectedRostersNum: 0,
             selectedGroups: [],
@@ -618,13 +605,11 @@ const NewMessage: React.FC = () => {
         });
     };
 
-    const onRostersComboSelect = (_event: any, data: { selectedOptions: string[] }) => {
-        const all = getItems();
-        const next = all.filter(i => data.selectedOptions.includes(i.key));
+    const onRostersChange = (_event: any, itemsData: any) => {
         set({
-            isMaxNumberOfTeamsError: next.length > state.maxNumberOfTeams,
-            selectedRosters: next,
-            selectedRostersNum: next.length,
+            isMaxNumberOfTeamsError: itemsData.value.length > state.maxNumberOfTeams,
+            selectedRosters: itemsData.value,
+            selectedRostersNum: itemsData.value.length,
             selectedTeams: [],
             selectedTeamsNum: 0,
             selectedGroups: [],
@@ -632,15 +617,11 @@ const NewMessage: React.FC = () => {
         });
     };
 
-    const onGroupsComboSelect = (_event: any, data: { selectedOptions: string[] }) => {
-        const all = getGroupItems();
-        // Preserve previously selected items that may no longer be in the search results
-        const preserved = state.selectedGroups.filter(g => data.selectedOptions.includes(g.key));
-        const fromCurrent = all.filter(i => data.selectedOptions.includes(i.key) && !preserved.some(p => p.key === i.key));
-        const next = [...preserved, ...fromCurrent];
+    const onGroupsChange = (_event: any, itemsData: any) => {
         set({
-            selectedGroups: next,
-            selectedGroupsNum: next.length,
+            selectedGroups: itemsData.value,
+            selectedGroupsNum: itemsData.value.length,
+            groups: [],
             selectedTeams: [],
             selectedTeamsNum: 0,
             selectedRosters: [],
@@ -648,26 +629,33 @@ const NewMessage: React.FC = () => {
         });
     };
 
-    const performGroupSearch = async (query: string) => {
-        if (!query) {
+    const onGroupSearch = (itemList: any, searchQuery: string) =>
+        itemList.filter(
+            (item: { header: string; content: string }) =>
+                (item.header && item.header.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1) ||
+                (item.content && item.content.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1)
+        );
+
+    const onGroupSearchQueryChange = async (_event: any, itemsData: any) => {
+        if (!itemsData.searchQuery) {
             set({ groups: [], noResultMessage: "" });
-            return;
-        }
-        if (query.length <= 2) {
+        } else if (itemsData.searchQuery && itemsData.searchQuery.length <= 2) {
             set({ loading: false, noResultMessage: t("NoMatchMessage") });
-            return;
-        }
-        set({ loading: true, noResultMessage: "" });
-        try {
-            const q = encodeURIComponent(query);
-            const response = await searchGroups(q);
-            set({ groups: response.data, loading: false, noResultMessage: t("NoMatchMessage") });
-        } catch {
-            set({ loading: false });
+        } else if (itemsData.searchQuery && itemsData.searchQuery.length > 2) {
+            const result = itemsData.items && itemsData.items.find(
+                (item: { header: string }) => item.header.toLowerCase() === itemsData.searchQuery.toLowerCase()
+            );
+            if (result) return;
+            set({ loading: true, noResultMessage: "" });
+            try {
+                const query = encodeURIComponent(itemsData.searchQuery);
+                const response = await searchGroups(query);
+                set({ groups: response.data, loading: false, noResultMessage: t("NoMatchMessage") });
+            } catch { /* ignore */ }
         }
     };
 
-    const onRadioChange = (_event: any, data: { value: string }) => {
+    const onGroupSelected = (_event: any, data: any) => {
         set({
             selectedRadioBtn: data.value,
             teamsOptionSelected: data.value === 'teams',
@@ -682,31 +670,25 @@ const NewMessage: React.FC = () => {
             selectedGroups: data.value === 'groups' ? state.selectedGroups : [],
             selectedGroupsNum: data.value === 'groups' ? state.selectedGroupsNum : 0,
         });
-        if (data.value === 'groups' && targetingEnabledRef.current && !isMasterAdmin(masterAdminUpnsRef.current, state.userPrincipalName)) {
-            setAuthorizedGroupItems();
-        }
     };
 
-    const handleDateChange = (d?: Date) => {
-        if (!d) return;
-        const TempDate = new Date(d);
+    const handleDateChange = (_e: any, v: any) => {
+        const TempDate = v.value;
         TempDate.setMinutes(parseInt(state.DMYMins));
         TempDate.setHours(parseInt(state.DMYHour));
         set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate });
     };
 
-    const handleHourChange = (_e: any, data: { optionValue?: string }) => {
-        if (!data.optionValue) return;
-        const TempDate = new Date(state.DMY);
-        TempDate.setHours(parseInt(data.optionValue));
-        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYHour: data.optionValue });
+    const handleHourChange = (_e: any, v: any) => {
+        const TempDate = state.DMY;
+        TempDate.setHours(parseInt(v.value));
+        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYHour: v.value });
     };
 
-    const handleMinsChange = (_e: any, data: { optionValue?: string }) => {
-        if (!data.optionValue) return;
-        const TempDate = new Date(state.DMY);
-        TempDate.setMinutes(parseInt(data.optionValue));
-        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYMins: data.optionValue });
+    const handleMinsChange = (_e: any, v: any) => {
+        const TempDate = state.DMY;
+        TempDate.setMinutes(parseInt(v.value));
+        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYMins: v.value });
     };
 
     const onScheduleSelected = () => {
@@ -796,60 +778,56 @@ const NewMessage: React.FC = () => {
         setTimeout(updateCard, 0);
     };
 
-    const onTitleChanged = (_event: any, data: { value: string }) => {
-        const value = data.value;
-        const showDefaultCard = (!value && !state.imageLink && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
-        setCardTitle(cardRef.current, value);
+    const onTitleChanged = (event: any) => {
+        const showDefaultCard = (!event.target.value && !state.imageLink && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
+        setCardTitle(cardRef.current, event.target.value);
         setCardImageLink(cardRef.current, state.imageLink);
         setCardSummary(cardRef.current, state.summary);
         setCardAuthor(cardRef.current, state.author);
         setCardBtns(cardRef.current, state.values);
-        set({ title: value });
+        set({ title: event.target.value });
         if (showDefaultCard) setDefaultCard(cardRef.current);
         setTimeout(updateCard, 0);
     };
 
-    const onImageLinkChanged = (_event: any, data: { value: string }) => {
-        const value = data.value;
-        const url = value.toLowerCase();
+    const onImageLinkChanged = (event: any) => {
+        const url = event.target.value.toLowerCase();
         if (!((url === "") || url.startsWith("https://") || url.startsWith("data:image/png;base64,") || url.startsWith("data:image/jpeg;base64,") || url.startsWith("data:image/gif;base64,"))) {
             set({ errorImageUrlMessage: t("ErrorURLMessage") });
         } else {
             set({ errorImageUrlMessage: "" });
         }
-        const showDefaultCard = (!state.title && !value && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
+        const showDefaultCard = (!state.title && !event.target.value && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
         setCardTitle(cardRef.current, state.title);
-        setCardImageLink(cardRef.current, value);
+        setCardImageLink(cardRef.current, event.target.value);
         setCardSummary(cardRef.current, state.summary);
         setCardAuthor(cardRef.current, state.author);
         setCardBtns(cardRef.current, state.values);
-        set({ imageLink: value });
+        set({ imageLink: event.target.value });
         if (showDefaultCard) setDefaultCard(cardRef.current);
         setTimeout(updateCard, 0);
     };
 
-    const onSummaryChanged = (_event: any, data: { value: string }) => {
-        const value = data.value;
-        const showDefaultCard = (!state.title && !state.imageLink && !value && !state.author && !state.btnTitle && !state.btnLink);
+    const onSummaryChanged = (event: any) => {
+        const showDefaultCard = (!state.title && !state.imageLink && !event.target.value && !state.author && !state.btnTitle && !state.btnLink);
         setCardTitle(cardRef.current, state.title);
         setCardImageLink(cardRef.current, state.imageLink);
-        setCardSummary(cardRef.current, value);
+        setCardSummary(cardRef.current, event.target.value);
         setCardAuthor(cardRef.current, state.author);
         setCardBtns(cardRef.current, state.values);
-        set({ summary: value });
+        set({ summary: event.target.value });
         if (showDefaultCard) setDefaultCard(cardRef.current);
         setTimeout(updateCard, 0);
     };
 
-    const onAuthorChanged = (_event: any, data: { value: string }) => {
-        const value = data.value;
-        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !value && !state.btnTitle && !state.btnLink);
+    const onAuthorChanged = (event: any) => {
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !event.target.value && !state.btnTitle && !state.btnLink);
         setCardTitle(cardRef.current, state.title);
         setCardImageLink(cardRef.current, state.imageLink);
         setCardSummary(cardRef.current, state.summary);
-        setCardAuthor(cardRef.current, value);
+        setCardAuthor(cardRef.current, event.target.value);
         setCardBtns(cardRef.current, state.values);
-        set({ author: value });
+        set({ author: event.target.value });
         if (showDefaultCard) setDefaultCard(cardRef.current);
         setTimeout(updateCard, 0);
     };
@@ -880,10 +858,10 @@ const NewMessage: React.FC = () => {
         }
     };
 
-    const handleChangeName = (i: number, value: string) => {
+    const handleChangeName = (i: number, event: any) => {
         const values = [...state.values];
-        values[i].title = value;
-        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !value && values.length === 0);
+        values[i].title = event.target.value;
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !event.target.value && values.length === 0);
         setCardTitle(cardRef.current, state.title);
         setCardImageLink(cardRef.current, state.imageLink);
         setCardSummary(cardRef.current, state.summary);
@@ -901,15 +879,15 @@ const NewMessage: React.FC = () => {
         }
     };
 
-    const handleChangeLink = (i: number, value: string) => {
+    const handleChangeLink = (i: number, event: any) => {
         const values = [...state.values];
-        values[i].url = value;
-        if (!(value === "" || value.toLowerCase().startsWith("https://"))) {
+        values[i].url = event.target.value;
+        if (!(event.target.value === "" || event.target.value.toLowerCase().startsWith("https://"))) {
             set({ errorButtonUrlMessage: t("ErrorURLMessage") });
         } else {
             set({ errorButtonUrlMessage: "" });
         }
-        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !value && values.length === 0);
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !event.target.value && values.length === 0);
         setCardTitle(cardRef.current, state.title);
         setCardImageLink(cardRef.current, state.imageLink);
         setCardSummary(cardRef.current, state.summary);
@@ -930,410 +908,398 @@ const NewMessage: React.FC = () => {
     const createUI = () => {
         if (state.values.length > 0) {
             return state.values.map((el, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Flex key={i} gap="gap.smaller" vAlign="center">
                     <Input className="inputField"
-                        style={{ flex: '1 1 auto' }}
+                        fluid
                         value={el.title || ''}
                         placeholder={t("ButtonTitle")}
-                        onChange={(_e, data) => handleChangeName(i, data.value)}
+                        onChange={(e: any) => handleChangeName(i, e)}
                         autoComplete="off"
                     />
                     <Input className="inputField"
-                        style={{ flex: '1 1 auto' }}
+                        fluid
                         value={el.url || ''}
                         placeholder={t("ButtonURL")}
-                        onChange={(_e, data) => handleChangeLink(i, data.value)}
+                        onChange={(e: any) => handleChangeLink(i, e)}
+                        error={!(state.errorButtonUrlMessage === "")}
                         autoComplete="off"
                     />
                     <Button
-                        shape="circular"
+                        circular
                         size="small"
-                        icon={<DeleteRegular />}
+                        icon={<TrashCanIcon />}
                         onClick={() => removeClick(i)}
                         title={t("Delete")}
                     />
-                </div>
+                </Flex>
             ));
         }
         return (
-            <div style={{ display: 'flex' }}>
-                <Text size={200}>{t("NoButtons")}</Text>
-            </div>
+            <Flex>
+                <Text size="small" content={t("NoButtons")} />
+            </Flex>
         );
     };
 
     const isMaster = isMasterAdmin(masterAdminUpnsRef.current, state.userPrincipalName);
 
     if (state.loader) {
-        return <div className="Loader"><Spinner /></div>;
+        return <div className="Loader"><Loader /></div>;
     }
-
-    const teamItems = getItems();
-    const groupItems = getGroupItems();
-    const selectedTeamKeys = state.selectedTeams.map(s => s.key);
-    const selectedRosterKeys = state.selectedRosters.map(s => s.key);
-    const selectedGroupKeys = state.selectedGroups.map(s => s.key);
-
-    const teamItemsFiltered = teamsSearchQuery
-        ? teamItems.filter(i => i.header.toLowerCase().includes(teamsSearchQuery.toLowerCase()))
-        : teamItems;
-    const rosterItemsFiltered = rostersSearchQuery
-        ? teamItems.filter(i => i.header.toLowerCase().includes(rostersSearchQuery.toLowerCase()))
-        : teamItems;
 
     if (state.page === "CardCreation") {
         return (
             <div className="taskModule">
-                <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div className="scrollableContent" style={{ display: 'flex' }}>
-                        <div style={{ flex: '0 0 50%' }}>
-                            <div className="formContentContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <Field label={t("TitleText")}>
-                                    <Input className="inputField"
-                                        value={state.title}
-                                        placeholder={t("PlaceHolderTitle")}
-                                        onChange={onTitleChanged}
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                    <Flex className="scrollableContent">
+                        <Flex.Item size="size.half">
+                            <Flex column className="formContentContainer">
+                                <Input className="inputField"
+                                    value={state.title}
+                                    label={t("TitleText")}
+                                    placeholder={t("PlaceHolderTitle")}
+                                    onChange={onTitleChanged}
+                                    autoComplete="off"
+                                    fluid
+                                />
+                                <Flex gap="gap.smaller" vAlign="end" className="inputField">
+                                    <Input
+                                        value={state.imageLink}
+                                        label={t("ImageURL")}
+                                        placeholder={t("ImageURLPlaceHolder")}
+                                        onChange={onImageLinkChanged}
+                                        error={!(state.errorImageUrlMessage === "")}
                                         autoComplete="off"
+                                        fluid
                                     />
-                                </Field>
-                                <Field label={t("ImageURL")} validationState={state.errorImageUrlMessage ? 'error' : 'none'} validationMessage={state.errorImageUrlMessage || undefined}>
-                                    <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'flex-end' }}>
-                                        <Input
-                                            style={{ flex: '1 1 auto' }}
-                                            value={state.imageLink || ''}
-                                            placeholder={t("ImageURLPlaceHolder")}
-                                            onChange={onImageLinkChanged}
-                                            autoComplete="off"
-                                        />
-                                        <input type="file" accept="image/"
-                                            style={{ display: 'none' }}
-                                            onChange={handleImageSelection}
-                                            ref={fileInput} />
-                                        <Button shape="circular" onClick={handleUploadClick}
+                                    <input type="file" accept="image/"
+                                        style={{ display: 'none' }}
+                                        onChange={handleImageSelection}
+                                        ref={fileInput} />
+                                    <Flex.Item push>
+                                        <Button circular onClick={handleUploadClick}
                                             size="small"
-                                            icon={<ArrowUploadRegular />}
+                                            icon={<FilesUploadIcon />}
                                             title={t("UploadImage")}
                                         />
-                                    </div>
-                                </Field>
+                                    </Flex.Item>
+                                </Flex>
+                                <Text className={(state.errorImageUrlMessage === "") ? "hide" : "show"} error size="small" content={state.errorImageUrlMessage} />
 
                                 <div className="textArea">
-                                    <Field label={t("Summary")}>
-                                        <Textarea
-                                            placeholder={t("Summary")}
-                                            value={state.summary}
-                                            onChange={onSummaryChanged}
-                                        />
-                                    </Field>
+                                    <Text content={t("Summary")} />
+                                    <TextArea
+                                        autoFocus
+                                        placeholder={t("Summary")}
+                                        value={state.summary}
+                                        onChange={onSummaryChanged}
+                                        fluid />
                                 </div>
 
-                                <Field label={t("Author")}>
-                                    <Input className="inputField"
-                                        value={state.author}
-                                        placeholder={t("Author")}
-                                        onChange={onAuthorChanged}
-                                        autoComplete="off"
-                                    />
-                                </Field>
+                                <Input className="inputField"
+                                    value={state.author}
+                                    label={t("Author")}
+                                    placeholder={t("Author")}
+                                    onChange={onAuthorChanged}
+                                    autoComplete="off"
+                                    fluid
+                                />
                                 <div className="textArea">
-                                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
-                                        <Text size={200}>{t("Buttons")}</Text>
-                                        <div style={{ marginLeft: 'auto' }}>
-                                            <Button shape="circular" size="small" disabled={(state.values.length === 4) || !(state.errorButtonUrlMessage === "")} icon={<AddRegular />} title={t("Add")} onClick={addClick} />
-                                        </div>
-                                    </div>
+                                    <Flex gap="gap.large" vAlign="end">
+                                        <Text size="small" align="start" content={t("Buttons")} />
+                                        <Flex.Item push>
+                                            <Button circular size="small" disabled={(state.values.length === 4) || !(state.errorButtonUrlMessage === "")} icon={<AddIcon />} title={t("Add")} onClick={addClick} />
+                                        </Flex.Item>
+                                    </Flex>
                                 </div>
 
                                 {createUI()}
 
-                                <Text className={(state.errorButtonUrlMessage === "") ? "hide" : "show"} size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{state.errorButtonUrlMessage}</Text>
-                            </div>
-                        </div>
-                        <div style={{ flex: '0 0 50%' }}>
+                                <Text className={(state.errorButtonUrlMessage === "") ? "hide" : "show"} error size="small" content={state.errorButtonUrlMessage} />
+                            </Flex>
+                        </Flex.Item>
+                        <Flex.Item size="size.half">
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Badge appearance="filled">{JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize}</Badge>
-                                </div>
+                                <Flex hAlign="end">
+                                    <Label content={JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize} />
+                                </Flex>
                                 <div className="adaptiveCardContainer"></div>
                             </div>
-                        </div>
-                    </div>
-                    <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
-                        <div className="buttonContainer">
-                            <Button appearance="primary" disabled={isNextBtnDisabled()} id="saveBtn" onClick={onNext}>{t("Next")}</Button>
-                        </div>
-                    </div>
-                </div>
+                        </Flex.Item>
+                    </Flex>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end">
+                        <Flex className="buttonContainer">
+                            <Button content={t("Next")} disabled={isNextBtnDisabled()} id="saveBtn" onClick={onNext} primary />
+                        </Flex>
+                    </Flex>
+                </Flex>
             </div>
         );
     }
 
     if (state.page === "AudienceSelection") {
-        const teamsDisabled = (targetingEnabledRef.current && !isMaster);
         return (
             <div className="taskModule">
-                <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div className="scrollableContent" style={{ display: 'flex' }}>
-                        <div style={{ flex: '0 0 50%' }}>
-                            <div className="formContentContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                    <Flex className="scrollableContent">
+                        <Flex.Item size="size.half">
+                            <Flex column className="formContentContainer">
                                 <h3>{t("SendHeadingText")}</h3>
-                                {state.isMaxNumberOfTeamsError && (
-                                    <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("MaxTeamsError")}</Text>
-                                )}
+                                <Text content={t("MaxTeamsError")} hidden={!state.isMaxNumberOfTeamsError} error />
                                 <RadioGroup
                                     className="radioBtns"
-                                    value={state.selectedRadioBtn}
-                                    onChange={onRadioChange}
-                                >
-                                    <div>
-                                    <Radio value="teams" label={t("SendToGeneralChannel")} disabled={teamsDisabled} />
-                                    {state.teamsOptionSelected && (
-                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
-                                            <div className="selectTeamsContainer" style={{ display: 'flex', gap: '0.5rem', marginBottom: 4 }}>
-                                                <Button onClick={onSelectAllTeams}>{t("SelectAll")}</Button>
-                                                <Button onClick={onUnselectAllTeams}>{t("UnselectAll")}</Button>
-                                            </div>
-                                            <Combobox
-                                                multiselect
-                                                freeform
-                                                placeholder={t("SendToGeneralChannelPlaceHolder")}
-                                                value={teamsSearchQuery}
-                                                onInput={(e: any) => setTeamsSearchQuery(e.target.value)}
-                                                selectedOptions={selectedTeamKeys}
-                                                onOptionSelect={onTeamsComboSelect}
-                                                disabled={teamsDisabled}
-                                                positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                            >
-                                                {teamItemsFiltered.length === 0 && (
-                                                    <Option key="__none" value="__none" disabled>{t("NoMatchMessage")}</Option>
-                                                )}
-                                                {teamItemsFiltered.map(item => (
-                                                    <Option key={item.key} value={item.key} text={item.header}>{item.header}</Option>
-                                                ))}
-                                            </Combobox>
-                                        </div>
-                                    )}
-                                    </div>
-
-                                    <div>
-                                    <Radio value="rosters" label={t("SendToRosters")} disabled={teamsDisabled} />
-                                    {state.rostersOptionSelected && (
-                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
-                                            <div className="selectTeamsContainer" style={{ display: 'flex', gap: '0.5rem', marginBottom: 4 }}>
-                                                <Button onClick={onSelectAllRosters}>{t("SelectAll")}</Button>
-                                                <Button onClick={onUnselectAllRosters}>{t("UnselectAll")}</Button>
-                                            </div>
-                                            <Combobox
-                                                multiselect
-                                                freeform
-                                                placeholder={t("SendToRostersPlaceHolder")}
-                                                value={rostersSearchQuery}
-                                                onInput={(e: any) => setRostersSearchQuery(e.target.value)}
-                                                selectedOptions={selectedRosterKeys}
-                                                onOptionSelect={onRostersComboSelect}
-                                                positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                            >
-                                                {rosterItemsFiltered.length === 0 && (
-                                                    <Option key="__none" value="__none" disabled>{t("NoMatchMessage")}</Option>
-                                                )}
-                                                {rosterItemsFiltered.map(item => (
-                                                    <Option key={item.key} value={item.key} text={item.header}>{item.header}</Option>
-                                                ))}
-                                            </Combobox>
-                                        </div>
-                                    )}
-                                    </div>
-
-                                    <div>
-                                    <Radio value="allUsers" label={t("SendToAllUsers")} disabled={teamsDisabled} />
-                                    {state.allUsersOptionSelected && (
-                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
-                                            <div className="noteText">
-                                                <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToAllUsersNote")}</Text>
-                                            </div>
-                                        </div>
-                                    )}
-                                    </div>
-
-                                    <div>
-                                    <Radio value="groups" label={t("SendToGroups")} />
-                                    {state.groupsOptionSelected && (
-                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
-                                            {targetingEnabledRef.current && !isMaster ? (
-                                                <Combobox
-                                                    className="hideToggle"
-                                                    multiselect
-                                                    placeholder="Select groups from the authorized list"
-                                                    selectedOptions={selectedGroupKeys}
-                                                    onOptionSelect={onGroupsComboSelect}
-                                                    positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                                >
-                                                    {groupItems.map(item => (
-                                                        <Option key={item.key} value={item.key} text={item.header}>{item.header}{item.content ? ` (${item.content})` : ''}</Option>
-                                                    ))}
-                                                </Combobox>
-                                            ) : !state.groupAccess ? (
-                                                <div className="noteText">
-                                                    <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToGroupsPermissionNote")}</Text>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <Combobox
-                                                        className="hideToggle"
-                                                        multiselect
-                                                        freeform
-                                                        placeholder={t("SendToGroupsPlaceHolder")}
-                                                        value={groupSearchQuery}
-                                                        onInput={(e: any) => {
-                                                            const v = e.target.value;
-                                                            setGroupSearchQuery(v);
-                                                            performGroupSearch(v);
-                                                        }}
-                                                        selectedOptions={selectedGroupKeys}
-                                                        onOptionSelect={onGroupsComboSelect}
-                                                        positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                                    >
-                                                        {state.loading && (
-                                                            <Option key="__loading" value="__loading" disabled>{t("LoadingText")}</Option>
-                                                        )}
-                                                        {!state.loading && groupItems.length === 0 && state.noResultMessage && (
-                                                            <Option key="__none" value="__none" disabled>{state.noResultMessage}</Option>
-                                                        )}
-                                                        {groupItems.map(item => (
-                                                            <Option key={item.key} value={item.key} text={item.header}>{item.header}{item.content ? ` (${item.content})` : ''}</Option>
-                                                        ))}
-                                                    </Combobox>
-                                                    <div className="noteText">
-                                                        <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToGroupsNote")}</Text>
+                                    checkedValue={state.selectedRadioBtn}
+                                    onCheckedValueChange={onGroupSelected}
+                                    vertical={true}
+                                    items={([
+                                        {
+                                            name: "teams",
+                                            key: "teams",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "teams",
+                                            label: t("SendToGeneralChannel"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <Flex className="selectTeamsContainer" gap="gap.small" hidden={!state.teamsOptionSelected}>
+                                                        <Button content={t("SelectAll")} onClick={onSelectAllTeams} />
+                                                        <Button content={t("UnselectAll")} onClick={onUnselectAllTeams} />
+                                                    </Flex>
+                                                    <Dropdown
+                                                        hidden={!state.teamsOptionSelected}
+                                                        placeholder={t("SendToGeneralChannelPlaceHolder")}
+                                                        search
+                                                        multiple
+                                                        items={getItems()}
+                                                        value={state.selectedTeams}
+                                                        disabled={(targetingEnabledRef.current && !isMaster)}
+                                                        onChange={onTeamsChange}
+                                                        noResultsMessage={t("NoMatchMessage")}
+                                                    />
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "rosters",
+                                            key: "rosters",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "rosters",
+                                            label: t("SendToRosters"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <Flex className="selectTeamsContainer" gap="gap.small" hidden={!state.rostersOptionSelected}>
+                                                        <Button content={t("SelectAll")} onClick={onSelectAllRosters} />
+                                                        <Button content={t("UnselectAll")} onClick={onUnselectAllRosters} />
+                                                    </Flex>
+                                                    <Dropdown
+                                                        hidden={!state.rostersOptionSelected}
+                                                        placeholder={t("SendToRostersPlaceHolder")}
+                                                        search
+                                                        multiple
+                                                        items={getItems()}
+                                                        value={state.selectedRosters}
+                                                        onChange={onRostersChange}
+                                                        unstable_pinned={state.unstablePinned}
+                                                        noResultsMessage={t("NoMatchMessage")}
+                                                    />
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "allUsers",
+                                            key: "allUsers",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "allUsers",
+                                            label: t("SendToAllUsers"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <div className={state.selectedRadioBtn === "allUsers" ? "" : "hide"}>
+                                                        <div className="noteText">
+                                                            <Text error content={t("SendToAllUsersNote")} />
+                                                        </div>
                                                     </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                    </div>
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "groups",
+                                            key: "groups",
+                                            value: "groups",
+                                            label: t("SendToGroups"),
+                                            checked: (targetingEnabledRef.current && !isMaster),
+                                            children: (Component: any, { name, ...props }: any) => {
+                                                if (targetingEnabledRef.current && !isMaster) {
+                                                    setAuthorizedGroupItems();
+                                                    return (
+                                                        <Flex key={name} column>
+                                                            <Component {...props} />
+                                                            <Dropdown
+                                                                className="hideToggle"
+                                                                placeholder="Select groups from the authorized list"
+                                                                multiple
+                                                                items={getGroupItems()}
+                                                                value={state.selectedGroups}
+                                                                onChange={onGroupsChange}
+                                                                noResultsMessage={state.noResultMessage}
+                                                                unstable_pinned={state.unstablePinned}
+                                                            />
+                                                        </Flex>
+                                                    );
+                                                }
+                                                return (
+                                                    <Flex key={name} column>
+                                                        <Component {...props} />
+                                                        <div className={state.groupsOptionSelected && !state.groupAccess ? "" : "hide"}>
+                                                            <div className="noteText">
+                                                                <Text error content={t("SendToGroupsPermissionNote")} />
+                                                            </div>
+                                                        </div>
+                                                        <Dropdown
+                                                            className="hideToggle"
+                                                            hidden={!state.groupsOptionSelected || !state.groupAccess}
+                                                            placeholder={t("SendToGroupsPlaceHolder")}
+                                                            search={onGroupSearch}
+                                                            multiple
+                                                            loading={state.loading}
+                                                            loadingMessage={t("LoadingText")}
+                                                            items={getGroupItems()}
+                                                            value={state.selectedGroups}
+                                                            onSearchQueryChange={onGroupSearchQueryChange}
+                                                            onChange={onGroupsChange}
+                                                            noResultsMessage={state.noResultMessage}
+                                                            unstable_pinned={state.unstablePinned}
+                                                        />
+                                                        <div className={state.groupsOptionSelected && state.groupAccess ? "" : "hide"}>
+                                                            <div className="noteText">
+                                                                <Text error content={t("SendToGroupsNote")} />
+                                                            </div>
+                                                        </div>
+                                                    </Flex>
+                                                );
+                                            },
+                                        },
+                                        {
+                                            name: "csv",
+                                            key: "csv",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "csv",
+                                            label: t("SendToCSV"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column debug={false}>
+                                                    <Component {...props} />
+                                                    <Flex gap="gap.smaller" debug={false} vAlign="end" className="csvUpload" hidden={!state.csvOptionSelected}>
+                                                        <Input
+                                                            value={state.csvLoaded}
+                                                            error={state.csvError}
+                                                            autoComplete="off"
+                                                            disabled={true}
+                                                            fluid
+                                                        />
+                                                        <input type="file" accept="csv/"
+                                                            style={{ display: 'none' }}
+                                                            onChange={handleCSVSelection}
+                                                            ref={CSVfileInput} />
+                                                        <Flex.Item push>
+                                                            <Button circular onClick={handleCSVUploadClick}
+                                                                size="small"
+                                                                icon={<FilesUploadIcon />}
+                                                                title={t("LabelCSV")}
+                                                            />
+                                                        </Flex.Item>
+                                                    </Flex>
+                                                </Flex>
+                                            ),
+                                        },
+                                    ]) as any}
+                                />
 
-                                    <div>
-                                    <Radio value="csv" label={t("SendToCSV")} disabled={teamsDisabled} />
-                                    {state.csvOptionSelected && (
-                                        <div style={{ paddingLeft: 24, marginTop: 4 }}>
-                                            <div className="csvUpload" style={{ display: 'flex', gap: '0.25rem', alignItems: 'flex-end' }}>
-                                                <Input
-                                                    style={{ flex: '1 1 auto' }}
-                                                    value={state.csvLoaded}
-                                                    autoComplete="off"
-                                                    disabled
-                                                />
-                                                <input type="file" accept="csv/"
-                                                    style={{ display: 'none' }}
-                                                    onChange={handleCSVSelection}
-                                                    ref={CSVfileInput} />
-                                                <Button shape="circular" onClick={handleCSVUploadClick}
-                                                    size="small"
-                                                    icon={<ArrowUploadRegular />}
-                                                    title={t("LabelCSV")}
-                                                />
-                                            </div>
-                                            {state.csvError && (
-                                                <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{state.csvLoaded}</Text>
-                                            )}
-                                        </div>
-                                    )}
-                                    </div>
-                                </RadioGroup>
-
-                                <div style={{ display: 'flex' }}>
-                                    <h3>
-                                        <Checkbox
-                                            className="ScheduleCheckbox"
-                                            labelPosition="before"
-                                            onChange={onScheduleSelected}
-                                            label={t("ScheduledSend")}
-                                            checked={state.selectedSchedule}
-                                        />
-                                    </h3>
-                                </div>
-                                <Text size={200}>{t('ScheduledSendDescription')}</Text>
-                                <div className="DateTimeSelector" style={{ display: 'flex', gap: '0.25rem', alignItems: 'flex-start' }}>
-                                    <div>
-                                        <DayPicker
-                                            mode="single"
-                                            disabled={!state.selectedSchedule ? true : { before: new Date() }}
-                                            selected={getDateObject(state.scheduledDate)}
-                                            onSelect={handleDateChange}
-                                        />
-                                    </div>
-                                    <div style={{ minWidth: 80 }}>
-                                        <Combobox
+                                <Flex hAlign="start">
+                                    <h3><Checkbox
+                                        className="ScheduleCheckbox"
+                                        labelPosition="start"
+                                        onClick={onScheduleSelected}
+                                        label={t("ScheduledSend")}
+                                        checked={state.selectedSchedule}
+                                        toggle
+                                    /></h3>
+                                </Flex>
+                                <Text size="small" align="start" content={t('ScheduledSendDescription')} />
+                                <Flex gap="gap.smaller" className="DateTimeSelector">
+                                    <Datepicker
+                                        disabled={!state.selectedSchedule}
+                                        defaultSelectedDate={getDateObject(state.scheduledDate)}
+                                        minDate={new Date()}
+                                        inputOnly
+                                        onDateChange={handleDateChange}
+                                    />
+                                    <Flex.Item shrink={true} size="1%">
+                                        <Dropdown
                                             placeholder="hour"
                                             disabled={!state.selectedSchedule}
-                                            value={state.DMYHour}
-                                            selectedOptions={[state.DMYHour]}
-                                            onOptionSelect={handleHourChange}
-                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                        >
-                                            {hours.map(h => <Option key={h} value={h}>{h}</Option>)}
-                                        </Combobox>
-                                    </div>
-                                    <div style={{ minWidth: 80 }}>
-                                        <Combobox
+                                            fluid={true}
+                                            items={hours}
+                                            defaultValue={getDateHour(state.scheduledDate)}
+                                            onChange={handleHourChange}
+                                        />
+                                    </Flex.Item>
+                                    <Flex.Item shrink={true} size="1%">
+                                        <Dropdown
                                             placeholder="mins"
                                             disabled={!state.selectedSchedule}
-                                            value={state.DMYMins}
-                                            selectedOptions={[state.DMYMins]}
-                                            onOptionSelect={handleMinsChange}
-                                            positioning={{ position: 'below', align: 'start', matchTargetSize: 'width' }}
-                                        >
-                                            {minutes.map(m => <Option key={m} value={m}>{m}</Option>)}
-                                        </Combobox>
-                                    </div>
-                                </div>
+                                            fluid={true}
+                                            items={minutes}
+                                            defaultValue={getDateMins(state.scheduledDate)}
+                                            onChange={handleMinsChange}
+                                        />
+                                    </Flex.Item>
+                                </Flex>
                                 <div className={state.futuredate && state.selectedSchedule ? "ErrorMessage" : "hide"}>
                                     <div className="noteText">
-                                        <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t('FutureDateError')}</Text>
+                                        <Text error content={t('FutureDateError')} />
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex' }}>
-                                    <h3>
-                                        <Checkbox
-                                            className="Important"
-                                            labelPosition="before"
-                                            onChange={onImportantSelected}
-                                            label={t("Important")}
-                                            checked={state.selectedImportant}
-                                        />
-                                    </h3>
-                                </div>
-                                <Text size={200}>{t('ImportantDescription')}</Text>
-                            </div>
-                        </div>
-                        <div style={{ flex: '0 0 50%' }}>
+                                <Flex hAlign="start">
+                                    <h3><Checkbox
+                                        className="Important"
+                                        labelPosition="start"
+                                        onClick={onImportantSelected}
+                                        label={t("Important")}
+                                        checked={state.selectedImportant}
+                                        toggle
+                                    /></h3>
+                                </Flex>
+                                <Text size="small" align="start" content={t('ImportantDescription')} />
+                            </Flex>
+                        </Flex.Item>
+                        <Flex.Item size="size.half">
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Badge appearance="filled">{JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize}</Badge>
-                                </div>
+                                <Flex hAlign="end">
+                                    <Label content={JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize} />
+                                </Flex>
                                 <div className="adaptiveCardContainer"></div>
                             </div>
-                        </div>
-                    </div>
-                    <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
-                        <div className="buttonContainer" style={{ display: 'flex', gap: '1rem' }}>
-                            <Button appearance="secondary" onClick={onBack}>{t("Back")}</Button>
-                            <div style={{ marginLeft: 'auto' }}>
+                        </Flex.Item>
+                    </Flex>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end">
+                        <Flex className="buttonContainer" gap="gap.medium">
+                            <Button content={t("Back")} onClick={onBack} secondary />
+                            <Flex.Item push>
                                 <Button
-                                    appearance={state.selectedSchedule ? "primary" : "secondary"}
+                                    content="Schedule"
                                     disabled={isSaveBtnDisabled() || !state.selectedSchedule}
                                     onClick={onSchedule}
-                                >Schedule</Button>
-                            </div>
-                            <Button
-                                appearance={!state.selectedSchedule ? "primary" : "secondary"}
+                                    primary={state.selectedSchedule} />
+                            </Flex.Item>
+                            <Button content={t("SaveAsDraft")}
                                 disabled={isSaveBtnDisabled() || state.selectedSchedule}
                                 id="saveBtn"
                                 onClick={onSave}
-                            >{t("SaveAsDraft")}</Button>
-                        </div>
-                    </div>
-                </div>
+                                primary={!state.selectedSchedule} />
+                        </Flex>
+                    </Flex>
+                </Flex>
             </div>
         );
     }

@@ -8,8 +8,8 @@ import { useTranslation } from "react-i18next";
 import './statusTaskModule.scss';
 import { getSentNotification, exportNotification } from '../../apis/messageListApi';
 import * as AdaptiveCards from "adaptivecards";
-import { Spinner, Button, Tooltip } from '@fluentui/react-components';
-import { ArrowDownloadRegular, CheckmarkCircleRegular } from '@fluentui/react-icons';
+import { TooltipHost } from 'office-ui-fabric-react';
+import { Loader, List, Image, Button, DownloadIcon, AcceptIcon, Flex } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
@@ -17,6 +17,11 @@ import {
 } from '../AdaptiveCard/adaptiveCard';
 import { ImageUtil } from '../../utility/imageutility';
 import { formatDate, formatDuration, formatNumber } from '../../i18n';
+
+export interface IListItem {
+    header: string,
+    media: JSX.Element,
+}
 
 export interface IMessage {
     id: string;
@@ -58,24 +63,6 @@ const initMessage: IMessage = {
     csvUsers: "",
 };
 
-const renderNameList = (items?: string[]) => {
-    if (!items || items.length === 0) return null;
-    return (
-        <ul style={{ paddingLeft: '1rem', margin: 0 }}>
-            {items.map((name) => (
-                <li key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', padding: '2px 0' }}>
-                    <img
-                        src={ImageUtil.makeInitialImage(name)}
-                        alt=""
-                        style={{ width: 24, height: 24, borderRadius: '50%' }}
-                    />
-                    <span>{name}</span>
-                </li>
-            ))}
-        </ul>
-    );
-};
-
 const StatusTaskModule: React.FC = () => {
     const { t } = useTranslation();
     const params = useParams();
@@ -84,7 +71,6 @@ const StatusTaskModule: React.FC = () => {
     const [loader, setLoader] = useState(true);
     const [page, setPage] = useState<string>("ViewStatus");
     const [teamId, setTeamId] = useState<string | undefined>("");
-    const [exporting, setExporting] = useState(false);
 
     if (cardRef.current === null) {
         cardRef.current = getInitAdaptiveCard(t);
@@ -117,6 +103,7 @@ const StatusTaskModule: React.FC = () => {
                 setMessage(fetched);
                 setLoader(false);
 
+                // Render adaptive card after state commit
                 setTimeout(() => {
                     if (cancelled) return;
                     const card = cardRef.current;
@@ -147,7 +134,7 @@ const StatusTaskModule: React.FC = () => {
                     adaptiveCard.onExecuteAction = function () { window.open(link, '_blank'); };
                 }, 0);
             } catch (error) {
-                // swallow
+                // swallow as the class version did
             }
         })();
         return () => { cancelled = true; };
@@ -159,7 +146,8 @@ const StatusTaskModule: React.FC = () => {
     };
 
     const onExport = async () => {
-        setExporting(true);
+        const spanner = document.getElementsByClassName("sendingLoader");
+        if (spanner[0]) spanner[0].classList.remove("hiddenLoader");
         const payload = {
             id: message.id,
             teamId: teamId,
@@ -169,9 +157,15 @@ const StatusTaskModule: React.FC = () => {
             setPage("SuccessPage");
         } catch {
             setPage("ErrorPage");
-        } finally {
-            setExporting(false);
         }
+    };
+
+    const getItemList = (items: string[]): IListItem[] => {
+        if (!items) return [];
+        return items.map((element) => ({
+            header: element,
+            media: <Image src={ImageUtil.makeInitialImage(element)} avatar />,
+        }));
     };
 
     const renderImportant = () => message.isImportant ? <label>Yes</label> : <label>No</label>;
@@ -181,20 +175,20 @@ const StatusTaskModule: React.FC = () => {
             return (
                 <div>
                     <h3>{t("SentToGeneralChannel")}</h3>
-                    {renderNameList(message.teamNames)}
+                    <List items={getItemList(message.teamNames)} />
                 </div>);
         } else if (message.rosterNames && message.rosterNames.length > 0) {
             return (
                 <div>
                     <h3>{t("SentToRosters")}</h3>
-                    {renderNameList(message.rosterNames)}
+                    <List items={getItemList(message.rosterNames)} />
                 </div>);
         } else if (message.groupNames && message.groupNames.length > 0) {
             return (
                 <div>
                     <h3>{t("SentToGroups1")}</h3>
                     <span>{t("SentToGroups2")}</span>
-                    {renderNameList(message.groupNames)}
+                    <List items={getItemList(message.groupNames)} />
                 </div>);
         } else if (message.csvUsers && message.csvUsers.length > 0) {
             return (
@@ -238,30 +232,19 @@ const StatusTaskModule: React.FC = () => {
 
     if (loader) {
         return (
-            <div className="Loader"><Spinner /></div>
+            <div className="Loader">
+                <Loader />
+            </div>
         );
     }
 
-    const exportTooltip = !message.sendingCompleted
-        ? ""
-        : (message.canDownload ? "" : t("ExportButtonProgressText"));
-
     if (page === "ViewStatus") {
-        const exportBtn = (
-            <Button
-                appearance="primary"
-                icon={<ArrowDownloadRegular />}
-                disabled={!message.canDownload || !message.sendingCompleted}
-                id="exportBtn"
-                onClick={onExport}
-            >{t("ExportButtonText")}</Button>
-        );
         return (
             <div className="taskModule">
-                <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div className="scrollableContent" style={{ display: 'flex' }}>
-                        <div className="formContentContainer" style={{ flex: '0 0 50%' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                    <Flex className="scrollableContent">
+                        <Flex.Item size="size.half" className="formContentContainer">
+                            <Flex column>
                                 <div className="contentField">
                                     <h3>{t("TitleText")}</h3>
                                     <span>{message.title}</span>
@@ -289,12 +272,14 @@ const StatusTaskModule: React.FC = () => {
                                     {message.canceled && <><br /><label>{t("Canceled", { "CanceledCount": message.canceled })}</label></>}
                                     {message.unknown && <><br /><label>{t("Unknown", { "UnknownCount": message.unknown })}</label></>}
                                 </div>
+
                                 <div className="contentField">
                                     <div className="contentField">
                                         <h3>{message.buttonTrackingClicks ? t("ButtonClicks") : ""}</h3>
                                         <label>{renderButtonClicks()}</label>
                                     </div>
                                 </div>
+
                                 <div className="contentField">
                                     <h3>{t("Important")}</h3>
                                     <label>{renderImportant()}</label>
@@ -302,25 +287,27 @@ const StatusTaskModule: React.FC = () => {
                                 <div className="contentField">{renderAudienceSelection()}</div>
                                 <div className="contentField">{renderErrorMessage()}</div>
                                 <div className="contentField">{renderWarningMessage()}</div>
-                            </div>
-                        </div>
-                        <div style={{ flex: '0 0 50%' }}>
+                            </Flex>
+                        </Flex.Item>
+                        <Flex.Item size="size.half">
                             <div className="adaptiveCardContainer"></div>
-                        </div>
-                    </div>
-                    <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
+                        </Flex.Item>
+                    </Flex>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end">
                         <div className={message.canDownload ? "" : "disabled"}>
-                            <div className="buttonContainer" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {exporting && (
-                                    <Spinner size="tiny" label={t("ExportLabel")} labelPosition="after" />
-                                )}
-                                {exportTooltip ? (
-                                    <Tooltip content={exportTooltip} relationship="label">{exportBtn}</Tooltip>
-                                ) : exportBtn}
-                            </div>
+                            <Flex className="buttonContainer" gap="gap.small">
+                                <Flex.Item push>
+                                    <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={t("ExportLabel")} labelPosition="end" />
+                                </Flex.Item>
+                                <Flex.Item>
+                                    <TooltipHost content={!message.sendingCompleted ? "" : (message.canDownload ? "" : t("ExportButtonProgressText"))} calloutProps={{ gapSpace: 0 }}>
+                                        <Button icon={<DownloadIcon size="medium" />} disabled={!message.canDownload || !message.sendingCompleted} content={t("ExportButtonText")} id="exportBtn" onClick={onExport} primary />
+                                    </TooltipHost>
+                                </Flex.Item>
+                            </Flex>
                         </div>
-                    </div>
-                </div>
+                    </Flex>
+                </Flex>
             </div>
         );
     }
@@ -328,44 +315,42 @@ const StatusTaskModule: React.FC = () => {
     if (page === "SuccessPage") {
         return (
             <div className="taskModule">
-                <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
                     <div className="displayMessageField">
                         <br /><br />
-                        <div>
-                            <span><CheckmarkCircleRegular className="iconStyle" style={{ fontSize: 48, marginRight: 8 }} /></span>
-                            <h1>{t("ExportQueueTitle")}</h1>
-                        </div>
+                        <div><span><AcceptIcon className="iconStyle" xSpacing="before" size="largest" outline /></span>
+                            <h1>{t("ExportQueueTitle")}</h1></div>
                         <span>{t("ExportQueueSuccessMessage1")}</span>
                         <br /><br />
                         <span>{t("ExportQueueSuccessMessage2")}</span>
                         <br />
                         <span>{t("ExportQueueSuccessMessage3")}</span>
                     </div>
-                    <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <div className="buttonContainer">
-                            <Button appearance="primary" id="closeBtn" onClick={onClose}>{t("CloseText")}</Button>
-                        </div>
-                    </div>
-                </div>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end" gap="gap.small">
+                        <Flex className="buttonContainer">
+                            <Button content={t("CloseText")} id="closeBtn" onClick={onClose} primary />
+                        </Flex>
+                    </Flex>
+                </Flex>
             </div>
         );
     }
 
     return (
         <div className="taskModule">
-            <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
                 <div className="displayMessageField">
                     <br /><br />
                     <div><span></span>
                         <h1 className="light">{t("ExportErrorTitle")}</h1></div>
                     <span>{t("ExportErrorMessage")}</span>
                 </div>
-                <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <div className="buttonContainer">
-                        <Button appearance="primary" id="closeBtn" onClick={onClose}>{t("CloseText")}</Button>
-                    </div>
-                </div>
-            </div>
+                <Flex className="footerContainer" vAlign="end" hAlign="end" gap="gap.small">
+                    <Flex className="buttonContainer">
+                        <Button content={t("CloseText")} id="closeBtn" onClick={onClose} primary />
+                    </Flex>
+                </Flex>
+            </Flex>
         </div>
     );
 };

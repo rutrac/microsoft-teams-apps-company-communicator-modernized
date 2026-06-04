@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
-import { Spinner, Button, Text, tokens } from '@fluentui/react-components';
+import { Loader, Button, Text, List, Image, Flex } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 
 import './sendConfirmationTaskModule.scss';
@@ -16,6 +16,11 @@ import {
     setCardAuthor, setCardBtns, setCardTargetImage, setCardTargetTitle, setCardTarget, setCardImportance
 } from '../AdaptiveCard/adaptiveCard';
 import { ImageUtil } from '../../utility/imageutility';
+
+export interface IListItem {
+    header: string,
+    media: JSX.Element,
+}
 
 export interface IMessage {
     id: string,
@@ -48,21 +53,6 @@ const initMessage: IMessage = {
     channelId: "",
 };
 
-const renderNameList = (items: string[]) => (
-    <ul style={{ paddingLeft: '1rem', margin: 0 }}>
-        {items.map((name) => (
-            <li key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', padding: '2px 0' }}>
-                <img
-                    src={ImageUtil.makeInitialImage(name)}
-                    alt=""
-                    style={{ width: 24, height: 24, borderRadius: '50%' }}
-                />
-                <span>{name}</span>
-            </li>
-        ))}
-    </ul>
-);
-
 const SendConfirmationTaskModule: React.FC = () => {
     const { t } = useTranslation();
     const params = useParams();
@@ -73,7 +63,6 @@ const SendConfirmationTaskModule: React.FC = () => {
     const [rosterNames, setRosterNames] = useState<string[]>([]);
     const [groupNames, setGroupNames] = useState<string[]>([]);
     const [allUsers, setAllUsers] = useState(false);
-    const [sending, setSending] = useState(false);
 
     if (cardRef.current === null) {
         cardRef.current = getInitAdaptiveCard(t);
@@ -156,10 +145,19 @@ const SendConfirmationTaskModule: React.FC = () => {
     }, []);
 
     const onSendMessage = () => {
-        setSending(true);
+        const spanner = document.getElementsByClassName("sendingLoader");
+        if (spanner[0]) spanner[0].classList.remove("hiddenLoader");
         sendDraftNotification(message).then(() => {
             dialog.url.submit();
         });
+    };
+
+    const getItemList = (items: string[]): IListItem[] => {
+        if (!items) return [];
+        return items.map((element) => ({
+            header: element,
+            media: <Image src={ImageUtil.makeInitialImage(element)} avatar />,
+        }));
     };
 
     const renderImportant = () => message.isImportant ? <label>Yes</label> : <label>No</label>;
@@ -167,70 +165,78 @@ const SendConfirmationTaskModule: React.FC = () => {
     const renderAudienceSelection = () => {
         if (teamNames && teamNames.length > 0) {
             return (
-                <div key="teamNames"><span className="label">{t("TeamsLabel")}</span>{renderNameList(teamNames)}</div>
+                <div key="teamNames"> <span className="label">{t("TeamsLabel")}</span>
+                    <List items={getItemList(teamNames)} />
+                </div>
             );
         } else if (rosterNames && rosterNames.length > 0) {
             return (
-                <div key="rosterNames"><span className="label">{t("TeamsMembersLabel")}</span>{renderNameList(rosterNames)}</div>
-            );
+                <div key="rosterNames"> <span className="label">{t("TeamsMembersLabel")}</span>
+                    <List items={getItemList(rosterNames)} />
+                </div>);
         } else if (groupNames && groupNames.length > 0) {
             return (
-                <div key="groupNames"><span className="label">{t("GroupsMembersLabel")}</span>{renderNameList(groupNames)}</div>
-            );
+                <div key="groupNames" > <span className="label">{t("GroupsMembersLabel")}</span>
+                    <List items={getItemList(groupNames)} />
+                </div>);
         } else if (message.csvUsers.length > 0) {
             return (
                 <div key="allUsers">
                     <span className="label">{t("CSVUsersLabel")}</span>
                     <div className="noteText">
-                        <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToCSVUsersNote")}</Text>
+                        <Text error content={t("SendToCSVUsersNote")} />
                     </div>
-                </div>
-            );
+                </div>);
         } else if (allUsers) {
             return (
                 <div key="allUsers">
                     <span className="label">{t("AllUsersLabel")}</span>
                     <div className="noteText">
-                        <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{t("SendToAllUsersNote")}</Text>
+                        <Text error content={t("SendToAllUsersNote")} />
                     </div>
-                </div>
-            );
+                </div>);
         }
         return <div></div>;
     };
 
     if (loader) {
-        return (<div className="Loader"><Spinner /></div>);
+        return (
+            <div className="Loader">
+                <Loader />
+            </div>
+        );
     }
 
     return (
         <div className="taskModule">
-            <div className="formContainer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="scrollableContent" style={{ display: 'flex', gap: '0.5rem' }}>
-                    <div style={{ flex: '0 0 50%' }}>
-                        <div className="formContentContainer" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                <Flex className="scrollableContent" gap="gap.small">
+                    <Flex.Item size="size.half">
+                        <Flex column className="formContentContainer">
                             <h3>{t("ConfirmToSend")}</h3>
                             <span>{t("SendToRecipientsLabel")}</span>
+
                             <div className="results">
                                 {renderAudienceSelection()}
                             </div>
                             <h3>{t("Important")}</h3>
                             <label>{renderImportant()}</label>
+                        </Flex>
+                    </Flex.Item>
+                    <Flex.Item size="size.half">
+                        <div className="adaptiveCardContainer">
                         </div>
-                    </div>
-                    <div style={{ flex: '0 0 50%' }}>
-                        <div className="adaptiveCardContainer"></div>
-                    </div>
-                </div>
-                <div className="footerContainer" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
-                    <div className="buttonContainer" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {sending && (
-                            <Spinner size="tiny" label={t("PreparingMessageLabel")} labelPosition="after" />
-                        )}
-                        <Button appearance="primary" id="sendBtn" onClick={onSendMessage}>{t("Send")}</Button>
-                    </div>
-                </div>
-            </div>
+                    </Flex.Item>
+                </Flex>
+                <Flex className="footerContainer" vAlign="end" hAlign="end">
+                    <Flex className="buttonContainer" gap="gap.small">
+                        <Flex.Item push>
+                            <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={t("PreparingMessageLabel")} labelPosition="end" />
+                        </Flex.Item>
+                        <Button content={t("Send")} id="sendBtn" onClick={onSendMessage} primary />
+                    </Flex>
+                </Flex>
+            </Flex>
         </div>
     );
 };
