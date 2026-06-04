@@ -1,178 +1,128 @@
-import React from 'react';
-import { connect } from 'react-redux';
-import { withTranslation, WithTranslation } from "react-i18next";
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+import React, { useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useTranslation } from "react-i18next";
 import { Menu, MoreIcon } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 
 import { getBaseUrl } from '../../configVariables';
-import { selectMessage, getMessagesList, getDraftMessagesList } from '../../actions';
+import { getMessagesList, getDraftMessagesList } from '../../actions';
 import { deleteDraftNotification, duplicateDraftNotification, sendPreview } from '../../apis/messageListApi';
-import { TFunction } from "i18next";
 
-export interface OverflowProps extends WithTranslation {
+export interface OverflowProps {
     message: any;
     styles?: object;
     title?: string;
-    selectMessage?: any;
-    getMessagesList?: any;
-    getDraftMessagesList?: any;
 }
 
-export interface OverflowState {
-    teamsTeamId?: string;
-    teamsChannelId?: string;
-    menuOpen: boolean;
-}
+const Overflow: React.FC<OverflowProps> = ({ message, styles, title }) => {
+    const { t } = useTranslation();
+    const dispatch = useDispatch<any>();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [teamsTeamId, setTeamsTeamId] = useState<string | undefined>('');
+    const [teamsChannelId, setTeamsChannelId] = useState<string | undefined>('');
 
-class Overflow extends React.Component<OverflowProps, OverflowState> {
-    readonly localize: TFunction;
-    constructor(props: OverflowProps) {
-        super(props);
-        this.localize = this.props.t;
-        this.state = {
-            teamsChannelId: '',
-            teamsTeamId: '',
-            menuOpen: false,
-        };
-    }
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            await app.initialize();
+            const context = await app.getContext();
+            if (cancelled) return;
+            setTeamsTeamId(context.team?.internalId);
+            setTeamsChannelId(context.channel?.id);
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
-    public async componentDidMount() {
-        await app.initialize();
-        const context = await app.getContext();
-        this.setState({
-            teamsTeamId: context.team?.internalId,
-            teamsChannelId: context.channel?.id,
-        });
-    }
-
-    public render(): JSX.Element {
-        const items = [
-            {
-                key: 'more',
-                icon: <MoreIcon outline={true} />,
-                menuOpen: this.state.menuOpen,
-                active: this.state.menuOpen,
-                indicator: false,
-                menu: {
-                    items: [
-                        {
-                            key: 'send',
-                            content: this.localize("Send"),
-                            onClick: (event: any) => {
-                                event.stopPropagation();
-                                this.setState({
-                                    menuOpen: false,
-                                });
-                                let url = getBaseUrl() + "/sendconfirmation/" + this.props.message.id + "?locale={locale}";
-                                this.onOpenTaskModule(null, url, this.localize("SendConfirmation"));
-                            }
-                        },
-                        {
-                            key: 'preview',
-                            content: this.localize("PreviewInThisChannel"),
-                            onClick: (event: any) => {
-                                event.stopPropagation();
-                                this.setState({
-                                    menuOpen: false,
-                                });
-                                let payload = {
-                                    draftNotificationId: this.props.message.id,
-                                    teamsTeamId: this.state.teamsTeamId,
-                                    teamsChannelId: this.state.teamsChannelId,
-                                }
-                                sendPreview(payload).then((response) => {
-                                    return response.status;
-                                }).catch((error) => {
-                                    return error;
-                                });
-                            }
-                        },
-                        {
-                            key: 'edit',
-                            content: this.localize("Edit"),
-                            onClick: (event: any) => {
-                                event.stopPropagation();
-                                this.setState({
-                                    menuOpen: false,
-                                });
-                                let url = getBaseUrl() + "/newmessage/" + this.props.message.id + "?locale={locale}";
-                                this.onOpenTaskModule(null, url, this.localize("EditMessage"));
-                            }
-                        },
-                        {
-                            key: 'duplicate',
-                            content: this.localize("Duplicate"),
-                            onClick: (event: any) => {
-                                event.stopPropagation();
-                                this.setState({
-                                    menuOpen: false,
-                                });
-                                this.duplicateDraftMessage(this.props.message.id).then(() => {
-                                    this.props.getDraftMessagesList();
-                                });
-                            }
-                        },
-                        {
-                            key: 'delete',
-                            content: this.localize("Delete"),
-                            onClick: (event: any) => {
-                                event.stopPropagation();
-                                this.setState({
-                                    menuOpen: false,
-                                });
-                                this.deleteDraftMessage(this.props.message.id).then(() => {
-                                    this.props.getDraftMessagesList();
-                                });
-                            }
-                        },
-                    ],
-                },
-                onMenuOpenChange: (e: any, { menuOpen }: any) => {
-                    this.setState({
-                        menuOpen: menuOpen
-                    });
-                },
-            },
-        ];
-
-        return <Menu className="menuContainer" iconOnly items={items} styles={this.props.styles} title={this.props.title} />;
-    }
-
-    private onOpenTaskModule = (event: any, url: string, title: string) => {
-        let submitHandler = (_result: any) => {
-            this.props.getDraftMessagesList().then(() => {
-                this.props.getMessagesList();
+    const onOpenTaskModule = (url: string, dialogTitle: string) => {
+        const submitHandler = (_result: any) => {
+            dispatch(getDraftMessagesList()).then(() => {
+                dispatch(getMessagesList());
             });
         };
 
         dialog.url.open({
             url: url,
-            title: title,
+            title: dialogTitle,
             size: { height: 530, width: 1000 },
             fallbackUrl: url,
         }, submitHandler);
-    }
+    };
 
-    private duplicateDraftMessage = async (id: number) => {
-        try {
-            await duplicateDraftNotification(id);
-        } catch (error) {
-            return error;
-        }
-    }
+    const items = [
+        {
+            key: 'more',
+            icon: <MoreIcon outline={true} />,
+            menuOpen: menuOpen,
+            active: menuOpen,
+            indicator: false,
+            menu: {
+                items: [
+                    {
+                        key: 'send',
+                        content: t("Send"),
+                        onClick: (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            const url = getBaseUrl() + "/sendconfirmation/" + message.id + "?locale={locale}";
+                            onOpenTaskModule(url, t("SendConfirmation"));
+                        }
+                    },
+                    {
+                        key: 'preview',
+                        content: t("PreviewInThisChannel"),
+                        onClick: (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            const payload = {
+                                draftNotificationId: message.id,
+                                teamsTeamId: teamsTeamId,
+                                teamsChannelId: teamsChannelId,
+                            };
+                            sendPreview(payload).then((response) => response.status).catch((error) => error);
+                        }
+                    },
+                    {
+                        key: 'edit',
+                        content: t("Edit"),
+                        onClick: (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
+                            onOpenTaskModule(url, t("EditMessage"));
+                        }
+                    },
+                    {
+                        key: 'duplicate',
+                        content: t("Duplicate"),
+                        onClick: async (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            try { await duplicateDraftNotification(message.id); } catch { /* ignore */ }
+                            dispatch(getDraftMessagesList());
+                        }
+                    },
+                    {
+                        key: 'delete',
+                        content: t("Delete"),
+                        onClick: async (event: any) => {
+                            event.stopPropagation();
+                            setMenuOpen(false);
+                            try { await deleteDraftNotification(message.id); } catch { /* ignore */ }
+                            dispatch(getDraftMessagesList());
+                        }
+                    },
+                ],
+            },
+            onMenuOpenChange: (_e: any, { menuOpen: open }: any) => {
+                setMenuOpen(open);
+            },
+        },
+    ];
 
-    private deleteDraftMessage = async (id: number) => {
-        try {
-            await deleteDraftNotification(id);
-        } catch (error) {
-            return error;
-        }
-    }
-}
+    return <Menu className="menuContainer" iconOnly items={items} styles={styles} title={title} />;
+};
 
-const mapStateToProps = (state: any) => {
-    return { messages: state.draftMessagesList, selectedMessage: state.selectedMessage };
-}
-
-const overflowWithTranslation = withTranslation()(Overflow);
-export default connect(mapStateToProps, { selectMessage, getDraftMessagesList, getMessagesList })(overflowWithTranslation);
+export default Overflow;

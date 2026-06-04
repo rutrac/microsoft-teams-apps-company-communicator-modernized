@@ -2,11 +2,12 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { IRouterProps, withRouter } from '../../utils/withRouter';
-import { withTranslation, WithTranslation } from "react-i18next";
+import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { useTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
-import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar'
-import { TrashCanIcon, AddIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar'
+import { Button, Loader, Dropdown, Label, Text, Flex, Input, TextArea, RadioGroup, Checkbox, Datepicker } from '@fluentui/react-northstar';
+import { TrashCanIcon, AddIcon, FilesUploadIcon } from '@fluentui/react-icons-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 import Resizer from 'react-image-file-resizer';
 import Papa from "papaparse";
@@ -16,25 +17,14 @@ import { getDraftNotification, getTeams, createDraftNotification, updateDraftNot
 import { getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary, setCardAuthor, setCardBtns, setCardTarget, setCardTargetImage, setCardTargetTitle, setCardImportance } from '../AdaptiveCard/adaptiveCard';
 import { getBaseUrl } from '../../configVariables';
 import { ImageUtil } from '../../utility/imageutility';
-import { TFunction } from "i18next";
 import { OpenUrlAction } from 'adaptivecards';
-
 import axios from '../../apis/axiosJWTDecorator';
-let baseAxiosUrl = getBaseUrl() + '/api';
 
-//hours to be chosen when scheduling messages
+const baseAxiosUrl = getBaseUrl() + '/api';
+
 const hours = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11",
-    "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23",
-];
-
-//minutes to be chosen when scheduling messages
-const minutes = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55",
-];
-
-//coeficient to round dates to the next 5 minutes
-const coeff = 1000 * 60 * 5;
-
-//max size of the card 
+    "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"];
+const minutes = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 const maxCardSize = 30720;
 
 type dropdownItem = {
@@ -42,9 +32,7 @@ type dropdownItem = {
     header: string,
     content: string,
     image: string,
-    team: {
-        id: string,
-    },
+    team: { id: string },
 }
 
 export interface IDraftMessage {
@@ -60,23 +48,22 @@ export interface IDraftMessage {
     groups: any[],
     csvusers: string,
     allUsers: boolean,
-    isImportant: boolean, // indicates if the message is important
-    isScheduled: boolean, // indicates if the message is scheduled
-    ScheduledDate: Date, // stores the scheduled date
-    Buttons: string, // stores the card buttons (JSON)
-    channelId?: string, // id of the channel where the message was created
+    isImportant: boolean,
+    isScheduled: boolean,
+    ScheduledDate: Date,
+    Buttons: string,
+    channelId?: string,
     channelTitle?: string,
     channelImage?: string
 }
 
-export interface formState {
+interface FormState {
     title: string,
     summary?: string,
     btnLink?: string,
     imageLink?: string,
     btnTitle?: string,
     author: string,
-    card?: any,
     page: string,
     teamsOptionSelected: boolean,
     rostersOptionSelected: boolean,
@@ -104,964 +91,206 @@ export interface formState {
     selectedGroups: dropdownItem[],
     errorImageUrlMessage: string,
     errorButtonUrlMessage: string,
-    selectedSchedule: boolean, //status of the scheduler checkbox
-    selectedImportant: boolean, //status of the importance selection on the interface
-    scheduledDate: string, //stores the scheduled date in string format
-    DMY: Date, //scheduled date in date format
-    DMYHour: string, //hour selected
-    DMYMins: string, //mins selected
-    futuredate: boolean, //if the date is in the future (valid schedule)
-    values: any[], //button values collection
-    channelId?: string, //id of the channel where the message was created
+    selectedSchedule: boolean,
+    selectedImportant: boolean,
+    scheduledDate: string,
+    DMY: Date,
+    DMYHour: string,
+    DMYMins: string,
+    futuredate: boolean,
+    values: any[],
+    channelId?: string,
     channelName?: string,
     teamName?: string,
     userPrincipalName?: string,
-    channelTitle?: string, //channel title to be used on the customized card, if targeting is enabled
-    channelImage?: string, //channel image to be used on the customized card, if targeting is enabled
-    maxNumberOfTeams: number, //maximum number of teams that can be selected to receive a message
-    isMaxNumberOfTeamsError: boolean
+    channelTitle?: string,
+    channelImage?: string,
+    maxNumberOfTeams: number,
+    isMaxNumberOfTeamsError: boolean,
 }
 
-export interface INewMessageProps extends IRouterProps, WithTranslation {
-    getDraftMessagesList?: any;
-}
+type Action = { type: 'SET'; payload: Partial<FormState> };
 
-class NewMessage extends React.Component<INewMessageProps, formState> {
-    readonly localize: TFunction;
-    private card: any;
-    fileInput: any;
-    CSVfileInput: any;
-    targetingEnabled: boolean; // property to store value indicating if the targeting mode is enabled or not
-    masterAdminUpns: string; // property to store value with the master admins
-    imageUploadBlobStorage: boolean; //property to store value indicating if the upload to blob storage is enabled or not
-    imageSize: number;
-
-    constructor(props: INewMessageProps) {
-        super(props);
-        this.localize = this.props.t;
-        this.card = getInitAdaptiveCard(this.localize);
-        this.setDefaultCard(this.card);
-        var TempDate = this.getRoundedDate(5, this.getDateObject()); //get the current date
-        this.targetingEnabled = false; // by default targeting is disabled
-        this.masterAdminUpns = "";
-        this.imageUploadBlobStorage = false;
-        this.imageSize = 0;
-
-        this.state = {
-            title: "",
-            summary: "",
-            author: "",
-            btnLink: "",
-            imageLink: "",
-            btnTitle: "",
-            card: this.card,
-            page: "CardCreation",
-            teamsOptionSelected: true,
-            rostersOptionSelected: false,
-            allUsersOptionSelected: false,
-            groupsOptionSelected: false,
-            csvOptionSelected: false,
-            csvLoaded: "",
-            csvError: false,
-            csvusers: "",
-            messageId: "",
-            loader: true,
-            groupAccess: false,
-            loading: false,
-            noResultMessage: "",
-            unstablePinned: true,
-            selectedTeamsNum: 0,
-            selectedRostersNum: 0,
-            selectedGroupsNum: 0,
-            selectedRadioBtn: "teams",
-            selectedTeams: [],
-            selectedRosters: [],
-            selectedGroups: [],
-            errorImageUrlMessage: "",
-            errorButtonUrlMessage: "",
-            selectedSchedule: false, //scheduler option is disabled by default
-            selectedImportant: false, //important flag for the msg is false by default
-            scheduledDate: TempDate.toUTCString(), //current date in UTC string format
-            DMY: TempDate, //current date in Date format
-            DMYHour: this.getDateHour(TempDate.toUTCString()), //initialize with the current hour (rounded up)
-            DMYMins: this.getDateMins(TempDate.toUTCString()), //initialize with the current minute (rounded up)
-            futuredate: false, //by default the date is not in the future
-            values: [], //by default there are no buttons on the adaptive card
-            channelId: "", //channel id is empty by default
-            channelTitle: "",
-            channelImage: "",
-            maxNumberOfTeams: 20,
-            isMaxNumberOfTeamsError: false
-        }
-        this.fileInput = React.createRef();
-        this.CSVfileInput = React.createRef();
-        this.handleImageSelection = this.handleImageSelection.bind(this);
-        this.handleCSVSelection = this.handleCSVSelection.bind(this);
-       
+const reducer = (state: FormState, action: Action): FormState => {
+    switch (action.type) {
+        case 'SET':
+            return { ...state, ...action.payload };
+        default:
+            return state;
     }
+};
 
-    public async componentDidMount() {
-        await app.initialize();
+const getRoundedDate = (mins: number, d = new Date()) => {
+    const ms = 1000 * 60 * mins;
+    return new Date(Math.ceil(d.getTime() / ms) * ms);
+};
 
-        //- Handle the Esc key
-        document.addEventListener("keydown", this.escFunction, false);
-        let params = this.props.match.params;
-        this.setGroupAccess();
+const getDateObject = (datestring?: string) => {
+    if (!datestring) {
+        const TempDate = new Date();
+        TempDate.setTime(TempDate.getTime() + 86400000);
+        return TempDate;
+    }
+    return new Date(datestring);
+};
 
-        //get the maximum number of teams that can receive a message
-        let url = baseAxiosUrl + "/options";
-    
-        try {
-            var response = await axios.get(url);
-            this.setState({maxNumberOfTeams: response.data});
-        }
-        catch {
-            this.setState({maxNumberOfTeams: response.data})
-        }
+const getDateHour = (datestring: string) => {
+    if (!datestring) return "00";
+    return new Date(datestring).getHours().toString().padStart(2, "0");
+};
 
-        // get teams context variables and store in the state
-        const context = await app.getContext();
-        this.setState({
-            channelId: context.channel?.id,
-            channelName: context.channel?.displayName,
-            teamName: context.team?.displayName,
-            userPrincipalName: context.user?.userPrincipalName,
-        });
+const getDateMins = (datestring: string) => {
+    if (!datestring) return "00";
+    return new Date(datestring).getMinutes().toString().padStart(2, "0");
+};
 
-        //get the channel configuration from the database
-        this.GetChannelInfo(context.channel?.id).then(() => {
-            setCardTargetImage(this.card, this.state.channelImage);
-            setCardTargetTitle(this.card, this.state.channelTitle);
-        });
+const isMasterAdmin = (masterAdminUpns: string, userUpn?: string) => {
+    if (!userUpn) return false;
+    const masterAdmins = masterAdminUpns.toLowerCase().split(/;|,/).map(e => e.trim());
+    return masterAdmins.indexOf(userUpn.toLowerCase()) >= 0;
+};
 
-        this.getAppSettings().then(() => {
-            this.radioControl();
-            setCardTarget(this.card, this.targetingEnabled);
-            this.getTeamList().then(() => {
-                if ('id' in params) {
-                    let id = params['id'] as string;
-                    this.getItem(id).then(() => {
-                        const selectedTeams = this.makeDropdownItemList(this.state.selectedTeams, this.state.teams);
-                        const selectedRosters = this.makeDropdownItemList(this.state.selectedRosters, this.state.teams);
-                        this.setState({
-                            exists: true,
-                            messageId: id,
-                            selectedTeams: selectedTeams,
-                            selectedRosters: selectedRosters,
-                            csvusers: this.state.csvusers,
-                            selectedSchedule: this.state.selectedSchedule,
-                            selectedImportant: this.state.selectedImportant,
-                            scheduledDate: this.state.scheduledDate,
-                            DMY: this.getDateObject(this.state.scheduledDate),
-                            DMYHour: this.getDateHour(this.state.scheduledDate),
-                            DMYMins: this.getDateMins(this.state.scheduledDate),
-                            values: this.state.values,
-                            channelId: this.state.channelId
-                        })
-                    });
-                    this.getGroupData(id).then(() => {
-                        const selectedGroups = this.makeDropdownItems(this.state.groups);
-                        this.setState({
-                            selectedGroups: selectedGroups
-                        })
-                    });
-                } else {
-                    this.setState({
-                        exists: false,
-                        loader: false
-                    }, () => {
-                        let adaptiveCard = new AdaptiveCards.AdaptiveCard();
-                        adaptiveCard.parse(this.state.card);
-                        let renderedCard = adaptiveCard.render();
-                        document.getElementsByClassName('adaptiveCardContainer')[0].appendChild(renderedCard);
-                        if (this.state.btnLink) {
-                            let link = this.state.btnLink;
-                            adaptiveCard.onExecuteAction = function (action) { window.open(link, '_blank'); };
-                        }
-                        app.getContext().then(ctx => {
-                            this.setState({
-                                channelId: ctx.channel?.id,
-                            });
-                        });
-                    })
-                }
+const makeDropdownItems = (items: any[] | undefined): dropdownItem[] => {
+    const out: dropdownItem[] = [];
+    if (items) {
+        items.forEach((element) => {
+            out.push({
+                key: element.id,
+                header: element.name,
+                content: element.mail,
+                image: ImageUtil.makeInitialImage(element.name),
+                team: { id: element.id },
             });
         });
     }
+    return out;
+};
 
-    // get the app configuration values and set targeting mode from app settings
-    private getAppSettings = async () => {
-        let response = await getAppSettings();
-        if (response.data) {
-            this.targetingEnabled = (response.data.targetingEnabled === 'true'); //get the targetingenabled value
-            this.masterAdminUpns = response.data.masterAdminUpns; //get the array of master admins
-            this.imageUploadBlobStorage = response.data.imageUploadBlobStorage; //get the value indicating if the image to blob storage option is enabled
-
-        }
-    }
-
-    //returns true if the userUpn is listed on masterAdminUpns
-    private isMasterAdmin = (masterAdminUpns: string, userUpn?: string) => {
-        var ret = false; // default return value
-        var masterAdmins = masterAdminUpns.toLowerCase().split(/;|,/).map(element => element.trim()); //splits the string and convert to lowercase
-        //if we get a userUpn as parameter
-        if (userUpn) {
-            //gets the index of the user on the master admin array
-            if (masterAdmins.indexOf(userUpn.toLowerCase()) >= 0) { ret = true; }
-        }
-        return ret;
-    }
-
-    //get the channel configuration 
-    private GetChannelInfo = async (channelid: string) => {
-        try {
-
-            const response = await getChannelConfig(channelid);
-            const draftChannel = response.data;
-
-            this.setState({
-                channelImage: draftChannel.channelImage,
-                channelTitle: draftChannel.channelTitle,
-            });
-
-        } catch (error) {
-            return error;
-        }
-    }
-
-    //function to handle the selection of the OS file upload box
-    private handleImageSelection() {
-        //get the first file selected
-        const file = this.fileInput.current.files[0];
-        if (file) { //if we have a file
-            var cardsize = JSON.stringify(this.card).length;
-            if (this.imageUploadBlobStorage) {
-                var that = this;
-                var reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onloadend = function () {
-                    var base64String = reader.result;
-                    that.imageSize = base64String.toString().length;
-                    cardsize = cardsize - that.imageSize;
-                    setCardImageLink(that.card, base64String.toString());
-                    that.updateCard();
-                    that.setState({
-                        imageLink: base64String.toString()
-                    });
-                }
-            } else {
-                Resizer.imageFileResizer(file, 400, 400, 'JPEG', 80, 0,
-                    uri => {
-                        if (uri.toString().length < maxCardSize - cardsize) {
-                            setCardImageLink(this.card, uri.toString());
-                            this.updateCard();
-                            //lets set the state with the image value
-                            this.setState({
-                                imageLink: uri.toString()
-                            }
-                            );
-                        } else {
-                            var errormsg = this.localize("ErrorImageTooBig") + " " + this.localize("ErrorImageTooBigSize") + " " + (maxCardSize - cardsize) + " bytes.";
-                            //images bigger than 32K cannot be saved, set the error message to be presented
-                            this.setState({
-                                errorImageUrlMessage: errormsg
-                            });
-                        }
-                    }, 'base64'); //we need the image in base64
-            }
-        }
-    }
-
-    //Function to handle the CSV File selection
-    private handleCSVSelection() {
-        //get the first file sealected
-        const file = this.CSVfileInput.current.files[0];
-        //if we have a file
-        if (file) {
-            var cardsize = JSON.stringify(this.card).length;
-            if (this.imageUploadBlobStorage) {
-                cardsize = cardsize - this.imageSize;
-            }
-            //parses the CSV file using papa parse library
-            Papa.parse(file, {
-                skipEmptyLines: true,
-                delimiter:"\t",
-                complete: ({ errors, data }) => {
-
-                    if (errors.length > 0) {
-                        //file is invalid, show the message for the user
-                        this.setState({
-                            csvLoaded: this.localize("CSVInvalid"),
-                            csvError: true,
-                            csvusers: ""
-                        });
-                    } else {
-                        var csvfilesize = JSON.stringify(data).length;
-                        if ((cardsize + csvfilesize) < maxCardSize) {
-                            //file loaded
-                            this.setState({
-                                csvLoaded: this.localize("CSVLoaded"),
-                                csvError: false,
-                                csvusers: JSON.stringify(data)
-                            });
-                        } else {
-                            //file is too big, show the message for the user
-                            var errorMessage = this.localize("CSVIsTooBig") + " " + (maxCardSize - cardsize) + " bytes.";
-                            this.setState({
-                                csvLoaded: errorMessage,
-                                csvError: true,
-                                csvusers: ""
-                            });
-                        }
-                    }
-                }
-            });
-
-        }
-    }
-
-    //Function calling a click event on a hidden file input
-    private handleUploadClick = (event: any) => {
-        //reset the error message and the image link as the upload will reset them potentially
-        this.setState({
-            errorImageUrlMessage: "",
-            imageLink: ""
-        });
-        setCardImageLink(this.card, "");
-        //fire the fileinput click event and run the handleimageselection function
-        this.fileInput.current.click();
-    };
-
-    //Function calling a click event on a hidden file input
-    private handleCSVUploadClick = (event: any) => {
-        this.setState({
-            csvLoaded: "",
-            csvError: false,
-            csvusers: ""
-        });
-
-        //fire the csvfileinput click event and run the handle the CSV function
-        this.CSVfileInput.current.click();
-    };
-
-    private makeDropdownItems = (items: any[] | undefined) => {
-        const resultedTeams: dropdownItem[] = [];
-        if (items) {
-            items.forEach((element) => {
-                resultedTeams.push({
-                    key: element.id,
-                    header: element.name,
-                    content: element.mail,
-                    image: ImageUtil.makeInitialImage(element.name),
-                    team: {
-                        id: element.id
-                    },
-
+const makeDropdownItemList = (items: any[], fromItems: any[] | undefined): dropdownItem[] => {
+    const out: dropdownItem[] = [];
+    items.forEach((element: any) => {
+        if (typeof element !== "string") {
+            out.push(element);
+        } else if (fromItems) {
+            const found = fromItems.find(x => x.id === element);
+            if (found) {
+                out.push({
+                    key: found.id,
+                    header: found.name,
+                    content: found.mail || "",
+                    image: ImageUtil.makeInitialImage(found.name),
+                    team: { id: element },
                 });
-            });
+            }
         }
-        return resultedTeams;
-    }
+    });
+    return out;
+};
 
-    private makeDropdownItemList = (items: any[], fromItems: any[] | undefined) => {
-        const dropdownItemList: dropdownItem[] = [];
-        items.forEach(element =>
-            dropdownItemList.push(
-                typeof element !== "string" ? element : {
-                    key: fromItems!.find(x => x.id === element).id,
-                    header: fromItems!.find(x => x.id === element).name,
-                    image: ImageUtil.makeInitialImage(fromItems!.find(x => x.id === element).name),
-                    team: {
-                        id: element
-                    }
-                })
-        );
-        return dropdownItemList;
-    }
+const NewMessage: React.FC = () => {
+    const { t } = useTranslation();
+    const params = useParams();
 
-    public setDefaultCard = (card: any) => {
-        const titleAsString = this.localize("TitleText");
-        const summaryAsString = this.localize("Summary");
-        const authorAsString = this.localize("Author1");
-        const buttonTitleAsString = this.localize("ButtonTitle");
+    const cardRef = useRef<any>(null);
+    const fileInput = useRef<HTMLInputElement | null>(null);
+    const CSVfileInput = useRef<HTMLInputElement | null>(null);
+    const targetingEnabledRef = useRef<boolean>(false);
+    const masterAdminUpnsRef = useRef<string>("");
+    const imageUploadBlobStorageRef = useRef<boolean>(false);
+    const imageSizeRef = useRef<number>(0);
 
-        setCardTitle(card, titleAsString);
-        let imgUrl = getBaseUrl() + "/image/imagePlaceholder.png";
+    const setDefaultCard = useCallback((card: any) => {
+        setCardTitle(card, t("TitleText"));
+        const imgUrl = getBaseUrl() + "/image/imagePlaceholder.png";
         setCardImageLink(card, imgUrl);
-        setCardSummary(card, summaryAsString);
-        setCardAuthor(card, authorAsString);
-        setCardBtns(card, [{
-            "type": "Action.OpenUrl",
-            "title": "Button",
-            "url": ""
-        }]);
+        setCardSummary(card, t("Summary"));
+        setCardAuthor(card, t("Author1"));
+        setCardBtns(card, [{ "type": "Action.OpenUrl", "title": "Button", "url": "" }]);
+    }, [t]);
+
+    if (cardRef.current === null) {
+        cardRef.current = getInitAdaptiveCard(t);
+        setDefaultCard(cardRef.current);
     }
 
-    private getTeamList = async () => {
-        try {
-            const response = await getTeams();
-            this.setState({
-                teams: response.data
-            });
-        } catch (error) {
-            return error;
-        }
-    }
+    const TempDate0 = getRoundedDate(5, getDateObject());
 
-    private async setAuthorizedGroupItems() {
-        var resultListItems: any[] = [];
+    const initialState: FormState = {
+        title: "",
+        summary: "",
+        author: "",
+        btnLink: "",
+        imageLink: "",
+        btnTitle: "",
+        page: "CardCreation",
+        teamsOptionSelected: true,
+        rostersOptionSelected: false,
+        allUsersOptionSelected: false,
+        groupsOptionSelected: false,
+        csvOptionSelected: false,
+        csvLoaded: "",
+        csvError: false,
+        csvusers: "",
+        messageId: "",
+        loader: true,
+        groupAccess: false,
+        loading: false,
+        noResultMessage: "",
+        unstablePinned: true,
+        selectedTeamsNum: 0,
+        selectedRostersNum: 0,
+        selectedGroupsNum: 0,
+        selectedRadioBtn: "teams",
+        selectedTeams: [],
+        selectedRosters: [],
+        selectedGroups: [],
+        errorImageUrlMessage: "",
+        errorButtonUrlMessage: "",
+        selectedSchedule: false,
+        selectedImportant: false,
+        scheduledDate: TempDate0.toUTCString(),
+        DMY: TempDate0,
+        DMYHour: getDateHour(TempDate0.toUTCString()),
+        DMYMins: getDateMins(TempDate0.toUTCString()),
+        futuredate: false,
+        values: [],
+        channelId: "",
+        channelTitle: "",
+        channelImage: "",
+        maxNumberOfTeams: 20,
+        isMaxNumberOfTeamsError: false,
+    };
 
-        const response = await getGroupAssociations(this.state.channelId);
-        const inputGroups = response.data;
+    const [state, dispatch] = useReducer(reducer, initialState);
+    const stateRef = useRef(state);
+    stateRef.current = state;
 
-        inputGroups.forEach((element) => {
-            resultListItems.push({
-                mail: element.groupEmail,
-                id: element.groupId,
-                name: element.groupName,
-            });
-        });
+    const set = useCallback((payload: Partial<FormState>) => {
+        dispatch({ type: 'SET', payload });
+    }, []);
 
-        this.setState({
-            groups: resultListItems
-        });
-    }
-
-    private getGroupItems() {
-        if (this.state.groups) {
-            return this.makeDropdownItems(this.state.groups);
-        }
-        const dropdownItems: dropdownItem[] = [];
-        return dropdownItems;
-    }
-
-    private setGroupAccess = async () => {
-        await verifyGroupAccess().then(() => {
-            this.setState({
-                groupAccess: true
-            });
-        }).catch((error) => {
-            const errorStatus = error.response.status;
-            if (errorStatus === 403) {
-                this.setState({
-                    groupAccess: false
-                });
-            }
-            else {
-                throw error;
-            }
-        });
-    }
-
-    private getGroupData = async (id: string | number) => {
-        try {
-            const response = await getGroups(id);
-            this.setState({
-                groups: response.data
-            });
-        }
-        catch (error) {
-            return error;
-        }
-    }
-
-    private getItem = async (id: string | number) => {
-        try {
-
-            const response = await getDraftNotification(id);
-            const draftMessageDetail = response.data;
-            //temp message to update the csvLoaded
-            let csvMsg = "";
-
-            let selectedRadioButton = "teams";
-            if (draftMessageDetail.rosters.length > 0) {
-                selectedRadioButton = "rosters";
-            }
-            else if (draftMessageDetail.groups.length > 0) {
-                selectedRadioButton = "groups";
-            }
-            else if (draftMessageDetail.csvUsers.length > 0) { //we have a message sending to CSV users
-                selectedRadioButton = "csv"; //select the csv option radio
-                csvMsg = this.localize("CSVLoaded"); //update the message that will update the state
-            }
-            else if (draftMessageDetail.allUsers) {
-                selectedRadioButton = "allUsers";
-            }
-
-            // set state based on values returned 
-            this.setState({
-                teamsOptionSelected: draftMessageDetail.teams.length > 0,
-                selectedTeamsNum: draftMessageDetail.teams.length,
-                rostersOptionSelected: draftMessageDetail.rosters.length > 0,
-                selectedRostersNum: draftMessageDetail.rosters.length,
-                groupsOptionSelected: draftMessageDetail.groups.length > 0,
-                selectedGroupsNum: draftMessageDetail.groups.length,
-                selectedRadioBtn: selectedRadioButton,
-                selectedTeams: draftMessageDetail.teams,
-                selectedRosters: draftMessageDetail.rosters,
-                selectedGroups: draftMessageDetail.groups,
-                selectedSchedule: draftMessageDetail.isScheduled,
-                selectedImportant: draftMessageDetail.isImportant,
-                scheduledDate: draftMessageDetail.scheduledDate,
-                csvusers: draftMessageDetail.csvUsers, //update the state with the list of users (JSON)
-                csvLoaded: csvMsg, //updates the message that will be presented in the text field
-                csvError: !(csvMsg.length > 0), //state that stores the csv syntax analysis status
-                csvOptionSelected: (csvMsg.length > 0), //to show the fields and allow updates
-                channelId: draftMessageDetail.channelId,
-            });
-
-            // set card properties
-            setCardTitle(this.card, draftMessageDetail.title);
-            setCardImageLink(this.card, draftMessageDetail.imageLink);
-            setCardSummary(this.card, draftMessageDetail.summary);
-            setCardAuthor(this.card, draftMessageDetail.author);
-            setCardImportance(this.card, !!draftMessageDetail.isImportant);
-
-            // this is to ensure compatibility with older versions
-            // if we get empty buttonsJSON and values on buttonTitle and buttonLink, we insert those to values
-            // if not we just use values cause the JSON will be complete over there
-            if (draftMessageDetail.buttonTitle && draftMessageDetail.buttonLink && !draftMessageDetail.buttons) {
-                this.setState({
-                    values: [{
-                        "type": "Action.OpenUrl",
-                        "title": draftMessageDetail.buttonTitle,
-                        "url": draftMessageDetail.buttonLink
-                    }]
-                });
-            }
-            else {
-                // set the values state with the parse of the JSON recovered from the database
-                if (draftMessageDetail.buttons !== null) { //if the database value is not null, parse the JSON to create the button objects
-                    this.setState({
-                        values: JSON.parse(draftMessageDetail.buttons)
-                    });
-                } else { //if the string is null, then initialize the empty collection 
-                    this.setState({
-                        values: []
-                    });
-                }
-            }
-
-            // set the card buttons collection based on the values collection
-            setCardBtns(this.card, this.state.values);
-            this.setState({
-                title: draftMessageDetail.title,
-                summary: draftMessageDetail.summary,
-                btnLink: draftMessageDetail.buttonLink,
-                imageLink: draftMessageDetail.imageLink,
-                btnTitle: draftMessageDetail.buttonTitle,
-                author: draftMessageDetail.author,
-                allUsersOptionSelected: draftMessageDetail.allUsers,
-                loader: false
-            }, () => {
-                this.updateCard();
-            });
-        } catch (error) {
-            return error;
-        }
-    }
-
-    public componentWillUnmount() {
-        document.removeEventListener("keydown", this.escFunction, false);
-    }
-
-    public render(): JSX.Element {
-        var isMaster = this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
-
-        if (this.state.loader) {
-            return (
-                <div className="Loader">
-                    <Loader />
-                </div>
-            );
+    const updateCard = useCallback(() => {
+        const adaptiveCard = new AdaptiveCards.AdaptiveCard();
+        adaptiveCard.parse(cardRef.current);
+        const renderedCard = adaptiveCard.render();
+        const containerEl = document.getElementsByClassName('adaptiveCardContainer')[0];
+        if (!containerEl || !renderedCard) return;
+        const container = containerEl.firstChild;
+        if (container != null) {
+            container.replaceWith(renderedCard);
         } else {
-            if (this.state.page === "CardCreation") {
-                return (
-                    <div className="taskModule">
-                        <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
-                            <Flex className="scrollableContent">
-                                <Flex.Item size="size.half">
-                                    <Flex column className="formContentContainer">
-                                        <Input className="inputField"
-                                            value={this.state.title}
-                                            label={this.localize("TitleText")}
-                                            placeholder={this.localize("PlaceHolderTitle")}
-                                            onChange={this.onTitleChanged}
-                                            autoComplete="off"
-                                            fluid
-                                        />
-                                        <Flex gap="gap.smaller" vAlign="end" className="inputField">
-                                            <Input
-                                                value={this.state.imageLink}
-                                                label={this.localize("ImageURL")}
-                                                placeholder={this.localize("ImageURLPlaceHolder")}
-                                                onChange={this.onImageLinkChanged}
-                                                error={!(this.state.errorImageUrlMessage === "")}
-                                                autoComplete="off"
-                                                fluid
-                                            />
-                                            <input type="file" accept="image/"
-                                                style={{ display: 'none' }}
-                                                onChange={this.handleImageSelection}
-                                                ref={this.fileInput} />
-                                            <Flex.Item push>
-                                                <Button circular onClick={this.handleUploadClick}
-                                                    size="small"
-                                                    icon={<FilesUploadIcon />}
-                                                    title={this.localize("UploadImage")}
-                                                />
-                                            </Flex.Item>
-                                        </Flex>
-                                        <Text className={(this.state.errorImageUrlMessage === "") ? "hide" : "show"} error size="small" content={this.state.errorImageUrlMessage} />
-
-                                        <div className="textArea">
-                                            <Text content={this.localize("Summary")} />
-                                            <TextArea
-                                                autoFocus
-                                                placeholder={this.localize("Summary")}
-                                                value={this.state.summary}
-                                                onChange={this.onSummaryChanged}
-                                                fluid />
-                                        </div>
-
-                                        <Input className="inputField"
-                                            value={this.state.author}
-                                            label={this.localize("Author")}
-                                            placeholder={this.localize("Author")}
-                                            onChange={this.onAuthorChanged}
-                                            autoComplete="off"
-                                            fluid
-                                        />
-                                        <div className="textArea">
-                                            <Flex gap="gap.large" vAlign="end">
-                                                <Text size="small" align="start" content={this.localize("Buttons")} />
-                                                <Flex.Item push >
-                                                    <Button circular size="small" disabled={(this.state.values.length == 4) || !(this.state.errorButtonUrlMessage === "")} icon={<AddIcon />} title={this.localize("Add")} onClick={this.addClick.bind(this)} />
-                                                </Flex.Item>
-                                            </Flex>
-                                        </div>
-
-                                        {this.createUI()}
-
-                                        <Text className={(this.state.errorButtonUrlMessage === "") ? "hide" : "show"} error size="small" content={this.state.errorButtonUrlMessage} />
-                                    </Flex>
-                                </Flex.Item>
-                                <Flex.Item size="size.half">
-                                    <div>
-                                        <Flex hAlign="end">
-                                            <Label content={JSON.stringify(this.card).length - this.imageSize + "/" + maxCardSize} />
-                                        </Flex>
-                                        <div className="adaptiveCardContainer">
-                                        </div>
-                                    </div>
-                                </Flex.Item>
-                            </Flex>
-
-                            <Flex className="footerContainer" vAlign="end" hAlign="end">
-                                <Flex className="buttonContainer">
-                                    <Button content={this.localize("Next")} disabled={this.isNextBtnDisabled()} id="saveBtn" onClick={this.onNext} primary />
-                                </Flex>
-                            </Flex>
-
-                        </Flex>
-                    </div>
-                );
-            }
-            else if (this.state.page === "AudienceSelection") {
-                return (
-                    <div className="taskModule">
-                        <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
-                            <Flex className="scrollableContent">
-                                <Flex.Item size="size.half">
-                                    <Flex column className="formContentContainer">
-                                        <h3>{this.localize("SendHeadingText")}</h3>
-                                        <Text content={this.localize("MaxTeamsError")} hidden={!this.state.isMaxNumberOfTeamsError} error />
-                                        <RadioGroup
-                                            className="radioBtns"
-                                            checkedValue={this.state.selectedRadioBtn}
-                                            onCheckedValueChange={this.onGroupSelected}
-                                            vertical={true}
-                                            items={([
-                                                {
-                                                    name: "teams",
-                                                    key: "teams",
-                                                    disabled: (this.targetingEnabled && !isMaster),
-                                                    value: "teams",
-                                                    label: this.localize("SendToGeneralChannel"),
-                                                    children: (Component, { name, ...props }) => {
-                                                        return (
-                                                            <Flex key={name} column>
-                                                                <Component {...props} />
-                                                                <Flex className="selectTeamsContainer" gap="gap.small" hidden={!this.state.teamsOptionSelected}>
-                                                                    <Button content={this.localize("SelectAll")} onClick={this.onSelectAllTeams} />
-                                                                    <Button content={this.localize("UnselectAll")} onClick={this.onUnselectAllTeams} />
-                                                                </Flex>  
-                                                                <Dropdown
-                                                                    hidden={!this.state.teamsOptionSelected}
-                                                                    placeholder={this.localize("SendToGeneralChannelPlaceHolder")}
-                                                                    search
-                                                                    multiple
-                                                                    items={this.getItems()}
-                                                                    value={this.state.selectedTeams}
-                                                                    disabled={(this.targetingEnabled && !isMaster)}
-                                                                    onChange={this.onTeamsChange}
-                                                                    noResultsMessage={this.localize("NoMatchMessage")}
-                                                                />
-                                                            </Flex>
-                                                        )
-                                                    },
-                                                },
-                                                {
-                                                    name: "rosters",
-                                                    key: "rosters",
-                                                    disabled: (this.targetingEnabled && !isMaster),
-                                                    value: "rosters",
-                                                    label: this.localize("SendToRosters"),
-                                                    children: (Component, { name, ...props }) => {
-                                                        return (
-                                                            <Flex key={name} column>
-                                                                <Component {...props} />
-                                                                <Flex className="selectTeamsContainer" gap="gap.small" hidden={!this.state.rostersOptionSelected}>
-                                                                    <Button content={this.localize("SelectAll")} onClick={this.onSelectAllRosters} />
-                                                                    <Button content={this.localize("UnselectAll")} onClick={this.onUnselectAllRosters}  />
-                                                                </Flex>
-                                                                <Dropdown
-                                                                    hidden={!this.state.rostersOptionSelected}
-                                                                    placeholder={this.localize("SendToRostersPlaceHolder")}
-                                                                    search
-                                                                    multiple
-                                                                    items={this.getItems()}
-                                                                    value={this.state.selectedRosters}
-                                                                    onChange={this.onRostersChange}
-                                                                    unstable_pinned={this.state.unstablePinned}
-                                                                    noResultsMessage={this.localize("NoMatchMessage")}
-                                                                />
-                                                            </Flex>
-                                                        )
-                                                    },
-                                                },
-                                                {
-                                                    name: "allUsers",
-                                                    key: "allUsers",
-                                                    disabled: (this.targetingEnabled && !isMaster),
-                                                    value: "allUsers",
-                                                    label: this.localize("SendToAllUsers"),
-                                                    children: (Component, { name, ...props }) => {
-                                                        return (
-                                                            <Flex key={name} column>
-                                                                <Component {...props} />
-                                                                <div className={this.state.selectedRadioBtn === "allUsers" ? "" : "hide"}>
-                                                                    <div className="noteText">
-                                                                        <Text error content={this.localize("SendToAllUsersNote")} />
-                                                                    </div>
-                                                                </div>
-                                                            </Flex>
-                                                        )
-                                                    },
-                                                },
-                                                {
-                                                    name: "groups",
-                                                    key: "groups",
-                                                    value: "groups",
-                                                    label: this.localize("SendToGroups"),
-                                                    checked: (this.targetingEnabled && !isMaster),
-                                                    children: (Component, { name, ...props }) => {
-                                                        if (this.targetingEnabled && !isMaster) {
-                                                            this.setAuthorizedGroupItems();
-                                                            return (
-                                                                <Flex key={name} column>
-                                                                    <Component {...props} />
-                                                                    <Dropdown
-                                                                        className="hideToggle"
-                                                                        placeholder="Select groups from the authorized list"
-                                                                        multiple
-                                                                        items={this.getGroupItems()}
-                                                                        value={this.state.selectedGroups}
-                                                                        onChange={this.onGroupsChange}
-                                                                        noResultsMessage={this.state.noResultMessage}
-                                                                        unstable_pinned={this.state.unstablePinned}
-                                                                    />
-                                                                </Flex>
-                                                            )
-                                                        }
-                                                        else {
-                                                            return (
-                                                                <Flex key={name} column>
-                                                                    <Component {...props} />
-                                                                    <div className={this.state.groupsOptionSelected && !this.state.groupAccess ? "" : "hide"}>
-                                                                        <div className="noteText">
-                                                                            <Text error content={this.localize("SendToGroupsPermissionNote")} />
-                                                                        </div>
-                                                                    </div>
-                                                                    <Dropdown
-                                                                        className="hideToggle"
-                                                                        hidden={!this.state.groupsOptionSelected || !this.state.groupAccess}
-                                                                        placeholder={this.localize("SendToGroupsPlaceHolder")}
-                                                                        search={this.onGroupSearch}
-                                                                        multiple
-                                                                        loading={this.state.loading}
-                                                                        loadingMessage={this.localize("LoadingText")}
-                                                                        items={this.getGroupItems()}
-                                                                        value={this.state.selectedGroups}
-                                                                        onSearchQueryChange={this.onGroupSearchQueryChange}
-                                                                        onChange={this.onGroupsChange}
-                                                                        noResultsMessage={this.state.noResultMessage}
-                                                                        unstable_pinned={this.state.unstablePinned}
-                                                                    />
-                                                                    <div className={this.state.groupsOptionSelected && this.state.groupAccess ? "" : "hide"}>
-                                                                        <div className="noteText">
-                                                                            <Text error content={this.localize("SendToGroupsNote")} />
-                                                                        </div>
-                                                                    </div>
-                                                                </Flex>
-                                                            )
-                                                        }
-                                                    },
-                                                },
-                                                {
-                                                    name: "csv",
-                                                    key: "csv",
-                                                    disabled: (this.targetingEnabled && !isMaster),
-                                                    value: "csv",
-                                                    label: this.localize("SendToCSV"),
-                                                    children: (Component, { name, ...props }) => {
-                                                        return (
-                                                            <Flex key={name} column debug={false}>
-                                                                <Component {...props} />
-                                                                <Flex gap="gap.smaller" debug={false} vAlign="end" className="csvUpload" hidden={!this.state.csvOptionSelected}>
-                                                                    <Input
-                                                                        value={this.state.csvLoaded}
-                                                                        error={this.state.csvError}
-                                                                        autoComplete="off"
-                                                                        disabled={true}
-                                                                        fluid
-                                                                    />
-                                                                    <input type="file" accept="csv/"
-                                                                        style={{ display: 'none' }}
-                                                                        onChange={this.handleCSVSelection}
-                                                                        ref={this.CSVfileInput} />
-                                                                    <Flex.Item push>
-                                                                        <Button circular onClick={this.handleCSVUploadClick}
-                                                                            size="small"
-                                                                            icon={<FilesUploadIcon />}
-                                                                            title={this.localize("LabelCSV")}
-                                                                        />
-                                                                    </Flex.Item>
-                                                                </Flex>
-                                                            </Flex>
-                                                        )
-                                                    },
-                                                }
-                                            ]) as any}
-                                        >
-                                        </RadioGroup>
-
-                                        <Flex hAlign="start">
-                                            <h3><Checkbox
-                                                className="ScheduleCheckbox"
-                                                labelPosition="start"
-                                                onClick={this.onScheduleSelected}
-                                                label={this.localize("ScheduledSend")}
-                                                checked={this.state.selectedSchedule}
-                                                toggle
-                                            /></h3>
-                                        </Flex>
-                                        <Text size="small" align="start" content={this.localize('ScheduledSendDescription')} />
-                                        <Flex gap="gap.smaller" className="DateTimeSelector">
-                                            <Datepicker
-                                                disabled={!this.state.selectedSchedule}
-                                                defaultSelectedDate={this.getDateObject(this.state.scheduledDate)}
-                                                minDate={new Date()}
-                                                inputOnly
-                                                onDateChange={this.handleDateChange}
-                                            />
-                                            <Flex.Item shrink={true} size="1%">
-                                                <Dropdown
-                                                    placeholder="hour"
-                                                    disabled={!this.state.selectedSchedule}
-                                                    fluid={true}
-                                                    items={hours}
-                                                    defaultValue={this.getDateHour(this.state.scheduledDate)}
-                                                    onChange={this.handleHourChange}
-                                                />
-                                            </Flex.Item>
-                                            <Flex.Item shrink={true} size="1%">
-                                                <Dropdown
-                                                    placeholder="mins"
-                                                    disabled={!this.state.selectedSchedule}
-                                                    fluid={true}
-                                                    items={minutes}
-                                                    defaultValue={this.getDateMins(this.state.scheduledDate)}
-                                                    onChange={this.handleMinsChange}
-                                                />
-                                            </Flex.Item>
-                                        </Flex>
-                                        <div className={this.state.futuredate && this.state.selectedSchedule ? "ErrorMessage" : "hide"}>
-                                            <div className="noteText">
-                                                <Text error content={this.localize('FutureDateError')} />
-                                            </div>
-                                        </div>
-                                        <Flex hAlign="start">
-                                            <h3><Checkbox
-                                                className="Important"
-                                                labelPosition="start"
-                                                onClick={this.onImportantSelected}
-                                                label={this.localize("Important")}
-                                                checked={this.state.selectedImportant}
-                                                toggle
-                                            /></h3>
-                                        </Flex>
-                                        <Text size="small" align="start" content={this.localize('ImportantDescription')} />
-                                    </Flex>
-                                </Flex.Item>
-                                <Flex.Item size="size.half">
-                                    <div>
-                                        <Flex hAlign="end">
-                                            <Label content={JSON.stringify(this.card).length -this.imageSize + "/" + maxCardSize} />
-                                        </Flex>
-                                        <div className="adaptiveCardContainer">
-                                        </div>
-                                    </div>
-                                </Flex.Item>
-                            </Flex>
-                            <Flex className="footerContainer" vAlign="end" hAlign="end">
-                                <Flex className="buttonContainer" gap="gap.medium">
-                                    <Button content={this.localize("Back")} onClick={this.onBack} secondary />
-                                    <Flex.Item push>
-                                        <Button
-                                            content="Schedule"
-                                            disabled={this.isSaveBtnDisabled() || !this.state.selectedSchedule}
-                                            onClick={this.onSchedule}
-                                            primary={this.state.selectedSchedule} />
-                                    </Flex.Item>
-                                    <Button content={this.localize("SaveAsDraft")}
-                                        disabled={this.isSaveBtnDisabled() || this.state.selectedSchedule}
-                                        id="saveBtn"
-                                        onClick={this.onSave}
-                                        primary={!this.state.selectedSchedule} />
-                                </Flex>
-                            </Flex>
-                        </Flex>
-                    </div>
-                );
-            } else {
-                return (<div>Error</div>);
-            }
+            containerEl.appendChild(renderedCard);
         }
-    }
+        adaptiveCard.onExecuteAction = function (action: OpenUrlAction) { window.open(action.url, '_blank'); };
+    }, []);
 
-    //function to set the radio control item to the right option depending on the status for
-    //the targetingmode and if the user is a master admin or not
-    private radioControl() {
-
-        var opName = "teams";
-        var isMaster = this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
-
-        if (this.targetingEnabled && !isMaster) {
+    const radioControl = useCallback(() => {
+        let opName = "teams";
+        const isMaster = isMasterAdmin(masterAdminUpnsRef.current, stateRef.current.userPrincipalName);
+        if (targetingEnabledRef.current && !isMaster) {
             opName = "groups";
         }
-        
-        this.setState({
+        set({
             selectedRadioBtn: opName,
             teamsOptionSelected: opName === 'teams',
             rostersOptionSelected: opName === 'rosters',
@@ -1069,645 +298,1013 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
             csvOptionSelected: opName === 'csv',
             allUsersOptionSelected: opName === 'allUsers',
         });
+    }, [set]);
 
-    }
+    useEffect(() => {
+        const escFunction = (event: any) => {
+            if (event.keyCode === 27 || event.key === "Escape") {
+                dialog.url.submit();
+            }
+        };
+        let cancelled = false;
 
-    //get the next rounded up (ceil) date in minutes
-    private getRoundedDate = (minutes: number, d = new Date()) => {
+        (async () => {
+            await app.initialize();
+            document.addEventListener("keydown", escFunction, false);
 
-        let ms = 1000 * 60 * minutes; // convert minutes to ms
-        let roundedDate = new Date(Math.ceil(d.getTime() / ms) * ms);
-
-        return roundedDate
-    }
-
-    //get date object based on the string parameter
-    private getDateObject = (datestring?: string) => {
-        if (!datestring) {
-            var TempDate = new Date(); //get current date
-            TempDate.setTime(TempDate.getTime() + 86400000);
-            return TempDate; //if date string is not provided, then return tomorrow rounded up next 5 minutes
-        }
-        return new Date(datestring); //if date string is provided, return current date object
-    }
-
-    //get the hour of the datestring
-    private getDateHour = (datestring: string) => {
-        if (!datestring) return "00";
-        var thour = new Date(datestring).getHours().toString();
-        return thour.padStart(2, "0");
-    }
-
-    //get the mins of the datestring
-    private getDateMins = (datestring: string) => {
-        if (!datestring) return "00";
-        var tmins = new Date(datestring).getMinutes().toString();
-        return tmins.padStart(2, "0");
-    }
-
-    //handles click on DatePicker to change the schedule date
-    private handleDateChange = (e: any, v: any) => {
-        var TempDate = v.value; //set the tempdate var with the value selected by the user
-        TempDate.setMinutes(parseInt(this.state.DMYMins)); //set the minutes selected on minutes drop down 
-        TempDate.setHours(parseInt(this.state.DMYHour)); //set the hour selected on hour drop down
-        //set the state variables
-        this.setState({
-            scheduledDate: TempDate.toUTCString(), //updates the state string representation
-            DMY: TempDate, //updates the date on the state
-        });
-    }
-
-    //handles selection on the hour combo
-    private handleHourChange = (e: any, v: any) => {
-        var TempDate = this.state.DMY; //get the tempdate from the state
-        TempDate.setHours(parseInt(v.value)); //set hour with the value select on the hour drop down
-        //set state variables
-        this.setState({
-            scheduledDate: TempDate.toUTCString(), //updates the string representation 
-            DMY: TempDate, //updates DMY
-            DMYHour: v.value, //set the new hour value on the state
-        });
-    }
-
-    //handles selection on the minutes combo
-    private handleMinsChange = (e: any, v: any) => {
-        var TempDate = this.state.DMY; //get the tempdate from the state
-        TempDate.setMinutes(parseInt(v.value)); //set minutes with the value select on the minutes drop down
-        //set state variables
-        this.setState({
-            scheduledDate: TempDate.toUTCString(), //updates the string representation 
-            DMY: TempDate, //updates DMY
-            DMYMins: v.value, //set the bew minutes on the state
-        });
-    }
-
-    //handler for the Schedule Send checkbox
-    private onScheduleSelected = () => {
-        var TempDate = this.getRoundedDate(5, this.getDateObject()); //get the next day date rounded to the nearest hour/minute
-        //set the state
-        this.setState({
-            selectedSchedule: !this.state.selectedSchedule,
-            scheduledDate: TempDate.toUTCString(),
-            DMY: TempDate
-        });
-    }
-
-    // handler for the important message checkbox
-    private onImportantSelected = () => {
-        const next = !this.state.selectedImportant;
-        setCardImportance(this.card, next);
-        this.setState({
-            selectedImportant: next,
-            card: this.card,
-        }, () => this.updateCard());
-    }
-
-    private onGroupSelected = (event: any, data: any) => {
-        this.setState({
-            selectedRadioBtn: data.value,
-            teamsOptionSelected: data.value === 'teams',
-            rostersOptionSelected: data.value === 'rosters',
-            groupsOptionSelected: data.value === 'groups',
-            csvOptionSelected: data.value === 'csv',
-            allUsersOptionSelected: data.value === 'allUsers',
-            selectedTeams: data.value === 'teams' ? this.state.selectedTeams : [],
-            selectedTeamsNum: data.value === 'teams' ? this.state.selectedTeamsNum : 0,
-            selectedRosters: data.value === 'rosters' ? this.state.selectedRosters : [],
-            selectedRostersNum: data.value === 'rosters' ? this.state.selectedRostersNum : 0,
-            selectedGroups: data.value === 'groups' ? this.state.selectedGroups : [],
-            selectedGroupsNum: data.value === 'groups' ? this.state.selectedGroupsNum : 0,
-        });
-    }
-
-    private isSaveBtnDisabled = () => {
-        const teamsSelectionIsValid = (this.state.teamsOptionSelected && (this.state.selectedTeamsNum !== 0)) || (!this.state.teamsOptionSelected);
-        const rostersSelectionIsValid = (this.state.rostersOptionSelected && (this.state.selectedRostersNum !== 0)) || (!this.state.rostersOptionSelected);
-        const groupsSelectionIsValid = (this.state.groupsOptionSelected && (this.state.selectedGroupsNum !== 0)) || (!this.state.groupsOptionSelected);
-        const csvSelectionIsValid = (!(this.state.csvError) && (!(this.state.csvLoaded === "") && this.state.csvOptionSelected)) || (!this.state.csvOptionSelected);
-        const nothingSelected = (!this.state.teamsOptionSelected) && (!this.state.rostersOptionSelected) && (!this.state.groupsOptionSelected) && (!this.state.allUsersOptionSelected) && (!this.state.csvOptionSelected);
-        const maxNumberOfTeams = this.state.isMaxNumberOfTeamsError;
-
-        return (!teamsSelectionIsValid || !rostersSelectionIsValid || !groupsSelectionIsValid || nothingSelected || !csvSelectionIsValid || maxNumberOfTeams);
-    }
-
-    private isNextBtnDisabled = () => {
-        const title = this.state.title;
-        return !(title && (this.state.errorButtonUrlMessage === ""));
-    }
-
-    private getItems = () => {
-        const resultedTeams: dropdownItem[] = [];
-        if (this.state.teams) {
-            let remainingUserTeams = this.state.teams;
-            if (this.state.selectedRadioBtn !== "allUsers") {
-                if (this.state.selectedRadioBtn === "teams") {
-                    this.state.teams.filter(x => this.state.selectedTeams.findIndex(y => y.team.id === x.id) < 0);
-                }
-                else if (this.state.selectedRadioBtn === "rosters") {
-                    this.state.teams.filter(x => this.state.selectedRosters.findIndex(y => y.team.id === x.id) < 0);
+            // group access
+            try {
+                await verifyGroupAccess();
+                if (!cancelled) set({ groupAccess: true });
+            } catch (error: any) {
+                if (error?.response?.status === 403) {
+                    if (!cancelled) set({ groupAccess: false });
                 }
             }
+
+            // max teams
+            try {
+                const response = await axios.get(baseAxiosUrl + "/options");
+                if (!cancelled) set({ maxNumberOfTeams: response.data });
+            } catch { /* keep default */ }
+
+            // teams context
+            const context = await app.getContext();
+            if (cancelled) return;
+            set({
+                channelId: context.channel?.id,
+                channelName: context.channel?.displayName,
+                teamName: context.team?.displayName,
+                userPrincipalName: context.user?.userPrincipalName,
+            });
+
+            // channel info
+            try {
+                if (context.channel?.id) {
+                    const channelRes = await getChannelConfig(context.channel.id);
+                    const draftChannel = channelRes.data;
+                    if (!cancelled) {
+                        set({ channelImage: draftChannel.channelImage, channelTitle: draftChannel.channelTitle });
+                        setCardTargetImage(cardRef.current, draftChannel.channelImage);
+                        setCardTargetTitle(cardRef.current, draftChannel.channelTitle);
+                    }
+                }
+            } catch { /* ignore */ }
+
+            // app settings
+            try {
+                const settings = await getAppSettings();
+                if (settings.data) {
+                    targetingEnabledRef.current = (settings.data.targetingEnabled === 'true');
+                    masterAdminUpnsRef.current = settings.data.masterAdminUpns;
+                    imageUploadBlobStorageRef.current = settings.data.imageUploadBlobStorage;
+                }
+            } catch { /* ignore */ }
+            if (cancelled) return;
+            radioControl();
+            setCardTarget(cardRef.current, targetingEnabledRef.current);
+
+            // teams list
+            let teamsData: any[] = [];
+            try {
+                const teamsRes = await getTeams();
+                teamsData = teamsRes.data;
+                if (!cancelled) set({ teams: teamsData });
+            } catch { /* ignore */ }
+
+            const id = params['id'];
+            if (id) {
+                try {
+                    const response = await getDraftNotification(id);
+                    const draftMessageDetail = response.data;
+                    if (cancelled) return;
+
+                    let csvMsg = "";
+                    let selectedRadioButton = "teams";
+                    if (draftMessageDetail.rosters.length > 0) selectedRadioButton = "rosters";
+                    else if (draftMessageDetail.groups.length > 0) selectedRadioButton = "groups";
+                    else if (draftMessageDetail.csvUsers.length > 0) {
+                        selectedRadioButton = "csv";
+                        csvMsg = t("CSVLoaded");
+                    }
+                    else if (draftMessageDetail.allUsers) selectedRadioButton = "allUsers";
+
+                    const valuesArr = draftMessageDetail.buttonTitle && draftMessageDetail.buttonLink && !draftMessageDetail.buttons
+                        ? [{ "type": "Action.OpenUrl", "title": draftMessageDetail.buttonTitle, "url": draftMessageDetail.buttonLink }]
+                        : (draftMessageDetail.buttons !== null ? JSON.parse(draftMessageDetail.buttons) : []);
+
+                    setCardTitle(cardRef.current, draftMessageDetail.title);
+                    setCardImageLink(cardRef.current, draftMessageDetail.imageLink);
+                    setCardSummary(cardRef.current, draftMessageDetail.summary);
+                    setCardAuthor(cardRef.current, draftMessageDetail.author);
+                    setCardImportance(cardRef.current, !!draftMessageDetail.isImportant);
+                    setCardBtns(cardRef.current, valuesArr);
+
+                    const selectedTeams = makeDropdownItemList(draftMessageDetail.teams, teamsData);
+                    const selectedRosters = makeDropdownItemList(draftMessageDetail.rosters, teamsData);
+
+                    set({
+                        teamsOptionSelected: draftMessageDetail.teams.length > 0,
+                        selectedTeamsNum: draftMessageDetail.teams.length,
+                        rostersOptionSelected: draftMessageDetail.rosters.length > 0,
+                        selectedRostersNum: draftMessageDetail.rosters.length,
+                        groupsOptionSelected: draftMessageDetail.groups.length > 0,
+                        selectedGroupsNum: draftMessageDetail.groups.length,
+                        selectedRadioBtn: selectedRadioButton,
+                        selectedTeams: selectedTeams,
+                        selectedRosters: selectedRosters,
+                        selectedGroups: draftMessageDetail.groups,
+                        selectedSchedule: draftMessageDetail.isScheduled,
+                        selectedImportant: draftMessageDetail.isImportant,
+                        scheduledDate: draftMessageDetail.scheduledDate,
+                        csvusers: draftMessageDetail.csvUsers,
+                        csvLoaded: csvMsg,
+                        csvError: !(csvMsg.length > 0),
+                        csvOptionSelected: (csvMsg.length > 0),
+                        channelId: draftMessageDetail.channelId,
+                        values: valuesArr,
+                        title: draftMessageDetail.title,
+                        summary: draftMessageDetail.summary,
+                        btnLink: draftMessageDetail.buttonLink,
+                        imageLink: draftMessageDetail.imageLink,
+                        btnTitle: draftMessageDetail.buttonTitle,
+                        author: draftMessageDetail.author,
+                        allUsersOptionSelected: draftMessageDetail.allUsers,
+                        exists: true,
+                        messageId: id,
+                        DMY: getDateObject(draftMessageDetail.scheduledDate),
+                        DMYHour: getDateHour(draftMessageDetail.scheduledDate),
+                        DMYMins: getDateMins(draftMessageDetail.scheduledDate),
+                        loader: false,
+                    });
+                    setTimeout(() => { if (!cancelled) updateCard(); }, 0);
+                } catch { /* ignore */ }
+
+                try {
+                    const groupRes = await getGroups(id);
+                    if (cancelled) return;
+                    const groupsArr = groupRes.data;
+                    set({ groups: groupsArr, selectedGroups: makeDropdownItems(groupsArr) });
+                } catch { /* ignore */ }
+            } else {
+                set({ exists: false, loader: false });
+                setTimeout(() => {
+                    if (cancelled) return;
+                    const adaptiveCard = new AdaptiveCards.AdaptiveCard();
+                    adaptiveCard.parse(cardRef.current);
+                    const renderedCard = adaptiveCard.render();
+                    const containerEl = document.getElementsByClassName('adaptiveCardContainer')[0];
+                    if (containerEl && renderedCard) containerEl.appendChild(renderedCard);
+                    adaptiveCard.onExecuteAction = function (action: OpenUrlAction) { window.open(action.url, '_blank'); };
+                }, 0);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            document.removeEventListener("keydown", escFunction, false);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const setAuthorizedGroupItems = async () => {
+        try {
+            const response = await getGroupAssociations(stateRef.current.channelId);
+            const inputGroups = response.data;
+            const resultListItems: any[] = inputGroups.map((element: any) => ({
+                mail: element.groupEmail,
+                id: element.groupId,
+                name: element.groupName,
+            }));
+            set({ groups: resultListItems });
+        } catch { /* ignore */ }
+    };
+
+    const handleImageSelection = () => {
+        const file = fileInput.current?.files?.[0];
+        if (!file) return;
+        let cardsize = JSON.stringify(cardRef.current).length;
+        if (imageUploadBlobStorageRef.current) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = () => {
+                const base64String = reader.result;
+                if (!base64String) return;
+                imageSizeRef.current = base64String.toString().length;
+                cardsize = cardsize - imageSizeRef.current;
+                setCardImageLink(cardRef.current, base64String.toString());
+                updateCard();
+                set({ imageLink: base64String.toString() });
+            };
+        } else {
+            Resizer.imageFileResizer(file, 400, 400, 'JPEG', 80, 0,
+                (uri) => {
+                    if (uri.toString().length < maxCardSize - cardsize) {
+                        setCardImageLink(cardRef.current, uri.toString());
+                        updateCard();
+                        set({ imageLink: uri.toString() });
+                    } else {
+                        const errormsg = t("ErrorImageTooBig") + " " + t("ErrorImageTooBigSize") + " " + (maxCardSize - cardsize) + " bytes.";
+                        set({ errorImageUrlMessage: errormsg });
+                    }
+                }, 'base64');
+        }
+    };
+
+    const handleCSVSelection = () => {
+        const file = CSVfileInput.current?.files?.[0];
+        if (!file) return;
+        let cardsize = JSON.stringify(cardRef.current).length;
+        if (imageUploadBlobStorageRef.current) {
+            cardsize = cardsize - imageSizeRef.current;
+        }
+        Papa.parse(file, {
+            skipEmptyLines: true,
+            delimiter: "\t",
+            complete: ({ errors, data }) => {
+                if (errors.length > 0) {
+                    set({ csvLoaded: t("CSVInvalid"), csvError: true, csvusers: "" });
+                } else {
+                    const csvfilesize = JSON.stringify(data).length;
+                    if ((cardsize + csvfilesize) < maxCardSize) {
+                        set({ csvLoaded: t("CSVLoaded"), csvError: false, csvusers: JSON.stringify(data) });
+                    } else {
+                        const errorMessage = t("CSVIsTooBig") + " " + (maxCardSize - cardsize) + " bytes.";
+                        set({ csvLoaded: errorMessage, csvError: true, csvusers: "" });
+                    }
+                }
+            },
+        });
+    };
+
+    const handleUploadClick = () => {
+        set({ errorImageUrlMessage: "", imageLink: "" });
+        setCardImageLink(cardRef.current, "");
+        fileInput.current?.click();
+    };
+
+    const handleCSVUploadClick = () => {
+        set({ csvLoaded: "", csvError: false, csvusers: "" });
+        CSVfileInput.current?.click();
+    };
+
+    const getItems = (): dropdownItem[] => {
+        const resultedTeams: dropdownItem[] = [];
+        if (state.teams) {
+            const remainingUserTeams = state.teams;
             remainingUserTeams.forEach((element) => {
                 resultedTeams.push({
                     key: element.id,
                     header: element.name,
                     content: element.mail,
                     image: ImageUtil.makeInitialImage(element.name),
-                    team: {
-                        id: element.id
-                    }
+                    team: { id: element.id },
                 });
             });
         }
         return resultedTeams;
-    }
+    };
 
-    private onSelectAllTeams = () => {
-        var teams = this.getItems();
-        if (teams.length > this.state.maxNumberOfTeams) {
-            this.setState({ isMaxNumberOfTeamsError: true});
-        }
-        else {
-            this.setState({ isMaxNumberOfTeamsError: false});
-        }
+    const getGroupItems = (): dropdownItem[] => state.groups ? makeDropdownItems(state.groups) : [];
 
-        this.setState({ selectedTeams: teams, selectedTeamsNum: teams.length });
-    }
+    const onSelectAllTeams = () => {
+        const teams = getItems();
+        set({
+            isMaxNumberOfTeamsError: teams.length > state.maxNumberOfTeams,
+            selectedTeams: teams,
+            selectedTeamsNum: teams.length,
+        });
+    };
 
-    private onUnselectAllTeams = () => {
-        this.setState({ isMaxNumberOfTeamsError: false });
-        this.setState({ selectedTeams: [], selectedTeamsNum: 0 });
-    }
+    const onUnselectAllTeams = () => {
+        set({ isMaxNumberOfTeamsError: false, selectedTeams: [], selectedTeamsNum: 0 });
+    };
 
-    private onSelectAllRosters = () => {
-        var teams = this.getItems();
-        if (teams.length > this.state.maxNumberOfTeams) {
-            this.setState({ isMaxNumberOfTeamsError: true});
-        }
-        else {
-            this.setState({ isMaxNumberOfTeamsError: false});
-        }
+    const onSelectAllRosters = () => {
+        const teams = getItems();
+        set({
+            isMaxNumberOfTeamsError: teams.length > state.maxNumberOfTeams,
+            selectedRosters: teams,
+            selectedRostersNum: teams.length,
+        });
+    };
 
-        this.setState({ selectedRosters: teams, selectedRostersNum: teams.length });
-    }
+    const onUnselectAllRosters = () => {
+        set({ isMaxNumberOfTeamsError: false, selectedRosters: [], selectedRostersNum: 0 });
+    };
 
-    private onUnselectAllRosters = () => {
-        this.setState({ isMaxNumberOfTeamsError: false });
-        this.setState({ selectedRosters: [], selectedRostersNum: 0 });
-    }
-
-    private onTeamsChange = (event: any, itemsData: any) => {
-        if (itemsData.value.length > this.state.maxNumberOfTeams) {
-            this.setState({isMaxNumberOfTeamsError: true});
-        }
-        else {
-            this.setState({isMaxNumberOfTeamsError:false});
-        }
-        
-        this.setState({
+    const onTeamsChange = (_event: any, itemsData: any) => {
+        set({
+            isMaxNumberOfTeamsError: itemsData.value.length > state.maxNumberOfTeams,
             selectedTeams: itemsData.value,
             selectedTeamsNum: itemsData.value.length,
             selectedRosters: [],
             selectedRostersNum: 0,
             selectedGroups: [],
-            selectedGroupsNum: 0
+            selectedGroupsNum: 0,
         });
-    }
+    };
 
-    private onRostersChange = (event: any, itemsData: any) => {
-        if (itemsData.value.length > this.state.maxNumberOfTeams) {
-            this.setState({isMaxNumberOfTeamsError: true});
-        }
-        else {
-            this.setState({isMaxNumberOfTeamsError:false});
-        }
-
-        this.setState({
+    const onRostersChange = (_event: any, itemsData: any) => {
+        set({
+            isMaxNumberOfTeamsError: itemsData.value.length > state.maxNumberOfTeams,
             selectedRosters: itemsData.value,
             selectedRostersNum: itemsData.value.length,
             selectedTeams: [],
             selectedTeamsNum: 0,
             selectedGroups: [],
-            selectedGroupsNum: 0
+            selectedGroupsNum: 0,
         });
-    }
+    };
 
-    private onGroupsChange = (event: any, itemsData: any) => {
-        this.setState({
+    const onGroupsChange = (_event: any, itemsData: any) => {
+        set({
             selectedGroups: itemsData.value,
             selectedGroupsNum: itemsData.value.length,
             groups: [],
             selectedTeams: [],
             selectedTeamsNum: 0,
             selectedRosters: [],
-            selectedRostersNum: 0
-        })
-    }
+            selectedRostersNum: 0,
+        });
+    };
 
-    private onGroupSearch = (itemList: any, searchQuery: string) => {
-        const result = itemList.filter(
-            (item: { header: string; content: string; }) => (item.header && item.header.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1) ||
-                (item.content && item.content.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1),
-        )
-        return result;
-    }
+    const onGroupSearch = (itemList: any, searchQuery: string) =>
+        itemList.filter(
+            (item: { header: string; content: string }) =>
+                (item.header && item.header.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1) ||
+                (item.content && item.content.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1)
+        );
 
-    private onGroupSearchQueryChange = async (event: any, itemsData: any) => {
-
+    const onGroupSearchQueryChange = async (_event: any, itemsData: any) => {
         if (!itemsData.searchQuery) {
-            this.setState({
-                groups: [],
-                noResultMessage: "",
-            });
-        }
-        else if (itemsData.searchQuery && itemsData.searchQuery.length <= 2) {
-            this.setState({
-                loading: false,
-                noResultMessage: this.localize("NoMatchMessage"),
-            });
-        }
-        else if (itemsData.searchQuery && itemsData.searchQuery.length > 2) {
-            // handle event trigger on item select.
+            set({ groups: [], noResultMessage: "" });
+        } else if (itemsData.searchQuery && itemsData.searchQuery.length <= 2) {
+            set({ loading: false, noResultMessage: t("NoMatchMessage") });
+        } else if (itemsData.searchQuery && itemsData.searchQuery.length > 2) {
             const result = itemsData.items && itemsData.items.find(
-                (item: { header: string; }) => item.header.toLowerCase() === itemsData.searchQuery.toLowerCase()
-            )
-            if (result) {
-                return;
-            }
-
-            this.setState({
-                loading: true,
-                noResultMessage: "",
-            });
-
+                (item: { header: string }) => item.header.toLowerCase() === itemsData.searchQuery.toLowerCase()
+            );
+            if (result) return;
+            set({ loading: true, noResultMessage: "" });
             try {
                 const query = encodeURIComponent(itemsData.searchQuery);
                 const response = await searchGroups(query);
-                this.setState({
-                    groups: response.data,
-                    loading: false,
-                    noResultMessage: this.localize("NoMatchMessage")
-                });
-            }
-            catch (error) {
-                return error;
-            }
+                set({ groups: response.data, loading: false, noResultMessage: t("NoMatchMessage") });
+            } catch { /* ignore */ }
         }
-    }
+    };
 
-    //called when the user clicks to schedule the message
-    private onSchedule = () => {
-        var Today = new Date(); //today date
-        var Scheduled = new Date(this.state.DMY); //scheduled date
+    const onGroupSelected = (_event: any, data: any) => {
+        set({
+            selectedRadioBtn: data.value,
+            teamsOptionSelected: data.value === 'teams',
+            rostersOptionSelected: data.value === 'rosters',
+            groupsOptionSelected: data.value === 'groups',
+            csvOptionSelected: data.value === 'csv',
+            allUsersOptionSelected: data.value === 'allUsers',
+            selectedTeams: data.value === 'teams' ? state.selectedTeams : [],
+            selectedTeamsNum: data.value === 'teams' ? state.selectedTeamsNum : 0,
+            selectedRosters: data.value === 'rosters' ? state.selectedRosters : [],
+            selectedRostersNum: data.value === 'rosters' ? state.selectedRostersNum : 0,
+            selectedGroups: data.value === 'groups' ? state.selectedGroups : [],
+            selectedGroupsNum: data.value === 'groups' ? state.selectedGroupsNum : 0,
+        });
+    };
 
-        //only allow the save when the scheduled date is 30 mins in the future, if that is the case calls the onSave function
-        if (Scheduled.getTime() > Today.getTime() + 1800000) { this.onSave() }
-        else {
-            //set the state to indicate future date error
-            //if futuredate is true, an error message is shown right below the date selector
-            this.setState({
-                futuredate: true
-            })
-        }
-    }
+    const handleDateChange = (_e: any, v: any) => {
+        const TempDate = v.value;
+        TempDate.setMinutes(parseInt(state.DMYMins));
+        TempDate.setHours(parseInt(state.DMYHour));
+        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate });
+    };
 
-    //called to save the draft
-    private onSave = () => {
+    const handleHourChange = (_e: any, v: any) => {
+        const TempDate = state.DMY;
+        TempDate.setHours(parseInt(v.value));
+        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYHour: v.value });
+    };
+
+    const handleMinsChange = (_e: any, v: any) => {
+        const TempDate = state.DMY;
+        TempDate.setMinutes(parseInt(v.value));
+        set({ scheduledDate: TempDate.toUTCString(), DMY: TempDate, DMYMins: v.value });
+    };
+
+    const onScheduleSelected = () => {
+        const TempDate = getRoundedDate(5, getDateObject());
+        set({
+            selectedSchedule: !state.selectedSchedule,
+            scheduledDate: TempDate.toUTCString(),
+            DMY: TempDate,
+        });
+    };
+
+    const onImportantSelected = () => {
+        const next = !state.selectedImportant;
+        setCardImportance(cardRef.current, next);
+        set({ selectedImportant: next });
+        setTimeout(updateCard, 0);
+    };
+
+    const isSaveBtnDisabled = () => {
+        const teamsSelectionIsValid = (state.teamsOptionSelected && (state.selectedTeamsNum !== 0)) || (!state.teamsOptionSelected);
+        const rostersSelectionIsValid = (state.rostersOptionSelected && (state.selectedRostersNum !== 0)) || (!state.rostersOptionSelected);
+        const groupsSelectionIsValid = (state.groupsOptionSelected && (state.selectedGroupsNum !== 0)) || (!state.groupsOptionSelected);
+        const csvSelectionIsValid = (!(state.csvError) && (!(state.csvLoaded === "") && state.csvOptionSelected)) || (!state.csvOptionSelected);
+        const nothingSelected = (!state.teamsOptionSelected) && (!state.rostersOptionSelected) && (!state.groupsOptionSelected) && (!state.allUsersOptionSelected) && (!state.csvOptionSelected);
+        return (!teamsSelectionIsValid || !rostersSelectionIsValid || !groupsSelectionIsValid || nothingSelected || !csvSelectionIsValid || state.isMaxNumberOfTeamsError);
+    };
+
+    const isNextBtnDisabled = () => !(state.title && (state.errorButtonUrlMessage === ""));
+
+    const onSave = async () => {
         const selectedTeams: string[] = [];
-        const selctedRosters: string[] = [];
+        const selectedRostersIds: string[] = [];
         const selectedGroups: string[] = [];
         let selectedCSV = "";
 
-        this.state.selectedTeams.forEach(x => selectedTeams.push(x.team.id));
-        this.state.selectedRosters.forEach(x => selctedRosters.push(x.team.id));
-        this.state.selectedGroups.forEach(x => selectedGroups.push(x.team.id));
-
-        if (this.state.csvOptionSelected) { selectedCSV = this.state.csvusers; }
+        state.selectedTeams.forEach(x => selectedTeams.push(x.team.id));
+        state.selectedRosters.forEach(x => selectedRostersIds.push(x.team.id));
+        state.selectedGroups.forEach(x => selectedGroups.push(x.team.id));
+        if (state.csvOptionSelected) selectedCSV = state.csvusers;
 
         const draftMessage: IDraftMessage = {
-            id: this.state.messageId,
-            title: this.state.title,
-            imageLink: this.state.imageLink,
-            summary: this.state.summary,
-            author: this.state.author,
-            buttonTitle: this.state.btnTitle,
-            buttonLink: this.state.btnLink,
+            id: state.messageId,
+            title: state.title,
+            imageLink: state.imageLink,
+            summary: state.summary,
+            author: state.author,
+            buttonTitle: state.btnTitle,
+            buttonLink: state.btnLink,
             teams: selectedTeams,
-            rosters: selctedRosters,
+            rosters: selectedRostersIds,
             groups: selectedGroups,
             csvusers: selectedCSV,
-            allUsers: this.state.allUsersOptionSelected,
-            isScheduled: this.state.selectedSchedule,
-            isImportant: this.state.selectedImportant,
-            ScheduledDate: new Date(this.state.scheduledDate),
-            Buttons: JSON.stringify(this.state.values),
-            channelId: this.state.channelId,
-            channelImage: this.state.channelImage,
-            channelTitle: this.state.channelTitle
+            allUsers: state.allUsersOptionSelected,
+            isScheduled: state.selectedSchedule,
+            isImportant: state.selectedImportant,
+            ScheduledDate: new Date(state.scheduledDate),
+            Buttons: JSON.stringify(state.values),
+            channelId: state.channelId,
+            channelImage: state.channelImage,
+            channelTitle: state.channelTitle,
         };
 
-        if (this.state.exists) {
-            this.editDraftMessage(draftMessage).then(() => {
-                dialog.url.submit();
-            });
-        } else {
-            this.postDraftMessage(draftMessage).then(() => {
-                dialog.url.submit();
-            });
-        }
-    }
-
-    private editDraftMessage = async (draftMessage: IDraftMessage) => {
         try {
-            await updateDraftNotification(draftMessage);
-        } catch (error) {
-            return error;
-        }
-    }
+            if (state.exists) await updateDraftNotification(draftMessage);
+            else await createDraftNotification(draftMessage);
+        } catch { /* ignore */ }
+        dialog.url.submit();
+    };
 
-    private postDraftMessage = async (draftMessage: IDraftMessage) => {
-        try {
-            await createDraftNotification(draftMessage);
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    public escFunction(event: any) {
-        if (event.keyCode === 27 || (event.key === "Escape")) {
-            dialog.url.submit();
-        }
-    }
-
-    private onNext = (event: any) => {
-        this.setState({
-            page: "AudienceSelection"
-        }, () => {
-            this.updateCard();
-        });
-    }
-
-    private onBack = (event: any) => {
-        this.setState({
-            page: "CardCreation"
-        }, () => {
-            this.updateCard();
-        });
-    }
-
-    private onTitleChanged = (event: any) => {
-        let showDefaultCard = (!event.target.value && !this.state.imageLink && !this.state.summary && !this.state.author && !this.state.btnTitle && !this.state.btnLink);
-        setCardTitle(this.card, event.target.value);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, this.state.author);
-        setCardBtns(this.card, this.state.values);
-        this.setState({
-            title: event.target.value,
-            card: this.card
-        }, () => {
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        });
-    }
-
-    private onImageLinkChanged = (event: any) => {
-        let url = event.target.value.toLowerCase();
-        if (!((url === "") || (url.startsWith("https://") || (url.startsWith("data:image/png;base64,")) || (url.startsWith("data:image/jpeg;base64,")) || (url.startsWith("data:image/gif;base64,"))))) {
-            this.setState({
-                errorImageUrlMessage: this.localize("ErrorURLMessage")
-            });
+    const onSchedule = () => {
+        const Today = new Date();
+        const Scheduled = new Date(state.DMY);
+        if (Scheduled.getTime() > Today.getTime() + 1800000) {
+            onSave();
         } else {
-            this.setState({
-                errorImageUrlMessage: ""
-            });
+            set({ futuredate: true });
         }
+    };
 
-        let showDefaultCard = (!this.state.title && !event.target.value && !this.state.summary && !this.state.author && !this.state.btnTitle && !this.state.btnLink);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, event.target.value);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, this.state.author);
-        setCardBtns(this.card, this.state.values);
-        this.setState({
-            imageLink: event.target.value,
-            card: this.card
-        }, () => {
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        });
-    }
+    const onNext = () => {
+        set({ page: "AudienceSelection" });
+        setTimeout(updateCard, 0);
+    };
 
-    private onSummaryChanged = (event: any) => {
-        let showDefaultCard = (!this.state.title && !this.state.imageLink && !event.target.value && !this.state.author && !this.state.btnTitle && !this.state.btnLink);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, event.target.value);
-        setCardAuthor(this.card, this.state.author);
-        setCardBtns(this.card, this.state.values);
-        this.setState({
-            summary: event.target.value,
-            card: this.card
-        }, () => {
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        });
-    }
+    const onBack = () => {
+        set({ page: "CardCreation" });
+        setTimeout(updateCard, 0);
+    };
 
-    //if the author changes, updates the card with appropriate values
-    private onAuthorChanged = (event: any) => {
-        let showDefaultCard = (!this.state.title && !this.state.imageLink && !this.state.summary && !event.target.value && !this.state.btnTitle && !this.state.btnLink);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, event.target.value);
-        setCardBtns(this.card, this.state.values);
-        this.setState({
-            author: event.target.value,
-            card: this.card
-        }, () => {
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        });
-    }
+    const onTitleChanged = (event: any) => {
+        const showDefaultCard = (!event.target.value && !state.imageLink && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
+        setCardTitle(cardRef.current, event.target.value);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, state.author);
+        setCardBtns(cardRef.current, state.values);
+        set({ title: event.target.value });
+        if (showDefaultCard) setDefaultCard(cardRef.current);
+        setTimeout(updateCard, 0);
+    };
 
-    // private function to create the buttons UI
-    private createUI() {
-        if (this.state.values.length > 0) {
-            return this.state.values.map((el, i) =>
-                <Flex gap="gap.smaller" vAlign="center">
+    const onImageLinkChanged = (event: any) => {
+        const url = event.target.value.toLowerCase();
+        if (!((url === "") || url.startsWith("https://") || url.startsWith("data:image/png;base64,") || url.startsWith("data:image/jpeg;base64,") || url.startsWith("data:image/gif;base64,"))) {
+            set({ errorImageUrlMessage: t("ErrorURLMessage") });
+        } else {
+            set({ errorImageUrlMessage: "" });
+        }
+        const showDefaultCard = (!state.title && !event.target.value && !state.summary && !state.author && !state.btnTitle && !state.btnLink);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, event.target.value);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, state.author);
+        setCardBtns(cardRef.current, state.values);
+        set({ imageLink: event.target.value });
+        if (showDefaultCard) setDefaultCard(cardRef.current);
+        setTimeout(updateCard, 0);
+    };
+
+    const onSummaryChanged = (event: any) => {
+        const showDefaultCard = (!state.title && !state.imageLink && !event.target.value && !state.author && !state.btnTitle && !state.btnLink);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, event.target.value);
+        setCardAuthor(cardRef.current, state.author);
+        setCardBtns(cardRef.current, state.values);
+        set({ summary: event.target.value });
+        if (showDefaultCard) setDefaultCard(cardRef.current);
+        setTimeout(updateCard, 0);
+    };
+
+    const onAuthorChanged = (event: any) => {
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !event.target.value && !state.btnTitle && !state.btnLink);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, event.target.value);
+        setCardBtns(cardRef.current, state.values);
+        set({ author: event.target.value });
+        if (showDefaultCard) setDefaultCard(cardRef.current);
+        setTimeout(updateCard, 0);
+    };
+
+    const addClick = () => {
+        const item = { type: "Action.OpenUrl", title: "", url: "" };
+        set({ values: [...state.values, item] });
+    };
+
+    const removeClick = (i: number) => {
+        const values = [...state.values];
+        values.splice(i, 1);
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && values.length === 0);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, state.author);
+        if (values.length > 0) {
+            setCardBtns(cardRef.current, values);
+            set({ values });
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        } else {
+            set({ values, errorButtonUrlMessage: "" });
+            delete cardRef.current.actions;
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        }
+    };
+
+    const handleChangeName = (i: number, event: any) => {
+        const values = [...state.values];
+        values[i].title = event.target.value;
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !event.target.value && values.length === 0);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, state.author);
+        if (values.length > 0) {
+            setCardBtns(cardRef.current, values);
+            set({ values });
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        } else {
+            set({ values });
+            delete cardRef.current.actions;
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        }
+    };
+
+    const handleChangeLink = (i: number, event: any) => {
+        const values = [...state.values];
+        values[i].url = event.target.value;
+        if (!(event.target.value === "" || event.target.value.toLowerCase().startsWith("https://"))) {
+            set({ errorButtonUrlMessage: t("ErrorURLMessage") });
+        } else {
+            set({ errorButtonUrlMessage: "" });
+        }
+        const showDefaultCard = (!state.title && !state.imageLink && !state.summary && !state.author && !event.target.value && values.length === 0);
+        setCardTitle(cardRef.current, state.title);
+        setCardImageLink(cardRef.current, state.imageLink);
+        setCardSummary(cardRef.current, state.summary);
+        setCardAuthor(cardRef.current, state.author);
+        if (values.length > 0) {
+            setCardBtns(cardRef.current, values);
+            set({ values });
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        } else {
+            set({ values });
+            delete cardRef.current.actions;
+            if (showDefaultCard) setDefaultCard(cardRef.current);
+            setTimeout(updateCard, 0);
+        }
+    };
+
+    const createUI = () => {
+        if (state.values.length > 0) {
+            return state.values.map((el, i) => (
+                <Flex key={i} gap="gap.smaller" vAlign="center">
                     <Input className="inputField"
                         fluid
                         value={el.title || ''}
-                        placeholder={this.localize("ButtonTitle")}
-                        onChange={this.handleChangeName.bind(this, i)}
+                        placeholder={t("ButtonTitle")}
+                        onChange={(e: any) => handleChangeName(i, e)}
                         autoComplete="off"
                     />
                     <Input className="inputField"
                         fluid
                         value={el.url || ''}
-                        placeholder={this.localize("ButtonURL")}
-                        onChange={this.handleChangeLink.bind(this, i)}
-                        error={!(this.state.errorButtonUrlMessage === "")}
+                        placeholder={t("ButtonURL")}
+                        onChange={(e: any) => handleChangeLink(i, e)}
+                        error={!(state.errorButtonUrlMessage === "")}
                         autoComplete="off"
                     />
                     <Button
                         circular
                         size="small"
                         icon={<TrashCanIcon />}
-                        onClick={this.removeClick.bind(this, i)}
-                        title={this.localize("Delete")}
+                        onClick={() => removeClick(i)}
+                        title={t("Delete")}
                     />
                 </Flex>
-            )
-        } else {
-            return (
-                < Flex >
-                    <Text size="small" content={this.localize("NoButtons")} />
+            ));
+        }
+        return (
+            <Flex>
+                <Text size="small" content={t("NoButtons")} />
+            </Flex>
+        );
+    };
+
+    const isMaster = isMasterAdmin(masterAdminUpnsRef.current, state.userPrincipalName);
+
+    if (state.loader) {
+        return <div className="Loader"><Loader /></div>;
+    }
+
+    if (state.page === "CardCreation") {
+        return (
+            <div className="taskModule">
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                    <Flex className="scrollableContent">
+                        <Flex.Item size="size.half">
+                            <Flex column className="formContentContainer">
+                                <Input className="inputField"
+                                    value={state.title}
+                                    label={t("TitleText")}
+                                    placeholder={t("PlaceHolderTitle")}
+                                    onChange={onTitleChanged}
+                                    autoComplete="off"
+                                    fluid
+                                />
+                                <Flex gap="gap.smaller" vAlign="end" className="inputField">
+                                    <Input
+                                        value={state.imageLink}
+                                        label={t("ImageURL")}
+                                        placeholder={t("ImageURLPlaceHolder")}
+                                        onChange={onImageLinkChanged}
+                                        error={!(state.errorImageUrlMessage === "")}
+                                        autoComplete="off"
+                                        fluid
+                                    />
+                                    <input type="file" accept="image/"
+                                        style={{ display: 'none' }}
+                                        onChange={handleImageSelection}
+                                        ref={fileInput} />
+                                    <Flex.Item push>
+                                        <Button circular onClick={handleUploadClick}
+                                            size="small"
+                                            icon={<FilesUploadIcon />}
+                                            title={t("UploadImage")}
+                                        />
+                                    </Flex.Item>
+                                </Flex>
+                                <Text className={(state.errorImageUrlMessage === "") ? "hide" : "show"} error size="small" content={state.errorImageUrlMessage} />
+
+                                <div className="textArea">
+                                    <Text content={t("Summary")} />
+                                    <TextArea
+                                        autoFocus
+                                        placeholder={t("Summary")}
+                                        value={state.summary}
+                                        onChange={onSummaryChanged}
+                                        fluid />
+                                </div>
+
+                                <Input className="inputField"
+                                    value={state.author}
+                                    label={t("Author")}
+                                    placeholder={t("Author")}
+                                    onChange={onAuthorChanged}
+                                    autoComplete="off"
+                                    fluid
+                                />
+                                <div className="textArea">
+                                    <Flex gap="gap.large" vAlign="end">
+                                        <Text size="small" align="start" content={t("Buttons")} />
+                                        <Flex.Item push>
+                                            <Button circular size="small" disabled={(state.values.length === 4) || !(state.errorButtonUrlMessage === "")} icon={<AddIcon />} title={t("Add")} onClick={addClick} />
+                                        </Flex.Item>
+                                    </Flex>
+                                </div>
+
+                                {createUI()}
+
+                                <Text className={(state.errorButtonUrlMessage === "") ? "hide" : "show"} error size="small" content={state.errorButtonUrlMessage} />
+                            </Flex>
+                        </Flex.Item>
+                        <Flex.Item size="size.half">
+                            <div>
+                                <Flex hAlign="end">
+                                    <Label content={JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize} />
+                                </Flex>
+                                <div className="adaptiveCardContainer"></div>
+                            </div>
+                        </Flex.Item>
+                    </Flex>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end">
+                        <Flex className="buttonContainer">
+                            <Button content={t("Next")} disabled={isNextBtnDisabled()} id="saveBtn" onClick={onNext} primary />
+                        </Flex>
+                    </Flex>
                 </Flex>
-            )
-        }
+            </div>
+        );
     }
 
-    //private function to add a new button to the adaptive card
-    private addClick() {
-        const item =
-        {
-            type: "Action.OpenUrl",
-            title: "",
-            url: ""
-        };
-        this.setState({
-            values: [...this.state.values, item]
-        });
+    if (state.page === "AudienceSelection") {
+        return (
+            <div className="taskModule">
+                <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                    <Flex className="scrollableContent">
+                        <Flex.Item size="size.half">
+                            <Flex column className="formContentContainer">
+                                <h3>{t("SendHeadingText")}</h3>
+                                <Text content={t("MaxTeamsError")} hidden={!state.isMaxNumberOfTeamsError} error />
+                                <RadioGroup
+                                    className="radioBtns"
+                                    checkedValue={state.selectedRadioBtn}
+                                    onCheckedValueChange={onGroupSelected}
+                                    vertical={true}
+                                    items={([
+                                        {
+                                            name: "teams",
+                                            key: "teams",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "teams",
+                                            label: t("SendToGeneralChannel"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <Flex className="selectTeamsContainer" gap="gap.small" hidden={!state.teamsOptionSelected}>
+                                                        <Button content={t("SelectAll")} onClick={onSelectAllTeams} />
+                                                        <Button content={t("UnselectAll")} onClick={onUnselectAllTeams} />
+                                                    </Flex>
+                                                    <Dropdown
+                                                        hidden={!state.teamsOptionSelected}
+                                                        placeholder={t("SendToGeneralChannelPlaceHolder")}
+                                                        search
+                                                        multiple
+                                                        items={getItems()}
+                                                        value={state.selectedTeams}
+                                                        disabled={(targetingEnabledRef.current && !isMaster)}
+                                                        onChange={onTeamsChange}
+                                                        noResultsMessage={t("NoMatchMessage")}
+                                                    />
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "rosters",
+                                            key: "rosters",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "rosters",
+                                            label: t("SendToRosters"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <Flex className="selectTeamsContainer" gap="gap.small" hidden={!state.rostersOptionSelected}>
+                                                        <Button content={t("SelectAll")} onClick={onSelectAllRosters} />
+                                                        <Button content={t("UnselectAll")} onClick={onUnselectAllRosters} />
+                                                    </Flex>
+                                                    <Dropdown
+                                                        hidden={!state.rostersOptionSelected}
+                                                        placeholder={t("SendToRostersPlaceHolder")}
+                                                        search
+                                                        multiple
+                                                        items={getItems()}
+                                                        value={state.selectedRosters}
+                                                        onChange={onRostersChange}
+                                                        unstable_pinned={state.unstablePinned}
+                                                        noResultsMessage={t("NoMatchMessage")}
+                                                    />
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "allUsers",
+                                            key: "allUsers",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "allUsers",
+                                            label: t("SendToAllUsers"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column>
+                                                    <Component {...props} />
+                                                    <div className={state.selectedRadioBtn === "allUsers" ? "" : "hide"}>
+                                                        <div className="noteText">
+                                                            <Text error content={t("SendToAllUsersNote")} />
+                                                        </div>
+                                                    </div>
+                                                </Flex>
+                                            ),
+                                        },
+                                        {
+                                            name: "groups",
+                                            key: "groups",
+                                            value: "groups",
+                                            label: t("SendToGroups"),
+                                            checked: (targetingEnabledRef.current && !isMaster),
+                                            children: (Component: any, { name, ...props }: any) => {
+                                                if (targetingEnabledRef.current && !isMaster) {
+                                                    setAuthorizedGroupItems();
+                                                    return (
+                                                        <Flex key={name} column>
+                                                            <Component {...props} />
+                                                            <Dropdown
+                                                                className="hideToggle"
+                                                                placeholder="Select groups from the authorized list"
+                                                                multiple
+                                                                items={getGroupItems()}
+                                                                value={state.selectedGroups}
+                                                                onChange={onGroupsChange}
+                                                                noResultsMessage={state.noResultMessage}
+                                                                unstable_pinned={state.unstablePinned}
+                                                            />
+                                                        </Flex>
+                                                    );
+                                                }
+                                                return (
+                                                    <Flex key={name} column>
+                                                        <Component {...props} />
+                                                        <div className={state.groupsOptionSelected && !state.groupAccess ? "" : "hide"}>
+                                                            <div className="noteText">
+                                                                <Text error content={t("SendToGroupsPermissionNote")} />
+                                                            </div>
+                                                        </div>
+                                                        <Dropdown
+                                                            className="hideToggle"
+                                                            hidden={!state.groupsOptionSelected || !state.groupAccess}
+                                                            placeholder={t("SendToGroupsPlaceHolder")}
+                                                            search={onGroupSearch}
+                                                            multiple
+                                                            loading={state.loading}
+                                                            loadingMessage={t("LoadingText")}
+                                                            items={getGroupItems()}
+                                                            value={state.selectedGroups}
+                                                            onSearchQueryChange={onGroupSearchQueryChange}
+                                                            onChange={onGroupsChange}
+                                                            noResultsMessage={state.noResultMessage}
+                                                            unstable_pinned={state.unstablePinned}
+                                                        />
+                                                        <div className={state.groupsOptionSelected && state.groupAccess ? "" : "hide"}>
+                                                            <div className="noteText">
+                                                                <Text error content={t("SendToGroupsNote")} />
+                                                            </div>
+                                                        </div>
+                                                    </Flex>
+                                                );
+                                            },
+                                        },
+                                        {
+                                            name: "csv",
+                                            key: "csv",
+                                            disabled: (targetingEnabledRef.current && !isMaster),
+                                            value: "csv",
+                                            label: t("SendToCSV"),
+                                            children: (Component: any, { name, ...props }: any) => (
+                                                <Flex key={name} column debug={false}>
+                                                    <Component {...props} />
+                                                    <Flex gap="gap.smaller" debug={false} vAlign="end" className="csvUpload" hidden={!state.csvOptionSelected}>
+                                                        <Input
+                                                            value={state.csvLoaded}
+                                                            error={state.csvError}
+                                                            autoComplete="off"
+                                                            disabled={true}
+                                                            fluid
+                                                        />
+                                                        <input type="file" accept="csv/"
+                                                            style={{ display: 'none' }}
+                                                            onChange={handleCSVSelection}
+                                                            ref={CSVfileInput} />
+                                                        <Flex.Item push>
+                                                            <Button circular onClick={handleCSVUploadClick}
+                                                                size="small"
+                                                                icon={<FilesUploadIcon />}
+                                                                title={t("LabelCSV")}
+                                                            />
+                                                        </Flex.Item>
+                                                    </Flex>
+                                                </Flex>
+                                            ),
+                                        },
+                                    ]) as any}
+                                />
+
+                                <Flex hAlign="start">
+                                    <h3><Checkbox
+                                        className="ScheduleCheckbox"
+                                        labelPosition="start"
+                                        onClick={onScheduleSelected}
+                                        label={t("ScheduledSend")}
+                                        checked={state.selectedSchedule}
+                                        toggle
+                                    /></h3>
+                                </Flex>
+                                <Text size="small" align="start" content={t('ScheduledSendDescription')} />
+                                <Flex gap="gap.smaller" className="DateTimeSelector">
+                                    <Datepicker
+                                        disabled={!state.selectedSchedule}
+                                        defaultSelectedDate={getDateObject(state.scheduledDate)}
+                                        minDate={new Date()}
+                                        inputOnly
+                                        onDateChange={handleDateChange}
+                                    />
+                                    <Flex.Item shrink={true} size="1%">
+                                        <Dropdown
+                                            placeholder="hour"
+                                            disabled={!state.selectedSchedule}
+                                            fluid={true}
+                                            items={hours}
+                                            defaultValue={getDateHour(state.scheduledDate)}
+                                            onChange={handleHourChange}
+                                        />
+                                    </Flex.Item>
+                                    <Flex.Item shrink={true} size="1%">
+                                        <Dropdown
+                                            placeholder="mins"
+                                            disabled={!state.selectedSchedule}
+                                            fluid={true}
+                                            items={minutes}
+                                            defaultValue={getDateMins(state.scheduledDate)}
+                                            onChange={handleMinsChange}
+                                        />
+                                    </Flex.Item>
+                                </Flex>
+                                <div className={state.futuredate && state.selectedSchedule ? "ErrorMessage" : "hide"}>
+                                    <div className="noteText">
+                                        <Text error content={t('FutureDateError')} />
+                                    </div>
+                                </div>
+                                <Flex hAlign="start">
+                                    <h3><Checkbox
+                                        className="Important"
+                                        labelPosition="start"
+                                        onClick={onImportantSelected}
+                                        label={t("Important")}
+                                        checked={state.selectedImportant}
+                                        toggle
+                                    /></h3>
+                                </Flex>
+                                <Text size="small" align="start" content={t('ImportantDescription')} />
+                            </Flex>
+                        </Flex.Item>
+                        <Flex.Item size="size.half">
+                            <div>
+                                <Flex hAlign="end">
+                                    <Label content={JSON.stringify(cardRef.current).length - imageSizeRef.current + "/" + maxCardSize} />
+                                </Flex>
+                                <div className="adaptiveCardContainer"></div>
+                            </div>
+                        </Flex.Item>
+                    </Flex>
+                    <Flex className="footerContainer" vAlign="end" hAlign="end">
+                        <Flex className="buttonContainer" gap="gap.medium">
+                            <Button content={t("Back")} onClick={onBack} secondary />
+                            <Flex.Item push>
+                                <Button
+                                    content="Schedule"
+                                    disabled={isSaveBtnDisabled() || !state.selectedSchedule}
+                                    onClick={onSchedule}
+                                    primary={state.selectedSchedule} />
+                            </Flex.Item>
+                            <Button content={t("SaveAsDraft")}
+                                disabled={isSaveBtnDisabled() || state.selectedSchedule}
+                                id="saveBtn"
+                                onClick={onSave}
+                                primary={!state.selectedSchedule} />
+                        </Flex>
+                    </Flex>
+                </Flex>
+            </div>
+        );
     }
 
-    //private function to remove a button from the adaptive card
-    private removeClick(i: any) {
-        let values = [...this.state.values];
-        values.splice(i, 1);
-        this.setState({ values });
+    return <div>Error</div>;
+};
 
-        const showDefaultCard = (!this.state.title && !this.state.imageLink && !this.state.summary && !this.state.author && values.length == 0);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, this.state.author);
-        if (values.length > 0) { //only if there are buttons created
-            setCardBtns(this.card, values); //update the adaptive card
-            this.setState({
-                card: this.card
-            }, () => {
-                if (showDefaultCard) {
-                    this.setDefaultCard(this.card);
-                }
-                this.updateCard();
-            });
-        } else {
-            this.setState({
-                errorButtonUrlMessage: ""
-            });
-            delete this.card.actions;
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        };
-    }
-
-    //private function to deal with changes in the button names
-    private handleChangeName(i: any, event: any) {
-        let values = [...this.state.values];
-        values[i].title = event.target.value;
-        this.setState({ values });
-
-        const showDefaultCard = (!this.state.title && !this.state.imageLink && !this.state.summary && !this.state.author && !event.target.value && values.length == 0);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, this.state.author);
-        if (values.length > 0) { //only if there are buttons created
-            setCardBtns(this.card, values); //update the adaptive card
-            this.setState({
-                card: this.card
-            }, () => {
-                if (showDefaultCard) {
-                    this.setDefaultCard(this.card);
-                }
-                this.updateCard();
-            });
-        } else {
-            delete this.card.actions;
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        };
-    }
-
-    //private function to deal with changes in the button links/urls
-    private handleChangeLink(i: any, event: any) {
-        let values = [...this.state.values];
-        values[i].url = event.target.value;
-        this.setState({ values });
-
-        //set the error message if the links have wrong values
-        if (!(event.target.value === "" || event.target.value.toLowerCase().startsWith("https://"))) {
-            this.setState({
-                errorButtonUrlMessage: this.localize("ErrorURLMessage")
-            });
-        } else {
-            this.setState({
-                errorButtonUrlMessage: ""
-            });
-        }
-
-        const showDefaultCard = (!this.state.title && !this.state.imageLink && !this.state.summary && !this.state.author && !event.target.value && values.length == 0);
-        setCardTitle(this.card, this.state.title);
-        setCardImageLink(this.card, this.state.imageLink);
-        setCardSummary(this.card, this.state.summary);
-        setCardAuthor(this.card, this.state.author);
-        if (values.length > 0) {
-            setCardBtns(this.card, values); //update the card
-            this.setState({
-                card: this.card
-            }, () => {
-                if (showDefaultCard) {
-                    this.setDefaultCard(this.card);
-                }
-                this.updateCard();
-            });
-        } else {
-            delete this.card.actions;
-            if (showDefaultCard) {
-                this.setDefaultCard(this.card);
-            }
-            this.updateCard();
-        };
-    }
-
-    private updateCard = () => {
-        const adaptiveCard = new AdaptiveCards.AdaptiveCard();
-        adaptiveCard.parse(this.state.card);
-        const renderedCard = adaptiveCard.render();
-        const container = document.getElementsByClassName('adaptiveCardContainer')[0].firstChild;
-        if (container != null) {
-            container.replaceWith(renderedCard);
-        } else {
-            document.getElementsByClassName('adaptiveCardContainer')[0].appendChild(renderedCard);
-        }
-
-        adaptiveCard.onExecuteAction = function (action: OpenUrlAction) { window.open(action.url, '_blank'); }
-    }
-}
-
-const newMessageWithTranslation = withTranslation()(NewMessage);
-export default withRouter(newMessageWithTranslation as any);
+export default NewMessage;

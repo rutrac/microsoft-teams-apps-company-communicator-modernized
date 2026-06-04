@@ -2,17 +2,16 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { connect } from 'react-redux';
-import { withTranslation, WithTranslation } from "react-i18next";
+import { useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from "react-i18next";
 import { initializeIcons } from 'office-ui-fabric-react/lib/Icons';
 import { Loader, List, Flex, Text } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
 import './draftMessages.scss';
-import { selectMessage, getDraftMessagesList, getScheduledMessagesList, getMessagesList } from '../../actions';
+import { getDraftMessagesList, getScheduledMessagesList, getMessagesList } from '../../actions';
 import { getBaseUrl } from '../../configVariables';
 import Overflow from '../OverFlow/draftMessageOverflow';
-import { TFunction } from "i18next";
-
 
 export interface IMessage {
     id: string;
@@ -24,146 +23,46 @@ export interface IMessage {
     responses?: string;
 }
 
-export interface IMessageProps extends WithTranslation {
-    messages: IMessage[];
-    selectedMessage: any;
-    selectMessage?: any;
-    getDraftMessagesList?: any;
-    getScheduledMessagesList?: any;
-    getMessagesList?: any;
-}
+initializeIcons();
 
-export interface IMessageState {
-    message: IMessage[];
-    itemsAccount: number;
-    loader: boolean;
-    teamsTeamId?: string;
-    teamsChannelId?: string;
-}
+const DraftMessages: React.FC = () => {
+    const { t } = useTranslation();
+    const dispatch = useDispatch<any>();
+    const messages: IMessage[] = useSelector((state: any) => state.draftMessagesList) || [];
+    const [loader, setLoader] = useState(true);
+    const prevMessagesRef = useRef<IMessage[] | undefined>(undefined);
+    const openAllowedRef = useRef(true);
 
-class DraftMessages extends React.Component<IMessageProps, IMessageState> {
-    readonly localize: TFunction;
-    private interval: any;
-    private isOpenTaskModuleAllowed: boolean;
-    targetingEnabled: boolean; // property to store value indicating if the targeting mode is enabled or not
-    masterAdminUpns: string; // property to store value with the master admins
-
-    constructor(props: IMessageProps) {
-        super(props);
-        initializeIcons();
-        this.localize = this.props.t;
-        this.isOpenTaskModuleAllowed = true;
-        this.targetingEnabled = false; // by default targeting is disabled
-        this.masterAdminUpns = "";
-        this.state = {
-            message: props.messages,
-            itemsAccount: this.props.messages.length,
-            loader: true,
-            teamsTeamId: "",
-            teamsChannelId: "",
-        };
-    }
-
-    public async componentDidMount() {
-        await app.initialize();
-        const context = await app.getContext();
-        this.setState({
-            teamsTeamId: context.team?.internalId,
-            teamsChannelId: context.channel?.id,
-        });
-        this.props.getDraftMessagesList();
-        this.interval = setInterval(() => {
-            this.props.getDraftMessagesList();
-        }, 60000);
-    }
-
-    public componentDidUpdate(prevProps: any) {
-        if (prevProps.messages !== this.props.messages) {
-            this.setState({
-                message: this.props.messages,
-                loader: false
-            });
+    useEffect(() => {
+        if (prevMessagesRef.current !== messages) {
+            prevMessagesRef.current = messages;
+            setLoader(false);
         }
-    }
+    }, [messages]);
 
-    public componentWillUnmount() {
-        clearInterval(this.interval);
-    }
+    useEffect(() => {
+        let interval: any;
+        (async () => {
+            await app.initialize();
+            await app.getContext();
+            dispatch(getDraftMessagesList());
+            interval = setInterval(() => {
+                dispatch(getDraftMessagesList());
+            }, 60000);
+        })();
+        return () => { if (interval) clearInterval(interval); };
+    }, [dispatch]);
 
-    public render(): JSX.Element {
-        let keyCount = 0;
-        const processItem = (message: any) => {
-            keyCount++;
-            const out = {
-                key: keyCount,
-                content: (
-                    <Flex vAlign="center" fill gap="gap.small">
-                        <Flex.Item shrink={0} grow={1}>
-                            <Text>{message.title}</Text>
-                        </Flex.Item>
-                        <Flex.Item shrink={0} align="end">
-                            <Overflow message={message} title="" />
-                        </Flex.Item>
-                    </Flex>
-                ),
-                styles: { margin: '0.2rem 0.2rem 0 0' },
-                onClick: (): void => {
-                    let url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
-                    this.onOpenTaskModule(null, url, this.localize("EditMessage"));
-                },
-            };
-            return out;
-        };
-
-        const label = this.processLabels();
-        const outList = this.state.message.map(processItem);
-        const allDraftMessages = [...label, ...outList];
-
-        if (this.state.loader) {
-            return (
-                <Loader />
-            );
-        } else if (this.state.message.length === 0) {
-            return (<div className="results">{this.localize("EmptyDraftMessages")}</div>);
-        }
-        else {
-            return (
-                <List selectable items={allDraftMessages} className="list" />
-            );
-        }
-    }
-
-    private processLabels = () => {
-        const out = [{
-            key: "labels",
-            content: (
-                <Flex vAlign="center" fill gap="gap.small">
-                    <Flex.Item>
-                        <Text
-                            truncated
-                            weight="bold"
-                            content={this.localize("TitleText")}
-                        >
-                        </Text>
-                    </Flex.Item>
-                </Flex>
-            ),
-            styles: { margin: '0.2rem 0.2rem 0 0' },
-        }];
-        return out;
-    }
-
-    private onOpenTaskModule = (event: any, url: string, title: string) => {
-        if (this.isOpenTaskModuleAllowed) {
-            this.isOpenTaskModuleAllowed = false;
-            let submitHandler = (_result: any) => {
-                this.props.getDraftMessagesList().then(() => {
-                    this.props.getScheduledMessagesList();
-                    this.props.getMessagesList();
-                    this.isOpenTaskModuleAllowed = true;
+    const onOpenTaskModule = (url: string, title: string) => {
+        if (openAllowedRef.current) {
+            openAllowedRef.current = false;
+            const submitHandler = (_result: any) => {
+                dispatch(getDraftMessagesList()).then(() => {
+                    dispatch(getScheduledMessagesList());
+                    dispatch(getMessagesList());
+                    openAllowedRef.current = true;
                 });
             };
-
             dialog.url.open({
                 url: url,
                 title: title,
@@ -171,12 +70,51 @@ class DraftMessages extends React.Component<IMessageProps, IMessageState> {
                 fallbackUrl: url,
             }, submitHandler);
         }
+    };
+
+    const processLabels = () => ([{
+        key: "labels",
+        content: (
+            <Flex vAlign="center" fill gap="gap.small">
+                <Flex.Item>
+                    <Text truncated weight="bold" content={t("TitleText")} />
+                </Flex.Item>
+            </Flex>
+        ),
+        styles: { margin: '0.2rem 0.2rem 0 0' },
+    }]);
+
+    let keyCount = 0;
+    const processItem = (message: any) => {
+        keyCount++;
+        return {
+            key: keyCount,
+            content: (
+                <Flex vAlign="center" fill gap="gap.small">
+                    <Flex.Item shrink={0} grow={1}>
+                        <Text>{message.title}</Text>
+                    </Flex.Item>
+                    <Flex.Item shrink={0} align="end">
+                        <Overflow message={message} title="" />
+                    </Flex.Item>
+                </Flex>
+            ),
+            styles: { margin: '0.2rem 0.2rem 0 0' },
+            onClick: (): void => {
+                const url = getBaseUrl() + "/newmessage/" + message.id + "?locale={locale}";
+                onOpenTaskModule(url, t("EditMessage"));
+            },
+        };
+    };
+
+    if (loader) {
+        return <Loader />;
     }
-}
+    if (messages.length === 0) {
+        return <div className="results">{t("EmptyDraftMessages")}</div>;
+    }
+    const allDraftMessages = [...processLabels(), ...messages.map(processItem)];
+    return <List selectable items={allDraftMessages} className="list" />;
+};
 
-const mapStateToProps = (state: any) => {
-    return { messages: state.draftMessagesList, selectedMessage: state.selectedMessage };
-}
-
-const draftMessagesWithTranslation = withTranslation()(DraftMessages);
-export default connect(mapStateToProps, { selectMessage, getDraftMessagesList, getScheduledMessagesList, getMessagesList })(draftMessagesWithTranslation);
+export default DraftMessages;

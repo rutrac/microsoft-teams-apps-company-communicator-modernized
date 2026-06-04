@@ -2,8 +2,9 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { IRouterProps, withRouter } from '../../utils/withRouter';
-import { withTranslation, WithTranslation } from "react-i18next";
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useTranslation } from "react-i18next";
 import * as AdaptiveCards from "adaptivecards";
 import { Loader, Button, Text, List, Image, Flex } from '@fluentui/react-northstar';
 import { app, dialog } from "@microsoft/teams-js";
@@ -15,7 +16,6 @@ import {
     setCardAuthor, setCardBtns, setCardTargetImage, setCardTargetTitle, setCardTarget, setCardImportance
 } from '../AdaptiveCard/adaptiveCard';
 import { ImageUtil } from '../../utility/imageutility';
-import { TFunction } from "i18next";
 
 export interface IListItem {
     header: string,
@@ -45,257 +45,200 @@ export interface IMessage {
     channelImage?: string,
 }
 
-export interface SendConfirmationTaskModuleProps extends IRouterProps, WithTranslation {
-}
+const initMessage: IMessage = {
+    id: "",
+    title: "",
+    buttons: "[]",
+    csvUsers: "",
+    channelId: "",
+};
 
-export interface IStatusState {
-    message: IMessage;
-    loader: boolean;
-    teamNames: string[];
-    rosterNames: string[];
-    groupNames: string[];
-    allUsers: boolean;
-    messageId: string | number;
-}
+const SendConfirmationTaskModule: React.FC = () => {
+    const { t } = useTranslation();
+    const params = useParams();
+    const cardRef = useRef<any>(null);
+    const [message, setMessage] = useState<IMessage>(initMessage);
+    const [loader, setLoader] = useState(true);
+    const [teamNames, setTeamNames] = useState<string[]>([]);
+    const [rosterNames, setRosterNames] = useState<string[]>([]);
+    const [groupNames, setGroupNames] = useState<string[]>([]);
+    const [allUsers, setAllUsers] = useState(false);
 
-class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskModuleProps, IStatusState> {
-    readonly localize: TFunction;
-    targetingEnabled: boolean; // property to store value indicating if the targeting mode is enabled or not
-    masterAdminUpns: string; // property to store value with the master admins
-
-    private initMessage = {
-        id: "",
-        title: "",
-        buttons: "[]",
-        csvUsers: "",
-        channelId: "",
-    };
-
-    private card: any;
-
-    constructor(props: SendConfirmationTaskModuleProps) {
-        super(props);
-        this.localize = this.props.t;
-        this.card = getInitAdaptiveCard(this.localize);
-
-        this.state = {
-            message: this.initMessage,
-            loader: true,
-            teamNames: [],
-            rosterNames: [],
-            groupNames: [],
-            allUsers: false,
-            messageId: 0,
-            
-        };
+    if (cardRef.current === null) {
+        cardRef.current = getInitAdaptiveCard(t);
     }
 
-    public async componentDidMount() {
-        await app.initialize();
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            await app.initialize();
+            const id = params['id'];
+            if (!id) return;
 
-        let params = this.props.match.params;
+            let targetingEnabled = false;
+            try {
+                const settings = await getAppSettings();
+                if (settings.data) {
+                    targetingEnabled = (settings.data.targetingEnabled === 'true');
+                }
+            } catch { /* ignore */ }
+            if (cancelled) return;
+            setCardTarget(cardRef.current, targetingEnabled);
 
-        this.getAppSettings().then(() => {
-            setCardTarget(this.card, this.targetingEnabled);
-            if ('id' in params) {
-                let id = params['id'] as string;
-                this.getItem(id).then(() => {
-                    getConsentSummaries(id).then((response) => {
-                        this.setState({
-                            teamNames: response.data.teamNames.sort(),
-                            rosterNames: response.data.rosterNames.sort(),
-                            groupNames: response.data.groupNames.sort(),
-                            allUsers: response.data.allUsers,
-                            messageId: id,
-                        }, () => {
-                            this.setState({
-                                loader: false
-                            }, () => {
-
-                                setCardTargetImage(this.card, this.state.message.channelImage);
-                                setCardTargetTitle(this.card, this.state.message.channelTitle);
-                                setCardTitle(this.card, this.state.message.title);
-                                setCardImageLink(this.card, this.state.message.imageLink);
-                                setCardSummary(this.card, this.state.message.summary);
-                                setCardAuthor(this.card, this.state.message.author);
-                                setCardImportance(this.card, !!this.state.message.isImportant);
-
-                                if (this.state.message.buttonTitle && this.state.message.buttonLink && !this.state.message.buttons) {
-                                    setCardBtns(this.card, [{
-                                        "type": "Action.OpenUrl",
-                                        "title": this.state.message.buttonTitle,
-                                        "url": this.state.message.buttonLink
-                                    }]);
-
-
-                                }
-                                else {
-                                    setCardBtns(this.card, JSON.parse(this.state.message.buttons));
-                                }
-
-                                let adaptiveCard = new AdaptiveCards.AdaptiveCard();
-                                adaptiveCard.parse(this.card);
-                                let renderedCard = adaptiveCard.render();
-                                document.getElementsByClassName('adaptiveCardContainer')[0].appendChild(renderedCard);
-                                if (this.state.message.buttonLink) {
-                                    let link = this.state.message.buttonLink;
-                                    adaptiveCard.onExecuteAction = function (action) { window.open(link, '_blank'); };
-                                }
-                            });
-                        });
-                    });
-                });
+            let fetched: IMessage;
+            try {
+                const response = await getDraftNotification(id);
+                fetched = response.data;
+            } catch {
+                return;
             }
-        });
-    }
+            if (cancelled) return;
+            setMessage(fetched);
 
-    private getItem = async (id: string | number) => {
-        try {
-            const response = await getDraftNotification(id);
-            this.setState({
-                message: response.data
-            });
-        } catch (error) {
-            return error;
-        }
-    }
+            try {
+                const consent = await getConsentSummaries(id);
+                if (cancelled) return;
+                setTeamNames(consent.data.teamNames.sort());
+                setRosterNames(consent.data.rosterNames.sort());
+                setGroupNames(consent.data.groupNames.sort());
+                setAllUsers(consent.data.allUsers);
+            } catch { /* ignore */ }
 
-    public render(): JSX.Element {
-        if (this.state.loader) {
-            return (
-                <div className="Loader">
-                    <Loader />
-                </div>
-            );
-        } else {
-            return (
-                <div className="taskModule">
-                    <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
-                        <Flex className="scrollableContent" gap="gap.small">
-                            <Flex.Item size="size.half">
-                                <Flex column className="formContentContainer">
-                                    <h3>{this.localize("ConfirmToSend")}</h3>
-                                    <span>{this.localize("SendToRecipientsLabel")}</span>
+            setLoader(false);
 
-                                    <div className="results">
-                                        {this.renderAudienceSelection()}
-                                    </div>
-                                    <h3>{this.localize("Important")}</h3>
-                                    <label>{this.renderImportant()}</label>
-                                </Flex>
-                            </Flex.Item>
-                            <Flex.Item size="size.half">
-                                <div className="adaptiveCardContainer">
-                                </div>
-                            </Flex.Item>
-                        </Flex>
-                        <Flex className="footerContainer" vAlign="end" hAlign="end">
-                            <Flex className="buttonContainer" gap="gap.small">
-                                <Flex.Item push>
-                                    <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={this.localize("PreparingMessageLabel")} labelPosition="end" />
-                                </Flex.Item>
-                                <Button content={this.localize("Send")} id="sendBtn" onClick={this.onSendMessage} primary />
-                            </Flex>
-                        </Flex>
-                    </Flex>
-                </div>
-            );
-        }
-    }
+            setTimeout(() => {
+                if (cancelled) return;
+                const card = cardRef.current;
+                setCardTargetImage(card, fetched.channelImage);
+                setCardTargetTitle(card, fetched.channelTitle);
+                setCardTitle(card, fetched.title);
+                setCardImageLink(card, fetched.imageLink);
+                setCardSummary(card, fetched.summary);
+                setCardAuthor(card, fetched.author);
+                setCardImportance(card, !!fetched.isImportant);
 
-    private onSendMessage = () => {
-        let spanner = document.getElementsByClassName("sendingLoader");
-        spanner[0].classList.remove("hiddenLoader");
-        sendDraftNotification(this.state.message).then(() => {
+                if (fetched.buttonTitle && fetched.buttonLink && !fetched.buttons) {
+                    setCardBtns(card, [{
+                        "type": "Action.OpenUrl",
+                        "title": fetched.buttonTitle,
+                        "url": fetched.buttonLink,
+                    }]);
+                } else {
+                    setCardBtns(card, JSON.parse(fetched.buttons));
+                }
+
+                const adaptiveCard = new AdaptiveCards.AdaptiveCard();
+                adaptiveCard.parse(card);
+                const renderedCard = adaptiveCard.render();
+                const container = document.getElementsByClassName('adaptiveCardContainer')[0];
+                if (container && renderedCard) {
+                    container.appendChild(renderedCard);
+                }
+                if (fetched.buttonLink) {
+                    const link = fetched.buttonLink;
+                    adaptiveCard.onExecuteAction = function () { window.open(link, '_blank'); };
+                }
+            }, 0);
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const onSendMessage = () => {
+        const spanner = document.getElementsByClassName("sendingLoader");
+        if (spanner[0]) spanner[0].classList.remove("hiddenLoader");
+        sendDraftNotification(message).then(() => {
             dialog.url.submit();
         });
-    }
+    };
 
-    private getItemList = (items: string[]) => {
-        let resultedTeams: IListItem[] = [];
-        if (items) {
-            resultedTeams = items.map((element) => {
-                const resultedTeam: IListItem = {
-                    header: element,
-                    media: <Image src={ImageUtil.makeInitialImage(element)} avatar />
-                }
-                return resultedTeam;
-            });
-        }
-        return resultedTeams;
-    }
+    const getItemList = (items: string[]): IListItem[] => {
+        if (!items) return [];
+        return items.map((element) => ({
+            header: element,
+            media: <Image src={ImageUtil.makeInitialImage(element)} avatar />,
+        }));
+    };
 
-    private renderImportant = () => {
-        if (this.state.message.isImportant) {
-            return (
-                <label>Yes</label>
-            )
-        } else {
-            return (
-                <label>No</label>
-            )
-        }
-    }
+    const renderImportant = () => message.isImportant ? <label>Yes</label> : <label>No</label>;
 
-    private renderCSV = () => {
-        if (this.state.message.csvUsers.length>0) {
+    const renderAudienceSelection = () => {
+        if (teamNames && teamNames.length > 0) {
             return (
-                <label>Yes</label>
-            )
-        } else {
-            return (
-                <label>No</label>
-            )
-        }
-    }
-
-    // get the app configuration values and set targeting mode from app settings
-    private getAppSettings = async () => {
-        let response = await getAppSettings();
-        if (response.data) {
-            this.targetingEnabled = (response.data.targetingEnabled === 'true'); //get the targetingenabled value
-            this.masterAdminUpns = response.data.masterAdminUpns; //get the array of master admins
-        }
-    }
-
-    private renderAudienceSelection = () => {
-        if (this.state.teamNames && this.state.teamNames.length > 0) {
-            return (
-                <div key="teamNames"> <span className="label">{this.localize("TeamsLabel")}</span>
-                    <List items={this.getItemList(this.state.teamNames)} />
+                <div key="teamNames"> <span className="label">{t("TeamsLabel")}</span>
+                    <List items={getItemList(teamNames)} />
                 </div>
             );
-        } else if (this.state.rosterNames && this.state.rosterNames.length > 0) {
+        } else if (rosterNames && rosterNames.length > 0) {
             return (
-                <div key="rosterNames"> <span className="label">{this.localize("TeamsMembersLabel")}</span>
-                    <List items={this.getItemList(this.state.rosterNames)} />
+                <div key="rosterNames"> <span className="label">{t("TeamsMembersLabel")}</span>
+                    <List items={getItemList(rosterNames)} />
                 </div>);
-        } else if (this.state.groupNames && this.state.groupNames.length > 0) {
+        } else if (groupNames && groupNames.length > 0) {
             return (
-                <div key="groupNames" > <span className="label">{this.localize("GroupsMembersLabel")}</span>
-                    <List items={this.getItemList(this.state.groupNames)} />
+                <div key="groupNames" > <span className="label">{t("GroupsMembersLabel")}</span>
+                    <List items={getItemList(groupNames)} />
                 </div>);
-        } else if (this.state.message.csvUsers.length > 0) {
-            return (
-            <div key="allUsers">
-                <span className="label">{this.localize("CSVUsersLabel")}</span>
-                <div className="noteText">
-                    <Text error content={this.localize("SendToCSVUsersNote")} />
-                </div>
-            </div>);
-        } else if (this.state.allUsers) {
+        } else if (message.csvUsers.length > 0) {
             return (
                 <div key="allUsers">
-                    <span className="label">{this.localize("AllUsersLabel")}</span>
+                    <span className="label">{t("CSVUsersLabel")}</span>
                     <div className="noteText">
-                        <Text error content={this.localize("SendToAllUsersNote")} />
+                        <Text error content={t("SendToCSVUsersNote")} />
                     </div>
                 </div>);
-        } else {
-            return (<div></div>);
+        } else if (allUsers) {
+            return (
+                <div key="allUsers">
+                    <span className="label">{t("AllUsersLabel")}</span>
+                    <div className="noteText">
+                        <Text error content={t("SendToAllUsersNote")} />
+                    </div>
+                </div>);
         }
-    }
-}
+        return <div></div>;
+    };
 
-const sendConfirmationTaskModuleWithTranslation = withTranslation()(SendConfirmationTaskModule);
-export default withRouter(sendConfirmationTaskModuleWithTranslation as any);
+    if (loader) {
+        return (
+            <div className="Loader">
+                <Loader />
+            </div>
+        );
+    }
+
+    return (
+        <div className="taskModule">
+            <Flex column className="formContainer" vAlign="stretch" gap="gap.small">
+                <Flex className="scrollableContent" gap="gap.small">
+                    <Flex.Item size="size.half">
+                        <Flex column className="formContentContainer">
+                            <h3>{t("ConfirmToSend")}</h3>
+                            <span>{t("SendToRecipientsLabel")}</span>
+
+                            <div className="results">
+                                {renderAudienceSelection()}
+                            </div>
+                            <h3>{t("Important")}</h3>
+                            <label>{renderImportant()}</label>
+                        </Flex>
+                    </Flex.Item>
+                    <Flex.Item size="size.half">
+                        <div className="adaptiveCardContainer">
+                        </div>
+                    </Flex.Item>
+                </Flex>
+                <Flex className="footerContainer" vAlign="end" hAlign="end">
+                    <Flex className="buttonContainer" gap="gap.small">
+                        <Flex.Item push>
+                            <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={t("PreparingMessageLabel")} labelPosition="end" />
+                        </Flex.Item>
+                        <Button content={t("Send")} id="sendBtn" onClick={onSendMessage} primary />
+                    </Flex>
+                </Flex>
+            </Flex>
+        </div>
+    );
+};
+
+export default SendConfirmationTaskModule;

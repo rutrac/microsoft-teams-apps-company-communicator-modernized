@@ -2,7 +2,9 @@
 // Licensed under the MIT License.
 
 import * as React from 'react';
-import { withTranslation, WithTranslation } from "react-i18next";
+import { useEffect, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useTranslation } from "react-i18next";
 import Messages from '../Messages/messages';
 import DraftMessages from '../DraftMessages/draftMessages';
 import ScheduledMessages from '../ScheduledMessages/ScheduledMessages';
@@ -12,182 +14,118 @@ import { getBaseUrl } from '../../configVariables';
 import { Accordion, Button, Flex, Label } from '@fluentui/react-northstar';
 import { getDraftMessagesList, getScheduledMessagesList } from '../../actions';
 import { getAppSettings } from "../../apis/messageListApi";
-import { connect } from 'react-redux';
-import { TFunction } from "i18next";
 
+const isMasterAdmin = (masterAdminUpns: string, userUpn?: string): boolean => {
+    if (!userUpn) return false;
+    const masterAdmins = masterAdminUpns.toLowerCase().split(/;|,/).map(e => e.trim());
+    return masterAdmins.indexOf(userUpn.toLowerCase()) >= 0;
+};
 
-export interface ITaskInfoProps extends WithTranslation {
-    getDraftMessagesList?: any;
-    getScheduledMessagesList?: any;
-}
+const TabContainer: React.FC = () => {
+    const { t } = useTranslation();
+    const dispatch = useDispatch<any>();
+    const url = getBaseUrl() + "/newmessage?locale={locale}";
 
-export interface ITabContainerState {
-    url: string;
-    channelId?: string;
-    channelName?: string;
-    teamName?: string;
-    userPrincipalName?: string;
-    loading: boolean;
-}
+    const [, setLoading] = useState(true);
+    const [channelName, setChannelName] = useState<string | undefined>("");
+    const [teamName, setTeamName] = useState<string | undefined>("");
+    const [userPrincipalName, setUserPrincipalName] = useState<string | undefined>("");
 
-class TabContainer extends React.Component<ITaskInfoProps, ITabContainerState> {
-    readonly localize: TFunction;
-    targetingEnabled: boolean; // property to store value indicating if the targeting mode is enabled or not
-    masterAdminUpns: string; // property to store value with the master admins
+    const targetingEnabledRef = useRef(false);
+    const masterAdminUpnsRef = useRef("");
 
-    constructor(props: ITaskInfoProps) {
-        super(props);
-        this.localize = this.props.t;
-        this.targetingEnabled = false; // by default targeting is disabled
-        this.masterAdminUpns = "";
-        this.state = {
-            loading: true,
-            url: getBaseUrl() + "/newmessage?locale={locale}",
-            channelId: "",
-            channelName: "",
-            teamName: "",
-            userPrincipalName: ""
-        }
-        this.escFunction = this.escFunction.bind(this);
-    }
-
-    public async componentDidMount() {
-        await app.initialize();
-        //- Handle the Esc key
-        document.addEventListener("keydown", this.escFunction, false);
-
-        // get the app settings and based on the targeting configuration and user id
-        // decides if the save is enabled or not
-        this.getAppSettings().then(() => {
-            this.setState({ loading: false });
-        });
-
-        // get teams context variables and store in the state
-        const context = await app.getContext();
-        this.setState({
-            channelId: context.channel?.id,
-            channelName: context.channel?.displayName,
-            teamName: context.team?.displayName,
-            userPrincipalName: context.user?.userPrincipalName,
-        });
-    }
-
-    public componentWillUnmount() {
-        document.removeEventListener("keydown", this.escFunction, false);
-    }
-
-    public escFunction(event: any) {
-        if (event.keyCode === 27 || (event.key === "Escape")) {
-            dialog.url.submit();
-        }
-    }
-
-    public render(): JSX.Element {
-        var isMaster = this.isMasterAdmin(this.masterAdminUpns, this.state.userPrincipalName);
-        const panels = [
-            {
-                title: this.localize('DraftMessagesSectionTitle'),
-                content: {
-                    key: 'sent',
-                    content: (
-                        <DraftMessages></DraftMessages>
-                    ),
-                },
-            },
-            {
-                title: this.localize('ScheduledMessagesSectionTitle'),
-                content: {
-                    key: 'scheduled',
-                    content: (
-                        <div className="messages">
-                            <ScheduledMessages></ScheduledMessages>
-                        </div>
-                    ),
-                },
-            },
-            {
-                title: this.localize('SentMessagesSectionTitle'),
-                content: {
-                    key: 'draft',
-                    content: (
-                        <Messages></Messages>
-                    ),
-                },
+    useEffect(() => {
+        const escFunction = (event: any) => {
+            if (event.keyCode === 27 || event.key === "Escape") {
+                dialog.url.submit();
             }
-        ]
-        return (
-            <Flex className="tabContainer" column fill gap="gap.small">
-                <Flex className="newPostBtn" hAlign="end" vAlign="end" gap="gap.small">
-                    {(this.targetingEnabled) &&
-                        <div><Label circular content={this.state.teamName} /> <Label circular content={this.state.channelName} /></div>}
-                    <Flex.Item push>
-                        <Button content={this.localize("NewMessage")} onClick={this.onNewMessage} primary />
-                    </Flex.Item>
-                    {((this.targetingEnabled) && (isMaster)) &&
-                        <Button content={this.localize("ManageGroups")} onClick={this.ManageGroups} />}
-                </Flex>
-                <Flex className="messageContainer">
-                    <Flex.Item grow={1} >
-                        <Accordion defaultActiveIndex={[0, 1, 2]} panels={panels} />
-                    </Flex.Item>
-                </Flex>
-            </Flex>
-        );
-    }
-
-    public onNewMessage = () => {
-        let submitHandler = (_result: any) => {
-            this.props.getDraftMessagesList();
-            this.props.getScheduledMessagesList();
-            
         };
+        let cancelled = false;
+        (async () => {
+            await app.initialize();
+            document.addEventListener("keydown", escFunction, false);
 
+            try {
+                const response = await getAppSettings();
+                if (response.data) {
+                    targetingEnabledRef.current = (response.data.targetingEnabled === 'true');
+                    masterAdminUpnsRef.current = response.data.masterAdminUpns;
+                }
+            } catch { /* ignore */ }
+            if (cancelled) return;
+            setLoading(false);
+
+            const context = await app.getContext();
+            if (cancelled) return;
+            setChannelName(context.channel?.displayName);
+            setTeamName(context.team?.displayName);
+            setUserPrincipalName(context.user?.userPrincipalName);
+        })();
+        return () => {
+            cancelled = true;
+            document.removeEventListener("keydown", escFunction, false);
+        };
+    }, []);
+
+    const onNewMessage = () => {
+        const submitHandler = (_result: any) => {
+            dispatch(getDraftMessagesList());
+            dispatch(getScheduledMessagesList());
+        };
         dialog.url.open({
-            url: this.state.url,
-            title: this.localize("NewMessage"),
+            url: url,
+            title: t("NewMessage"),
             size: { height: 530, width: 1000 },
-            fallbackUrl: this.state.url,
+            fallbackUrl: url,
         }, submitHandler);
-    }
+    };
 
-    public ManageGroups = () => {
-        var strUrl = getBaseUrl() + "/managegroups?locale={locale}";
-
+    const onManageGroups = () => {
+        const strUrl = getBaseUrl() + "/managegroups?locale={locale}";
         dialog.url.open({
             url: strUrl,
-            title: this.localize("ManageGroups"),
+            title: t("ManageGroups"),
             size: { height: 530, width: 1000 },
             fallbackUrl: strUrl,
         });
-    }
+    };
 
-    // get the app configuration values and set targeting mode from app settings
-    private getAppSettings = async () => {
-        let response = await getAppSettings();
-        if (response.data) {
-            this.targetingEnabled = (response.data.targetingEnabled === 'true'); //get the targetingenabled value
-            this.masterAdminUpns = response.data.masterAdminUpns; //get the array of master admins
-        }
-    }
+    const isMaster = isMasterAdmin(masterAdminUpnsRef.current, userPrincipalName);
+    const panels = [
+        {
+            title: t('DraftMessagesSectionTitle'),
+            content: { key: 'sent', content: <DraftMessages /> },
+        },
+        {
+            title: t('ScheduledMessagesSectionTitle'),
+            content: { key: 'scheduled', content: <div className="messages"><ScheduledMessages /></div> },
+        },
+        {
+            title: t('SentMessagesSectionTitle'),
+            content: { key: 'draft', content: <Messages /> },
+        },
+    ];
 
-    //returns true if the userUpn is listed on masterAdminUpns
-    private isMasterAdmin = (masterAdminUpns: string, userUpn?: string) => {
-        var ret = false; // default return value
-        var masterAdmins = masterAdminUpns.toLowerCase().split(/;|,/).map(element => element.trim());
-        //if we get a userUpn as parameter
-        if (userUpn) {
-            //gets the index of the user on the master admin array
-            if (masterAdmins.indexOf(userUpn.toLowerCase()) >= 0) { ret = true; }
-        }
+    return (
+        <Flex className="tabContainer" column fill gap="gap.small">
+            <Flex className="newPostBtn" hAlign="end" vAlign="end" gap="gap.small">
+                {targetingEnabledRef.current && (
+                    <div><Label circular content={teamName} /> <Label circular content={channelName} /></div>
+                )}
+                <Flex.Item push>
+                    <Button content={t("NewMessage")} onClick={onNewMessage} primary />
+                </Flex.Item>
+                {targetingEnabledRef.current && isMaster && (
+                    <Button content={t("ManageGroups")} onClick={onManageGroups} />
+                )}
+            </Flex>
+            <Flex className="messageContainer">
+                <Flex.Item grow={1}>
+                    <Accordion defaultActiveIndex={[0, 1, 2]} panels={panels} />
+                </Flex.Item>
+            </Flex>
+        </Flex>
+    );
+};
 
-        return ret;
-    }
-}
-
-
-const mapStateToProps = (state: any) => {
-    return { messages: state.draftMessagesList };
-}
-
-const tabContainerWithTranslation = withTranslation()(TabContainer);
-export default connect(mapStateToProps, { getDraftMessagesList, getScheduledMessagesList })(tabContainerWithTranslation);
+export default TabContainer;
