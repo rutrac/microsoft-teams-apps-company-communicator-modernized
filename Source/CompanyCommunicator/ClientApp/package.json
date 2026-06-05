@@ -42,7 +42,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
-    "@fortawesome/fontawesome-free": "^5.15.4",
+    "@fortawesome/fontawesome-free": "^7.2.0",
     "@playwright/test": "^1.60.0",
     "@types/color-hash": "^1.0.4",
     "@types/faker": "^4.1.12",
