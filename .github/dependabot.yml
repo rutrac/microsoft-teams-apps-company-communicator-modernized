@@ -1,0 +1,94 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+#
+# Dependabot configuration for Company Communicator.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Scopes (one entry per package ecosystem):
+#   - npm    : Source/CompanyCommunicator/ClientApp (React 18 + Vite + dayjs + Playwright)
+#   - nuget  : 5 .NET 8 projects (web app + 3 isolated function workers + shared Common lib)
+#   - github-actions : workflow files under .github/workflows (future-proof; no workflows shipped yet)
+#
+# Update strategy:
+#   - Weekly cadence (Monday early morning, low local noise window).
+#   - Minor + patch grouped per ecosystem to keep PR count manageable.
+#   - Major updates open as individual PRs so each gets explicit review.
+#   - 10 open PRs cap per ecosystem so a bulk update wave can't drown the repo.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # ClientApp (React 18 + Vite 7 + Fluent Northstar + i18next + dayjs + Playwright)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/Source/CompanyCommunicator/ClientApp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "client(deps)"
+      include: "scope"
+    groups:
+      client-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      client-dev-minor-and-patch:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # .NET 8 server / function projects (one entry per csproj)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "nuget"
+    directories:
+      - "/Source/CompanyCommunicator"
+      - "/Source/CompanyCommunicator.Common"
+      - "/Source/CompanyCommunicator.Data.Func"
+      - "/Source/CompanyCommunicator.Prep.Func"
+      - "/Source/CompanyCommunicator.Send.Func"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "server(deps)"
+      include: "scope"
+    groups:
+      server-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions workflow files (no workflows shipped yet - future-proof so the
+  # first workflow we add gets dependency tracking immediately).
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
