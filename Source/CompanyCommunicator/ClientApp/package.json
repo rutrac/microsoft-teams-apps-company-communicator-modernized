@@ -7,7 +7,7 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "@fluentui/react-northstar": "^0.56.0",
+    "@fluentui/react-northstar": "^0.71.4",
     "@microsoft/teams-js": "^2.31.0",
     "adaptivecards": "^1.2.0",
     "axios": "^1.16.1",
@@ -25,7 +25,7 @@
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-highlight-words": "^0.20.0",
+    "react-highlight-words": "^0.21.0",
     "react-i18next": "^13.5.0",
     "react-image-file-resizer": "^0.4.8",
     "react-redux": "^7.2.9",
@@ -52,7 +52,7 @@
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/react-highlight-words": "^0.16.7",
+    "@types/react-highlight-words": "^0.20.1",
     "@types/react-redux": "^7.1.33",
     "@types/redux": "^3.6.31",
     "@vitejs/plugin-react": "^4.3.4",
