@@ -8,6 +8,11 @@
 # testing
 /coverage
 
+# playwright
+/test-results
+/playwright-report
+/playwright/.cache
+
 # production
 # /build  -- intentionally tracked: deploy.app.cmd skips npm install + vite build
 #            when ClientApp/build/index.html exists. Local build -> commit -> push

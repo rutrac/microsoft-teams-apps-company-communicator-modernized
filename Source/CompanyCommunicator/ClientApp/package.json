@@ -37,10 +37,13 @@
   "scripts": {
     "start": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@fortawesome/fontawesome-free": "^5.15.4",
+    "@playwright/test": "^1.60.0",
     "@types/color-hash": "^1.0.4",
     "@types/faker": "^4.1.12",
     "@types/history": "^4.7.11",
