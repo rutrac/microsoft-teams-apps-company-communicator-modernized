@@ -13,7 +13,7 @@
     "axios": "^1.16.1",
     "color-hash": "^1.0.3",
     "dayjs": "^1.11.21",
-    "faker": "^4.1.0",
+    "faker": "^6.6.6",
     "font-awesome": "^4.7.0",
     "i18next": "^23.16.4",
     "i18next-browser-languagedetector": "^6.1.8",
