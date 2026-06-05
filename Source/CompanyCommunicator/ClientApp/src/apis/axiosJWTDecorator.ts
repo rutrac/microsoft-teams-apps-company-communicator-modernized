@@ -109,7 +109,11 @@ export class AxiosJWTDecorator {
         try {
             const token = await authentication.getAuthToken();
             if (!config) {
-                config = axios.defaults;
+                // axios.defaults is AxiosDefaults<any>; its `headers` field is HeadersDefaults
+                // (with per-method slots .common/.get/.post/...). It is structurally compatible
+                // with AxiosRequestConfig at runtime, but TS 5's stricter axios types reject
+                // the direct assignment, hence the cast.
+                config = axios.defaults as unknown as AxiosRequestConfig;
             }
             config.headers["Authorization"] = `Bearer ${token}`;
             config.headers["Accept-Language"] = i18n.language;
