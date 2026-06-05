@@ -1448,13 +1448,27 @@ function logout {
 
 # Check if Azure CLI is installed.
     WriteI -message "Checking if Azure CLI is installed."
-    $localPath = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
-    if ($localPath -eq $null) {
-        $localPath = "C:\Program Files (x86)"
+    # Az CLI ships through several installers, each with its own default install root.
+    # The canonical probe is `az --version`, which honours PATH and any shim (winget, scoop, choco, Cloud Shell).
+    # If that fails, fall back to scanning well-known on-disk locations so a fresh install that hasn't refreshed
+    # PATH in this shell session is still recognised.
+    $azFound = $false
+    try {
+        $null = & az --version 2>$null
+        if ($LASTEXITCODE -eq 0) { $azFound = $true }
+    } catch { }
+    if (-not $azFound) {
+        $cliCandidates = @(
+            (Join-Path ([Environment]::GetEnvironmentVariable("ProgramFiles(x86)"))    "Microsoft SDKs\Azure\CLI2\wbin\az.cmd"), # legacy 32-bit MSI
+            (Join-Path ([Environment]::GetEnvironmentVariable("ProgramFiles"))         "Microsoft SDKs\Azure\CLI2\wbin\az.cmd"), # modern 64-bit MSI (2.51+)
+            (Join-Path ([Environment]::GetEnvironmentVariable("LOCALAPPDATA"))         "Programs\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"), # user-scope MSI
+            (Join-Path ([Environment]::GetEnvironmentVariable("LOCALAPPDATA"))         "Microsoft\WinGet\Links\az.cmd"),                  # winget shim
+            (Join-Path ([Environment]::GetEnvironmentVariable("USERPROFILE"))          "scoop\shims\az.cmd"),                              # scoop shim
+            "C:\ProgramData\chocolatey\bin\az.exe"                                                                                          # chocolatey shim
+        ) | Where-Object { $_ -and (Test-Path $_) }
+        if ($cliCandidates) { $azFound = $true }
     }
-
-    $localPath = $localPath + "\Microsoft SDKs\Azure\CLI2"
-    If (-not(Test-Path -Path $localPath)) {
+    If (-not $azFound) {
         WriteW -message "Azure CLI is not installed!"
         $confirmationtitle      = "Please select YES to install Azure CLI."
         $confirmationquestion   = "Do you want to proceed?"
