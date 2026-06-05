@@ -146,6 +146,10 @@
   "MasterAdminUpns": {
     "Value": "",
     "Description": "Semicolon-delimited list of all upns for the master admins if using the targeting feature"
+  },
+  "keyVaultEnablePurgeProtection": {
+    "Value": "true",
+    "Description": "[true/false] When true, sets enablePurgeProtection on the Key Vault (Defender / MCSB recommendation). IRREVERSIBLE once set on a vault - the vault name is then globally reserved for softDeleteRetentionInDays (default 90 days) and cannot be reused. Leave true for production; set false only for sandbox/dev environments that recycle the same baseResourceName repeatedly."
   }
 
 }

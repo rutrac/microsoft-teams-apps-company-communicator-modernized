@@ -27,6 +27,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
+
+    <!-- Transitive pins to override vulnerable 4.3.0 dragged in via
+         Microsoft.Azure.WebJobs.Extensions.DurableTask -> WebApiCompatShim -> NETStandard.Library 1.6.1.
+         GHSA-7jgj-8wvc-jh57 (System.Net.Http) fixed in 4.3.4.
+         GHSA-cmhx-cq75-c4mj (System.Text.RegularExpressions) fixed in 4.3.1.
+         On net8.0 these packages are no-ops at runtime (BCL already provides them),
+         so the only effect is to satisfy the build-time vulnerability scanner. -->
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
   <ItemGroup>

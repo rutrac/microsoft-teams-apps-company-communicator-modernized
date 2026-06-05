@@ -566,6 +566,7 @@ function InvokeArmDeploymentWithParamsFile {
             storageAccountDataFuncRoleNameGuid = @{ value = $parameters.storageAccountDataFuncRoleNameGuid.Value }
             TargetingEnabled                   = @{ value = [System.Convert]::ToBoolean($parameters.TargetingEnabled.Value) }
             MasterAdminUpns                    = @{ value = $parameters.MasterAdminUpns.Value }
+            keyVaultEnablePurgeProtection      = @{ value = [System.Convert]::ToBoolean(($(if ($parameters.PSObject.Properties.Name -contains 'keyVaultEnablePurgeProtection') { $parameters.keyVaultEnablePurgeProtection.Value } else { 'true' }))) }
             deployerIpAddress                  = @{ value = $deployerIp }
         }
     }

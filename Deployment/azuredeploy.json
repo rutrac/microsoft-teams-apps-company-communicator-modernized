@@ -297,6 +297,13 @@
       "metadata": {
         "description": "Semicolon-delimited list of the master admins (UPNs) allowed to setup and configure targeting mode."
       }
+    },
+    "keyVaultEnablePurgeProtection": {
+      "defaultValue": true,
+      "type": "bool",
+      "metadata": {
+        "description": "When true, the Key Vault gets enablePurgeProtection. Once set on a vault it cannot be turned off, and the vault name is globally reserved for softDeleteRetentionInDays (default 90). Production: leave true (Defender / MCSB recommendation). Sandbox/dev environments that recycle the same baseResourceName repeatedly: set false."
+      }
     }
   },
   "variables": {
@@ -1025,6 +1032,7 @@
         "tenantId": "[variables('subscriptionTenantId')]",
         "enableRbacAuthorization": true,
         "enableSoftDelete": true,
+        "enablePurgeProtection": "[if(parameters('keyVaultEnablePurgeProtection'), bool('true'), json('null'))]",
         "enabledForDeployment": false,
         "enabledForDiskEncryption": false,
         "enabledForTemplateDeployment": true,
