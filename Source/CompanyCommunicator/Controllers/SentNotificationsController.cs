@@ -10,14 +10,11 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
     using System.IO;
     using System.Linq;
     using System.Net;
-    using System.Net.Http;
     using System.Security.Claims;
-    using System.Text;
     using System.Threading.Tasks;
     using System.Web;
     using Microsoft.AspNetCore.Authorization;
     using Microsoft.AspNetCore.Mvc;
-    using Microsoft.Azure.WebJobs.Extensions.DurableTask;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Graph;
@@ -53,7 +50,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         private readonly IAppCatalogService appCatalogService;
         private readonly IAppSettingsService appSettingsService;
         private readonly UserAppOptions userAppOptions;
-        private readonly IHttpClientFactory clientFactory;
         private readonly ILogger<SentNotificationsController> logger;
 
         /// <summary>
@@ -70,7 +66,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
         /// <param name="appCatalogService">App catalog service.</param>
         /// <param name="appSettingsService">App settings service.</param>
         /// <param name="userAppOptions">User app options.</param>
-        /// <param name="clientFactory">the http client factory.</param>
         /// <param name="loggerFactory">The logger factory.</param>
         public SentNotificationsController(
             INotificationDataRepository notificationDataRepository,
@@ -84,7 +79,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             IAppCatalogService appCatalogService,
             IAppSettingsService appSettingsService,
             IOptions<UserAppOptions> userAppOptions,
-            IHttpClientFactory clientFactory,
             ILoggerFactory loggerFactory)
         {
             if (dataQueueMessageOptions is null)
@@ -103,7 +97,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             this.appCatalogService = appCatalogService ?? throw new ArgumentNullException(nameof(appCatalogService));
             this.appSettingsService = appSettingsService ?? throw new ArgumentNullException(nameof(appSettingsService));
             this.userAppOptions = userAppOptions?.Value ?? throw new ArgumentNullException(nameof(userAppOptions));
-            this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
             this.logger = loggerFactory?.CreateLogger<SentNotificationsController>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         }
 
@@ -513,34 +506,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
                 if (notificationDataEntity == null)
                 {
                     return this.NotFound();
-                }
-
-                // The isolated-worker Prep.Func writes `FunctionInstancePayload` as a plain orchestration id.
-                // Older deployments wrote a serialized `HttpManagementPayload` JSON object. Handle both shapes
-                // defensively: if we have a TerminatePostUri, use it; otherwise rely on the per-message
-                // cancellation check Send.Func performs against `Status`.
-                var payload = notificationDataEntity.FunctionInstancePayload;
-                if (!string.IsNullOrWhiteSpace(payload) && payload.TrimStart().StartsWith("{"))
-                {
-                    try
-                    {
-                        var legacy = JsonConvert.DeserializeObject<HttpManagementPayload>(payload);
-                        if (legacy?.TerminatePostUri != null)
-                        {
-                            var client = this.clientFactory.CreateClient();
-                            var httpContent = new StringContent(string.Empty, Encoding.UTF8, "application/json");
-                            var terminateUri = legacy.TerminatePostUri.Replace("{text}", "Canceled");
-                            var response = await client.PostAsync(terminateUri, httpContent);
-                            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                            {
-                                return this.NotFound();
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        this.logger.LogWarning(ex, "Failed to terminate orchestration via legacy HttpManagementPayload for notification {NotificationId}; falling back to status-based cancellation.", id);
-                    }
                 }
 
                 if (!notificationDataEntity.IsCompleted())

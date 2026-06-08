@@ -6,13 +6,11 @@
 namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.NotificationDataServices
 {
     using System;
-    using System.Net.Http;
     using System.Threading.Tasks;
     using global::Azure.Data.Tables;
     using Microsoft.DurableTask.Client;
     using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.NotificationData;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// Service to update notification data.
@@ -20,19 +18,15 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
     public class UpdateNotificationDataService
     {
         private readonly INotificationDataRepository notificationDataRepository;
-        private readonly IHttpClientFactory httpClientFactory;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="UpdateNotificationDataService"/> class.
         /// </summary>
         /// <param name="notificationDataRepository">The notification data repository.</param>
-        /// <param name="httpClientFactory">The HTTP client factory.</param>
         public UpdateNotificationDataService(
-            INotificationDataRepository notificationDataRepository,
-            IHttpClientFactory httpClientFactory)
+            INotificationDataRepository notificationDataRepository)
         {
             this.notificationDataRepository = notificationDataRepository ?? throw new ArgumentNullException(nameof(notificationDataRepository));
-            this.httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         }
 
         /// <summary>
@@ -135,13 +129,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
 
             var instanceId = functionPayload;
 
-            // Backwards compatibility: legacy persisted full HttpManagementPayload JSON.
-            if (functionPayload.TrimStart().StartsWith("{"))
-            {
-                var legacy = JsonConvert.DeserializeObject<HttpManagementPayload>(functionPayload);
-                instanceId = legacy?.Id ?? string.Empty;
-            }
-
             if (string.IsNullOrEmpty(instanceId))
             {
                 return string.Empty;
@@ -149,24 +136,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Data.Func.Services.Notificati
 
             var metadata = await client.GetInstanceAsync(instanceId);
             return metadata?.RuntimeStatus.ToString() ?? string.Empty;
-        }
-
-        private sealed class HttpManagementPayload
-        {
-            [JsonProperty("id")]
-            public string Id { get; set; }
-
-            [JsonProperty("statusQueryGetUri")]
-            public string StatusQueryGetUri { get; set; }
-
-            [JsonProperty("sendEventPostUri")]
-            public string SendEventPostUri { get; set; }
-
-            [JsonProperty("terminatePostUri")]
-            public string TerminatePostUri { get; set; }
-
-            [JsonProperty("purgeHistoryDeleteUri")]
-            public string PurgeHistoryDeleteUri { get; set; }
         }
 
         private void SetSentStatus(ref UpdateNotificationDataEntity notificationDataEntityUpdate, DateTime? lastSentDate)

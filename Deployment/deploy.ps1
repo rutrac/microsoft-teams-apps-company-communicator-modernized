@@ -293,18 +293,6 @@ function GetAzureADApp {
     }
 }
 
-# To get the Azure AD app detail with new secret.
-function GetAzureADAppWithSecret {
-    param ($appName)
-    $app = GetAzureADApp $appName
-
-    #Reset the app credentials to get the secret. The default validity of this secret will be for 1 year from the date its created.
-    WriteI -message "Retreiving new app with secrets..."
-    $appSecret = az ad app credential reset --id $app.appId --append | ConvertFrom-Json;
-
-    return $appSecret
-}
-
 # Create/re-set Azure AD app.
 function CreateAzureADApp {
     param(
@@ -655,29 +643,6 @@ function DeployARMTemplate {
         "$($parameters.BaseResourceName.Value)-data-function" #data-function
         )
 
-        $codeSynced = $false
-        # Remove source control config if conflict detected
-        if($parameters.isUpgrade.Value){
-            foreach ($appService in $appServicesNames) {
-                WriteI -message "Scan $appService source control configuration for conflicts"
-                $deploymentConfig = az webapp deployment source show --name $appService --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value
-                if($deploymentConfig){
-                    $deploymentConfig = $deploymentConfig | ConvertFrom-Json
-                    # conflicts in branches, clear old configuraiton
-                    if(($deploymentConfig.branch -ne $parameters.gitBranch.Value) -or ($deploymentConfig.repoUrl -ne $parameters.gitRepoUrl.Value)){
-                        WriteI -message "Remove $appService source control configuration"
-                        az webapp deployment source delete --name $appService --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value
-                        # code will be synced in ARM deployment stage
-                        $codeSynced = $true
-                    }
-                }
-                else {
-                    # If command failed due to resource not exists, then screen colors is becoming red
-                    [Console]::ResetColor()
-                }
-            }
-        }
-
         # Deploy ARM templates
         WriteI -message "`nDeploying app services, Azure function, bot service, and other supporting resources... (this step can take over an hour)"
         $armDeploymentResult = InvokeArmDeploymentWithParamsFile $graphappid $authorappId $userappId $graphappsecret $authorsecret $usersecret
@@ -794,20 +759,6 @@ function DeployARMTemplate {
         $deploymentOutput = $null
             $deploymentOutput = az deployment group show --name azuredeploy --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value | ConvertFrom-Json
 
-        # Sync only in upgrades & if no source branch conflict detected
-        if($parameters.isUpgrade.Value -and (-not $codeSynced)){
-            # sync app services code deployment (ARM deployment will not sync automatically)
-            foreach ($appService in $appServicesNames) {
-                WriteI -message "Sync $appService code from latest version"
-                az webapp deployment source sync --name $appService --resource-group $parameters.resourceGroupName.Value --subscription $parameters.subscriptionId.Value
-            }
-            # sync command is async. Wait for source control sync to finish
-            $appserviceCodeSyncSuccess = WaitForCodeDeploymentSync $appServicesNames.Clone()
-            if(-not $appserviceCodeSyncSuccess){
-                CollectARMDeploymentLogs
-                Throw $deploymentExceptionMessage
-            }
-        }
 
         return $deploymentOutput
     }
@@ -1320,62 +1271,6 @@ function ADAppUpdate {
     WriteI -message "requestedAccessTokenVersion set to 2 (Teams SSO v2 JWT format)"
 }
 
-# update app name
-# Rewritten to use az CLI directly (AzureAD module lookup was only needed to get the object ID, which is unused here).
-function ADAppUpdateDisplayName{
-    Param(
-        [Parameter(Mandatory = $true)] $appId,
-        [Parameter(Mandatory = $true)] $currentName,
-        [Parameter(Mandatory = $true)] $newName
-    )
-    Invoke-AzWithRetry -Label "ad app update display-name '$newName'" -ScriptBlock {
-        az ad app update --id $appId --display-name $newName
-    } | Out-Null
-}
-
-# Removing existing access of app (used on upgrades to reset the authors app before re-configuring).
-# Rewritten to use az CLI + Microsoft Graph REST API instead of the retired AzureAD PS module.
-function FormatAADApp {
-    Param(
-        [Parameter(Mandatory = $true)] $appId,
-        [Parameter(Mandatory = $true)] $appName
-    )
-
-    # Get the object ID (required for Graph API calls). Same propagation-safe retry as in ADAppUpdate.
-    $appObjRaw = Resolve-AppObjectId -AppId $appId
-    $applicationObjectId = $appObjRaw.id
-
-    # Fetch full application object via Graph API
-    $app = (Invoke-AzWithRetry -Label "GET application (FormatAADApp) $applicationObjectId" -ScriptBlock { az rest --method GET --url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" }) | ConvertFrom-Json
-
-    # Do nothing if the app has already been reset
-    if ($app.identifierUris.Count -eq 0) {
-        WriteS -message "App already configured."
-        return
-    }
-
-    WriteI -message "`nUpdating app..."
-
-    # Disable then remove existing oauth2 permission scopes (two-step required by Graph API)
-    $existingScopes = $app.api.oauth2PermissionScopes
-    if ($existingScopes.Count -gt 0) {
-        $disabledScopes = $existingScopes | ForEach-Object { $_.isEnabled = $false; $_ }
-        $disablePatch = @{ api = @{ oauth2PermissionScopes = $disabledScopes } } | ConvertTo-Json -Depth 10 -Compress
-        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $disablePatch
-        AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body '{"api":{"oauth2PermissionScopes":[]}}'
-    }
-
-    # Clear implicit grant, redirect URIs, and identifier URIs in one PATCH
-    $resetPatch = '{"web":{"implicitGrantSettings":{"enableIdTokenIssuance":false},"redirectUris":[]},"identifierUris":[]}'
-    AzRestPatch -Url "https://graph.microsoft.com/v1.0/applications/$applicationObjectId" -Body $resetPatch
-
-    Invoke-AzWithRetry -Label "ad app update optional-claims (reset)" -ScriptBlock {
-        az ad app update --id $appId --optional-claims './AadOptionalClaims_Reset.json'
-    } | Out-Null
-    Invoke-AzWithRetry -Label "ad app update remove requiredResourceAccess" -ScriptBlock {
-        az ad app update --id $appId --remove requiredResourceAccess
-    } | Out-Null
-}
 #update manifest file and create a .zip file.
 function GenerateAppManifestPackage {
     Param(
@@ -1554,37 +1449,23 @@ function logout {
 	$usersApp = $parameters.baseresourcename.Value + '-users'
 	$userAppCred = $null
 
-	if($parameters.isUpgrade.Value){
-        $currentAppName = $parameters.baseresourcename.Value
-		$userAppCred = GetAzureADAppWithSecret $currentAppName
-		ADAppUpdateDisplayName $userAppCred.appId $currentAppName $usersApp
-	}
-	else
-	{
-		# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
-		$userAppCred = CreateAzureADApp -AppName $usersApp -ResetAppSecret $True -MultiTenant $False
-		if ($null -eq $userAppCred) {
-			WriteE -message "Failed to create or update User app in Azure Active Directory. Exiting..."
-			logout
-			Exit
-		}
+	# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
+	$userAppCred = CreateAzureADApp -AppName $usersApp -ResetAppSecret $True -MultiTenant $False
+	if ($null -eq $userAppCred) {
+		WriteE -message "Failed to create or update User app in Azure Active Directory. Exiting..."
+		logout
+		Exit
 	}
 
 # Create Author App
     $authorsApp = $parameters.baseResourceName.Value + '-authors'
 	$authorAppCred = $null
-	if($parameters.isUpgrade.Value){
-		$authorAppCred = GetAzureADAppWithSecret $authorsApp
-	}
-	else
-	{
-		# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
-		$authorAppCred = CreateAzureADApp -AppName $authorsApp -ResetAppSecret $True -MultiTenant $False
-		if ($null -eq $authorAppCred) {
+	# SingleTenant: must match azuredeploy.json msaAppType for bot connector auth.
+	$authorAppCred = CreateAzureADApp -AppName $authorsApp -ResetAppSecret $True -MultiTenant $False
+	if ($null -eq $authorAppCred) {
         WriteE -message "Failed to create or update the Author app in Azure Active Directory. Exiting..."
         logout
         Exit
-		}
 	}
 
 # Create Company Communicator App
@@ -1662,9 +1543,6 @@ function logout {
 
 # Function call to update reply-urls and uris for registered app.
     WriteI -message "Updating required parameters and urls..."
-	if($parameters.isUpgrade.Value){
-    FormatAADApp $authorAppCred.appId $authorsApp
-	}
     ADAppUpdate $appdomainName $graphAppCred.appId
 
 # Log out to avoid tokens caching

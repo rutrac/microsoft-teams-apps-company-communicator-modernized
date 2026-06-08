@@ -24,17 +24,6 @@ When you're ready to try out Company Communicator, or to use it in your own orga
 * [Deployment guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/Deployment-guide).
     * Use this option to deploy the Company Communicator v5.0 with client secrets.
 
-## Migration 
-
-If you already have older version of Company Communicator installed, then please use this [v5 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v5-migration-guide). Please note that deploying the major version update, like Company Communicator version 5.0 involves more than syncing the App Service and Azure Functions, so plan to review the migration guide before migrating to latest. 
-
-Migrating to newer versions. 
-
- * [v5 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v5-migration-guide)
- * [v4 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v4-migration-guide)
- * [v3 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v3-migration-guide)
- * [v2 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v2-migration-guide)
-
 ## Feedback
 
 Thoughts? Questions? Ideas? Share them with us on [Teams UserVoice](https://microsoftteams.uservoice.com/forums/555103-public)!
@@ -83,7 +72,6 @@ This is the log of changes implemented for Company Communicator.
   - The CSV report exported by authors now includes information on ReadStatus and ButtonTracking. That will make easier for author to create simple reports without Power BI or accessing directly the database. 
 
 **v5.11**
-  - ATTENTION!!! - Merge of v5.1. If you have a deployment based on v4.XX you need to follow instructions [v5 migration guide](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/wiki/v5-migration-guide) to update your setup.
   - Inclusion of the MasterAdminUpns and TargetingEnabled variables to the deployment template, those variables will be available during setup moving forward.
 
 **v4.51**

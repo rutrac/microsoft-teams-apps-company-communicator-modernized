@@ -12,7 +12,6 @@
 
 # Prerequisites
 >    * The recommendation is to use [Deployment guide using powershell](Deployment-guide-powershell).
->    * If you already have previous version of Company Communicator installed, then please use this [v5 migration guide](v5-migration-guide).
 
 To begin, you will need: 
 * An Azure subscription where you can create the following kinds of resources:  
