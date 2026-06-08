@@ -1,5 +1,18 @@
 ## Solution Overview
 
+> **Modernized v5.x fork.** This page describes the bot, function, and queue topology of the original Company Communicator. The fork at [rutrac/microsoft-teams-apps-company-communicator-modernized](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized) preserves that topology but modernizes the runtime stack:
+>
+> | Layer | Modernized stack |
+> |---|---|
+> | Web app (Bot + Tab API) | ASP.NET Core 8 on Windows App Service, Premium V3 plan (P0v3 or P1v3) |
+> | Functions (Prepare / Send / Data) | .NET 8 isolated, Azure Functions v4 (`FUNCTIONS_INPROC_NET8_ENABLED=1`) |
+> | Client app (Messages tab) | React 18, Vite 7, TypeScript 5.9, Fluent UI Northstar 0.56, dayjs 1.11 — pre-built artifact (`ClientApp/build/`) is checked in and deployed by source-control sync |
+> | Edge | Azure Front Door Standard (auto-provisioned, `*.azurefd.net` hostname) or your own custom domain |
+> | Networking | VNet + Private Endpoints for Storage (blob / queue / table) and Key Vault; public network access on the bot site is `Allow` for Teams traffic, SCM is `Deny` |
+> | Identity | System-assigned Managed Identity on every site — used for Service Bus, Storage, and Key Vault data-plane access. Bot AAD apps are SingleTenant where the install tenant is known, MultiTenant for the User bot |
+> | Secrets | Azure Key Vault with soft-delete on; purge protection is parameterized (off in sandbox, on in production) |
+> | Deploy | `Deployment/deploy.ps1` only — the legacy manual ARM path is retained for reference but no longer supported |
+
 Refer the following image for high level architecture.
 
 ![Overview](images/architecture_overview_v4.png)
@@ -8,10 +21,10 @@ The **Company Communicator** app has the following main components:
 * **App Service**: The app service implements the message compose experience in the team tab, and the messaging endpoint for the bot.
 * **Service Bus**: The individual messages sent by the bot to the recipients are enqueued on a service bus queue, to be processed by an Azure Function. This queue decouples the message composition experience from the process that delivers the message to recipients.
 * **Azure Function**: The Azure Functions picks up the messages from the queues, prepares the recipients and delivers them.
-* **Azure Key vault**: The Azure Key vault stores the secrets, certificates and connection strings. For more information about the data stored, please check [this](Data-stores.md).
-* **Author Bot Registration**: The Author Bot registration is used for author's app. The application is separated from the User application so that different teams policies can be applied.
-* **User Bot Registration**: The User Bot registration is used for user's app, which is installed by users to receive messages send by Company Communicator application.
-* **Graph App Registration**: The Graph application registration is used for Microsoft Graph api's. The recommended approach is to have a different application registered for managing Microsoft Graph API permissions.
+* **Azure Key vault**: The Azure Key vault stores client secrets and connection strings (Service Bus, Storage Account). The modernized fork uses Managed Identity for data-plane access to Service Bus, Storage, and Key Vault itself; only AAD app client secrets are stored as KV secrets. For more information about the data stored, please check [this](Data-stores).
+* **Author Bot (Azure Bot Service)**: The Author Bot registration is used for the author's app. It is separate from the User application so that different Teams policies can be applied.
+* **User Bot (Azure Bot Service)**: The User Bot registration is used for the user's app, which is installed by users to receive messages sent by the Company Communicator application.
+* **Graph App Registration**: The Graph application registration is used for Microsoft Graph APIs. The recommended approach is to have a separate application registered for managing Microsoft Graph API permissions.
 * **Microsoft Graph API**: The app leverages Microsoft graph api's to [Search Groups](https://docs.microsoft.com/en-us/graph/api/group-list?view=graph-rest-1.0&tabs=http), [Get Group Transitive Members](https://docs.microsoft.com/en-us/graph/api/group-list-transitivemembers?view=graph-rest-1.0&tabs=http), [Get Users](https://docs.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0&tabs=http) and [proactively install the User application for a user](https://docs.microsoft.com/en-us/graph/api/user-add-teamsappinstallation?view=graph-rest-beta&tabs=http).
 
 ---
@@ -24,7 +37,7 @@ The app service implements two main components, the tab for composing messages a
 
 The messages tab is the interface by which message authors create the messages to be sent, specify the intended recipients, and initiate the send. After sending, the tab reports the status of the message delivery, as counts of deliveries that were successful or failed.
 
-The tab is implemented as a React application, using UI components from [Stardust UI](https://github.com/stardust-ui/react) and [Office UI Fabric React](https://github.com/OfficeDev/office-ui-fabric-react). The message compose UX is in a [task module](https://docs.microsoft.com/en-us/microsoftteams/platform/concepts/task-modules/task-modules-overview), with a message preview implemented using the [Adaptive Cards SDK](https://docs.microsoft.com/en-us/adaptive-cards/sdk/rendering-cards/javascript/getting-started).
+The tab is implemented as a React 18 application built with Vite, using UI components from [Fluent UI Northstar (`@fluentui/react-northstar`)](https://github.com/microsoft/fluentui/tree/master/packages/fluentui/react-northstar). The message compose UX is in a [task module](https://docs.microsoft.com/en-us/microsoftteams/platform/concepts/task-modules/task-modules-overview), with a message preview implemented using the [Adaptive Cards SDK](https://docs.microsoft.com/en-us/adaptive-cards/sdk/rendering-cards/javascript/getting-started). Date/time handling uses dayjs with on-demand locale loading; routing uses React Router v6. The built bundle is committed under `Source/CompanyCommunicator/ClientApp/build/` so that the App Service source-control sync does not need to run `npm install` / `npm run build` in Kudu.
 
 The tab's front-end gets its data from web APIs implemented by the same app service that's hosting it. These APIs are protected by AAD token authentication, which checks that the user attempting to access the site is in the list of valid senders.
 
@@ -48,9 +61,9 @@ The app service exposes a bot messaging endpoint, which receives activities from
 
 ---
 
-## Azure Function
+## Azure Functions
 
-Company Communicator uses five Azure Functions:
+The modernized fork ships **three Function App sites** (web/prep/data). Each runs on .NET 8 isolated, Azure Functions v4, and shares the App Service Plan with the bot web app. Five logical functions are hosted across them:
 
 ### Prepare To Send function
 
@@ -59,7 +72,7 @@ This is a [durable function](https://docs.microsoft.com/en-us/azure/azure-functi
 2. Syncs the recipients. 
    > **Note:** Send to everyone workflow syncs all the users in the tenant. The code filters out **Guest** users and users who do not have a valid Teams license. You may change the behavior if desired. Refer - *SyncAllUsersActivity.cs*.
 3. Proactively Installs the User app for recipients who do not have the app.
-   >**Note:** Applicable if [proactive app installation](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Deployment-guide#2.-deploy-to-your-azure-subscription) is enabled and external App Id is configured.
+   >**Note:** Applicable if [proactive app installation](Deployment-guide-powershell#2-update-parameters-file) is enabled and external App Id is configured.
 4. Sends a data aggregation trigger message to Data Queue.
 5. Sends a dedicated message for every recipient to Send Message Queue.
 
@@ -86,7 +99,7 @@ This is a [durable function](https://docs.microsoft.com/en-us/azure/azure-functi
 
 ### Clean Up function
 
-This is a time trigger function and runs as per the scheduled time. It deletes the staged files and file consent card for which there is no response from user within a set period of time.
+This is a timer-triggered function (hosted in the **data** function app) and runs on schedule. It deletes the staged export files and file-consent cards for which there is no response from the user within a set period of time.
 
 ---
 

@@ -1,5 +1,7 @@
 # Troubleshooting guide
 
+> **Modernized fork.** `Deployment/deploy.ps1` in v5.27.5+ detects Azure CLI installs from winget, scoop, choco, user-scope, and the x64 MSI; runs with a unified Graph/AAD retry helper; and writes a transcript log under `Deployment/logs/`. The admin-consent prompt now has a 30-second timeout (default `N`) so the script does not block your CI runner. If consent is skipped, `deploy.ps1` prints the consent URL at the end of the run — hand it to a tenant admin to complete.
+
 **Generic possible issues**
 
 Certain issues can arise that are common to many of the app templates. Please refer to this [link](https://github.com/OfficeDev/microsoft-teams-stickers-app/wiki/Troubleshooting).
@@ -10,7 +12,7 @@ Certain issues can arise that are common to many of the app templates. Please re
 
 While running PowerShell script, you may get an error: `File is not digitally signed`
 
-**Fix** : If this type of error occurs then run this: `Set-ExecutionPolicy -ExecutionPolicy unrestricted`  and re-run the script.
+**Fix** : Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` (or `Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process` for a one-shot) and re-run the script. Avoid the older `Unrestricted` advice — it disables script signing checks system-wide.
 
 **2. Azure subscription access failed**
 

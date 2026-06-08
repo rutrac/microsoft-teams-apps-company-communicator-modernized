@@ -1,3 +1,16 @@
+## Modernized v5.x cost notes
+
+> **The S2 / Basic Service Bus numbers below are upstream Microsoft Store estimates.** They have not been re-validated for the modernized fork. The fork makes three material changes that bump the floor cost:
+>
+> | Resource | Modernized choice | Approx. list (West Europe, June 2026) |
+> |---|---|---|
+> | App Service Plan | **Premium V3** (`P0v3` 4 GB / ~1 vCPU, `P1v3` 8 GB / 2 vCPU). Lower SKUs are not validated. | `P0v3` ~ €115/mo, `P1v3` ~ €230/mo (Windows list) |
+> | Edge | **Azure Front Door Standard** auto-provisioned | ~$35–40/mo base + per-route + egress |
+> | Networking | **VNet + Private Endpoints** for Storage (blob/queue/table) and Key Vault | ~$0.01/hour per endpoint (~$7/mo per endpoint) |
+> | Identity | System-assigned **Managed Identity** everywhere — no client secrets in App Settings | Free |
+>
+> Realistic floor for a small modernized v5.x deployment on `P0v3`: **~€160–180/mo** before traffic and storage. Stepping up to `P1v3` for 100k+ recipients moves the floor to **~€275–300/mo**. Service Bus, Storage and Application Insights stay below €5/mo for the assumed volume.
+
 ## Assumptions
 
 The estimate below assumes:
@@ -16,9 +29,14 @@ We ignore:
 
 ## SKU recommendations
 
-The recommended SKUs for a production environment are:
-* App Service: Standard (S2)
-* Service Bus: Basic
+The SKUs validated by the modernized fork are:
+* **App Service Plan**: Premium V3 — `P0v3` (dev/test) or `P1v3` (production, recommended for 100k+ recipients)
+* **Service Bus**: Basic
+* **Storage**: Standard_LRS
+* **Key Vault**: Standard
+* **Azure Front Door**: Standard
+
+> The legacy upstream estimates below assumed App Service Standard `S2` and Bot Channels Registration `F0`. Those rows are kept for methodology only — see the modernized cost notes section above for the actual fork floor.
 
 ## Estimated load
 

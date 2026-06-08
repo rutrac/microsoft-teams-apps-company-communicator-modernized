@@ -6,15 +6,13 @@ The tab where authors/creators of messages create a message is not supported on 
 ## FAQs
 
 ### 1. Are messages sent to guest users?
-As of version 4.1.1, guest users are excluded from receiving messages. Note that they will still be able to view messages posted to a channel.
-
-> **IMPORTANT:** If you are using a version of Company Communicator **v4.1.1**, please update to the latest version, and see the guidance in [Excluding guest users from messages](https://github.com/OfficeDev/microsoft-teams-apps-company-communicator/wiki/Excluding-guest-users-from-messages).
+No. Guest users are excluded from receiving messages. They will still be able to view messages posted to a channel.
 
 ### 2. Does Company Communicator respond with a message to users who ask a question or reply to a message?
 No, by default the bot only sends messages and does not respond with a message. The bot can be customized to reply with a custom message or connected to a knowledge base to respond with answers from the knowledge base.
 
 ### 3. Is it mandatory to choose multi-tenant account types while app registration?
-Yes. Bot Channels Registration only supports multi-tenant account types. Please choose multi-tenant type options only even if the app users belong to single-tenant only. Please refer [here](https://docs.microsoft.com/en-us/azure/bot-service/bot-service-quickstart-registration?view=azure-bot-service-4.0#manual-app-registration) for more information
+Yes. The User bot registration must be **multi-tenant** so the bot can run cross-tenant proactive flows; the Author bot can be single-tenant if you only need it inside your install tenant. The modernized template defaults to MultiTenant for the User bot and SingleTenant for the Author + Graph bots; `deploy.ps1` configures this for you. See [Azure Bot supported account types](https://learn.microsoft.com/azure/bot-service/bot-service-quickstart-registration) for background.
 
 | Type | Description |
 |--|--|
@@ -24,30 +22,24 @@ Yes. Bot Channels Registration only supports multi-tenant account types. Please 
 ### 4. How to clone the GitHub repository?
 Please follow this [link](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) for detailed instructions on cloning GitHub repository to create a local copy on your computer and sync between the two locations.
 
-### 5. I'm using v4.1 Company Communicator. When I resync the Company Communicator, can I set up the v4.1 branch instead of master or v4.1.x?
-If you're planning to deploy version ~4, you can select the branch as v4.x but it will not point to the specific 4.1 version. Instead, it will have the highest 4.x version i.e., v4.1.5. 
+### 5. Can I change the App Service Plan SKU after deployment?
+The modernized template locks the plan to **Premium V3** (`P0v3` or `P1v3`) so that the in-process .NET 8 isolated functions and the bot site have enough memory and always-on capacity. You can switch between `P0v3` (4 GB / ~1 vCPU) and `P1v3` (8 GB / 2 vCPU) at any time from the App Service Plan blade without re-running the deploy script. Going below Premium V3 is **not supported**: Basic / Standard SKUs do not provide enough memory headroom for the warm in-process worker.
 
-### 6. Can I change the app service plan without any issues? 
-Yes, the app service plan can be changed to S1 without going for re-deployment. The recommended instance is S2 for better performance, however the app will work for S1 as well, provided the messages sent to limited users. 
-
-### 7. When I export the results of a sent message the author bot on the desktop client shows "Go back to the main window to see this content". 
+### 6. When I export the results of a sent message the author bot on the desktop client shows "Go back to the main window to see this content". 
  ![Go Back To the Main Window](images/go_back_main_window.png)
  
  The issue seems specific to your Teams setup and not related to the Company Communicator app. 
 
-### 8. I'm sending messages every week to more than 100k users, does CC supports this volume? Which strategy is suggested in this case? 
-Yes, refer below on the versions and the volumes that CC supports sending,
+### 7. I'm sending messages every week to more than 100k users, does CC support this volume? 
+The modernized v5.x line targets ~2 million messages per send on `P1v3` based on architectural capacity (separate storage account per function app, Service Bus Basic, the throttle-aware send pipeline). This figure has **not been validated end-to-end** on the modernized fork — only sandbox-volume smoke tests have been run. Earlier (4.1.x) numbers in the wild were on the order of 100k. If you plan to send at this scale, expect to tune `serviceBus.messageHandlerOptions.maxConcurrentCalls` in the send function's `host.json` (default `30`) and validate against your own Service Bus, Storage, and Bot Framework throttling limits.
 
-- 5.x supports 2 million messages (approximately). 
-- 4.1.5 supports 100k messages (approximately). 
+### 8. Is it possible to use Linux over Windows in App service plan? 
+The template targets **Windows** Premium V3. Switching to Linux requires editing the ARM template (`Deployment/azuredeploy.json`) and is not validated by the modernization fork — expect to debug at minimum the `.NET 8 isolated` worker hosting model and the source-control sync that pushes the pre-built `ClientApp/build/` artifact.
 
-### 9. Is it possible to use Linux over Windows in App service plan? 
-The default app service plan for CC deployment is Windows, if you want to use Linux, then you need to customize the ARM template to deploy it using Linux and go for fresh installation with the customized version. 
-
-### 10. How do I know the version of the app? 
+### 9. How do I know the version of the app? 
 ![Version of the app](images/version_app.png)
 
-### 11. After deployment I see a `NetworkWatcherRG` resource group in my subscription. Where did it come from?
+### 10. After deployment I see a `NetworkWatcherRG` resource group in my subscription. Where did it come from?
 This resource group is **not created by the Company Communicator deployment script**. It is auto-provisioned by the Azure platform the first time any networking resource (VNet, NIC, Private Endpoint, etc.) is deployed in a given region in your subscription. Because the modernized template provisions a VNet and Private Endpoints, Azure creates `NetworkWatcherRG` (and a `Microsoft.Network/networkWatchers` instance per region) automatically.
 
 Key points:

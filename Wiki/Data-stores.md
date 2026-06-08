@@ -152,11 +152,8 @@ The key vault stores the following data.
 
 | Value                  | Description
 | ---                    | ---
-| AuthorAppPassword      | The client secret key of author bot.
-| UserAppPassword        | The client secret key of user bot.
-| GraphAppSecret         | The client secret key of graph app.
-| Author app certificate | The Key vault certificate of author bot.
-| User app certificate   | The Key vault certificate of user bot.
-| Graph app certificate  | The Key vault certificate of graph app.
+| AuthorAppPassword      | The client secret of the author bot Azure AD app.
+| UserAppPassword        | The client secret of the user bot Azure AD app.
+| GraphAppSecret         | The client secret of the Microsoft Graph Azure AD app.
 | ServiceBusConnectionString | The connection string of Service Bus Namespace.
 | StorageAccountConnectionString | The connection string of Storage Account.

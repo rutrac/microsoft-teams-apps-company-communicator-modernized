@@ -1,3 +1,5 @@
+> **STATUS: legacy / not recommended.** This page documents the manual portal-based deployment that came with the upstream Company Communicator. The modernized fork **only validates the PowerShell deployment** at [Deployment-guide-powershell](Deployment-guide-powershell), which provisions the three AAD apps, the ARM resources, and the source-control sync end to end. The steps below are kept for reference, but the **"Deploy to Azure" button is intentionally removed**: the public ARM template depends on `deploy.ps1` to fill in tenant-specific GUIDs and admin consent that the portal blade cannot collect.
+
 - Deployment Guide
     - [Prerequisites](#prerequisites) 
     - [Steps](#Deployment-Steps)
@@ -16,20 +18,22 @@
 To begin, you will need: 
 * An Azure subscription where you can create the following kinds of resources:  
     * App Service
-    * App Service Plan
-    * Bot Channels Registration
-    * Azure Function
+    * App Service Plan (**Premium V3** — `P0v3` or `P1v3`)
+    * Azure Bot (Bot Service)
+    * Azure Function (.NET 8 isolated, v4)
     * Azure Storage Account
-    * Service Bus
-    * Application Insights
-    * Azure Key vault
+    * Service Bus Namespace
+    * Application Insights / Log Analytics Workspace
+    * Azure Key Vault
+    * Azure Front Door Standard *(if you opt in to the auto-provisioned edge)*
+    * Virtual Network + Private Endpoints (Storage blob/queue/table, Key Vault) + Private DNS Zones
 * An role to assign roles in Azure RBAC. To check if you have permission to do this, 
     * Goto the subscription page in Azure portal. Then, goto Access Control(IAM) and click on `View my access` button.
     * Click on your `role` and in search permissions text box, search for `Microsoft.Authorization/roleAssignments/Write`.
     * If your current role does not have the permission, then you can grant yourself the built in role `User Access Administrator` or create a custom role.
     * Please follow this [link](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles#steps-to-create-a-custom-role) to create a custom role. Use this action `Microsoft.Authorization/roleAssignments/Write` in the custom role to assign roles in Azure RBAC.
 * A team with the users who will be sending messages with this app. (You can add or remove team members later!)
-* A copy of the Company Communicator app GitHub repo (https://github.com/OfficeDev/microsoft-teams-company-communicator-app)
+* A copy of the Company Communicator app GitHub repo (https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized)
 
 > **NOTE:** If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](Custom-domain-option) first.
 
@@ -87,9 +91,8 @@ Register three Azure AD application in your tenant's directory: one for author b
     ![Azure AD app overview page](images/multitenant_app_overview_2.png)
 
 ## 2. Deploy to your Azure subscription
-1. Click on the **Deploy to Azure** button below.
-   
-   [![Deploy to Azure](https://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcristianoag%2Fmicrosoft-teams-apps-company-communicator%2Fmaster%2FDeployment%2Fazuredeploy.json)
+
+> The "Deploy to Azure" button that used to appear here has been removed. Use `Deployment/deploy.ps1` from a local clone of the [modernized fork](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized) instead. The remainder of this section describes the parameters the script (or a manual ARM deployment) collects.
 
 1. When prompted, log in to your Azure subscription.
 
@@ -122,13 +125,10 @@ Register three Azure AD application in your tenant's directory: one for author b
     7. **Microsoft Graph App Secret**: The client secret of the Microsoft Graph Azure AD app. (from Step 1)
     8. **Proactively Install User App [Optional]**: Default value is `true`. You may set it to `false` if you want to disable the feature.
     9. **User App ExternalId [Optional]**: Default value is `6202129d-5e47-4e34-87f1-4b916b2d30f7`. This **MUST** be the same `id` that is in the Teams app manifest for the user app.
-    10. **Hosting Plan SKU  [Optional]**: The pricing tier for the hosting plan. Default value is `Standard`. You may choose between Basic, Standard and Premium.
-    11. **Hosting Plan Size  [Optional]**: The size of the hosting plan (small - 1, medium - 2, or large - 3). Default value is `2`.
-    
-        > **Note:** The default value is 2 to minimize the chances of an error during app deployment. After deployment you can choose to change the size of the hosting plan.
+    10. **Hosting Plan SKU  [Optional]**: App Service Plan SKU. The modernized template only validates **Premium V3** — allowed values are `P0v3` (4 GB / ~1 vCPU, dev/test) or `P1v3` (8 GB / 2 vCPU, recommended for production). Default is `P1v3`.
     12. **Service Bus Web App Role Name Guid [Optional]**: Default value is `958380b3-630d-4823-b933-f59d92cdcada`. This **MUST** be the same `id` per app deployment.
    
-        > **Note:** Make sure to keep the same values for an upgrade. Please change the role name GUIDs in case of another Company Communicator Deployment in same subscription.
+        > **Note:** Change the role name GUIDs in case of another Company Communicator deployment in the same subscription.
 
     13. **Service Bus Prep Func Role Name Guid [Optional]**: Default value is `ce6ca916-08e9-4639-bfbe-9d098baf42ca`. This **MUST** be the same `id` per app deployment.
     14. **Service Bus Send Func Role Name Guid [Optional]**: Default value is `960365a2-c7bf-4ff3-8887-efa86fe4a163`. This **MUST** be the same `id` per app deployment.
@@ -155,7 +155,7 @@ Register three Azure AD application in your tenant's directory: one for author b
 
 1. Wait for the deployment to finish. You can check the progress of the deployment from the "Notifications" pane of the Azure Portal. It may take **up to an hour** for the deployment to finish.
 
-    > If the deployment fails, see [this section](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Troubleshooting#1-code-deployment-failure) of the Troubleshooting guide.
+    > If the deployment fails, see [this section](Troubleshooting#1-code-deployment-failure) of the Troubleshooting guide.
 
 1. Once the deployment is successfully completed, go to the deployment's "Outputs" tab, and note down the follwing values. We will need them later.
     * **authorBotId:** This is the Microsoft Application ID for the Company Communicator app. For the following steps, it will be referred to as `%authorBotId%`.
@@ -170,7 +170,7 @@ Register three Azure AD application in your tenant's directory: one for author b
 
 1. Note that you have the `%authorBotId%`, `%userBotId%` and `%appDomain%` values from the previous step (Step 2).
 
-    > If do not have these values, refer [this section](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Troubleshooting#2-forgetting-the-botId-or-appDomain) of the Troubleshooting guide for steps to get these values.
+    > If do not have these values, refer [this section](Troubleshooting#12-forgetting-the-botid-or-appdomain) of the Troubleshooting guide for steps to get these values.
 
 1. Go to **App Registrations** page [here](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps) and open the Microsoft Graph Azure AD app you created (in Step 1) from the application list.
 
@@ -254,7 +254,7 @@ Continuing from the Microsoft Graph Azure AD app registration page where we ende
     ![Azure AD API permissions](images/multitenant_app_permissions_1.png)
     ![Azure AD API permissions](images/multitenant_app_permissions_2.png)
 
-    > Please refer to [Solution overview](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Solution-overview#microsoft-graph-api) for more details about the above permissions.
+    > Please refer to [Solution overview](Solution-overview#microsoft-graph-api) for more details about the above permissions.
 
 4. If you are logged in as the Global Administrator, click on the “Grant admin consent for %tenant-name%” button to grant admin consent, else inform your Admin to do the same through the portal.
    <br/>
@@ -286,20 +286,20 @@ Create two Teams app packages: one to be installed to an Authors team and other 
 
 1. Change the `<<botId>>` placeholder in the id setting of the webApplicationInfo section to be the `%authorBotId%` value. Change the `<<appDomain>>` placeholder in the resource setting of the webApplicationInfo section to be the `%appDomain%` value e.g. "`api://appName-<hash>.z01.azurefd.net`".
 
-1. Copy the `manifest_authors.json` file to a file named `manifest.json`.
+    1. Copy the `manifest_authors.json` file to a file named `manifest.json`.
 
-1. Create a ZIP package with the `manifest.json`,`color.png`, and `outline.png`. The two image files are the icons for your app in Teams.
-    * Name this package `company-communicator-authors.zip`, so you know that this is the app for the author teams.
-    * Make sure that the 3 files are the _top level_ of the ZIP package, with no nested folders.  
+1. Create a ZIP package with the `manifest.json`, `color.png`, and `outline.png`. The two image files are the icons for your app in Teams.
+    * Name this package `CC-authors.zip` (this matches the file the modern `deploy.ps1` produces).
+    * Make sure that the 3 files are at the _top level_ of the ZIP package, with no nested folders.  
     ![image10](images/file-explorer.png)
 
 1. Delete the `manifest.json` file.
 
-Repeat the steps above but with the file `Manifest\manifest_users.json` and use `%userBotId%` for `<<botId>>` placeholder. Note: you will not need to change anything for the configurationUrl or webApplicationInfo section because the recipients app does not have the configurable tab. Name the resulting package `company-communicator-users.zip`, so you know that this is the app for the recipients.
+Repeat the steps above but with the file `Manifest\manifest_users.json` and use `%userBotId%` for the `<<botId>>` placeholder. Note: you will not need to change anything for the configurationUrl or webApplicationInfo section because the recipients app does not have the configurable tab. Name the resulting package `CC-users.zip`.
 
 ## 6. Install the apps in Microsoft Teams
 
-1. Install the authors app (the `company-communicator-authors.zip` package) to your team of message authors.
+1. Install the authors app (the `CC-authors.zip` package) to your team of message authors.
     * Note that even if non-authors install the app, the UPN list in the app configuration will prevent them from accessing the message authoring experience. Only the users in the sender UPN list will be able to compose and send messages. 
     * If your tenant has sideloading apps enabled, you can install your app by following the instructions [here](https://docs.microsoft.com/en-us/microsoftteams/platform/concepts/apps/apps-upload#load-your-package-into-teams).
 
@@ -308,10 +308,8 @@ Repeat the steps above but with the file `Manifest\manifest_users.json` and use 
 3. [Upload](https://docs.microsoft.com/en-us/microsoftteams/tenant-apps-catalog-teams) the User app to your tenant's app catalog so that it is available for everyone in your tenant to install.
 > **IMPORTANT:** Proactive app installation will work only if you upload the User app to your tenant's app catalog.
 
-4. Install the User app (the `company-communicator-users.zip` package) to the users and teams that will be the target audience.
+4. Install the User app (the `CC-users.zip` package) to the users and teams that will be the target audience.
 > If `proactiveAppInstallation` is enabled, you may skip this step. The service will install the app for all the recipients when authors send a message.
-
-> **NOTE:** If you are deploying a version of Company Communicator prior to version 4, do NOT use app permission policies to restrict the authors app to the members of the authors team. Microsoft Teams does not support applying different policies to the same bot via two different app packages. 
 
 ---
 

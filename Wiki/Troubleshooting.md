@@ -3,6 +3,8 @@
 ## Generic possible issues
 There are certain issues that can arise that are common to many of the app templates. Please check [here](https://github.com/OfficeDev/microsoft-teams-stickers-app/wiki/Troubleshooting) for reference to these.
 
+> The `react-scripts` / class-component / `npm run build` problems documented in older versions of this page do **not** apply to the modernized fork: the React client is built ahead of time with Vite (`ClientApp/build/` is committed to source control) and Kudu's source-control sync only copies static files, so npm errors during sync should no longer appear. Section 5 below is retained for archival reasons.
+
 # Problems deploying to Azure
 
 ## 1. Code deployment failure
@@ -94,13 +96,13 @@ Verify if the below permissions has been added to the graph app registration and
 
 To deploy the second instance of company communicator in single-tenant
 
-1. Register Azure AD Applications as mentioned in Step 1 of [Deployment Guide](https://github.com/OfficeDev/microsoft-teams-apps-company-communicator/wiki/Deployment-guide).
+1. Register Azure AD Applications as mentioned in Step 1 of [Deployment Guide](Deployment-guide).
 2. While doing ARM Template deployment, update “User App External Id” with following different value example: `6202129d-5e47-4e34-87f1-4b916b2d30f8`
 3. Update the below fields with newly generated valid GUIDs during the re-deployment. Any online tool can be used to generate a valid GUID. 
 
 ![Screenshot of troubleshooting roleassignment error code deployment](images/troubleshooting_roleassignmenterror.png)
 
-4. Proceed with remaining steps 3, 4 of [Deployment Guide](https://github.com/OfficeDev/microsoft-teams-apps-company-communicator/wiki/Deployment-guide).
+4. Proceed with remaining steps 3, 4 of [Deployment Guide](Deployment-guide).
 5. In Step 5, Please update user app manifest id from `6202129d-5e47-4e34-87f1-4b916b2d30f7` to `6202129d-5e47-4e34-87f1-4b916b2d30f8` and please update author app manifest id from `de49b683-4b1d-4c3d-80e8-081d1ba733aa` to `de49b683-4b1d-4c3d-80e8-081d1ba733ab` (Different value)
 and proceed with the remaining steps as mentioned in deployment guide.
 
@@ -139,8 +141,8 @@ This issue occurs when attempting multiple times node modules are installed by c
 
 3. Once the disconnection is completed. Go to Settings and select External Git and add below URL and branch name.
     
-    * Repository : https://github.com/OfficeDev/microsoft-teams-apps-company-communicator.git
-    * Branch     : master (If you are using older version of CC, please select the branch name accordingly.)
+    * Repository : https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized.git
+    * Branch     : main
 
     ![Screenshot of troubleshooting app service deployment](images/troubleshooting_appservicesyncerror_3.png)
 
@@ -149,7 +151,7 @@ This issue occurs when attempting multiple times node modules are installed by c
 ## 6. Proactive app installation is not working
 If proactive app installation for a user is not working as expected, make sure you have performed the following:
 
-1. Grant Admin consent to the application for all the graph permissions mentioned [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Deployment-guide#4-add-permissions-to-your-app).
+1. Grant Admin consent to the application for all the graph permissions mentioned [here](Deployment-guide#4-add-permissions-to-your-microsoft-graph-azure-ad-app).
 2. "ProactivelyInstallUserApp" configuration is enabled (set to "true") for the web app and the prep-function.
 3. "UserAppExternalId" configuration matches with the User app Id (in the Teams App manifest) for the web app.
 4. [Upload](https://docs.microsoft.com/en-us/microsoftteams/tenant-apps-catalog-teams) the User app to your tenant's app catalog so that it is available for everyone in your tenant to install.
@@ -224,4 +226,4 @@ If you forgot to copy your **authorBotId**, **userBotId** and **appDomain** valu
 
 
 # Didn't find your problem here?
-Please report the issue [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/issues/new)
+Please report the issue [here](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized/issues/new)

@@ -13,22 +13,24 @@ To begin, you will need:
 
 * An Azure subscription where you can create the following kinds of resources:
     * App Service
-    * App Service Plan
-    * Bot Channels Registration
-    * Azure Function
+    * App Service Plan (**Premium V3** — `P0v3` or `P1v3`)
+    * Azure Bot (Bot Service)
+    * Azure Function (.NET 8 isolated, v4)
     * Azure Storage Account
-    * Service Bus
-    * Application Insights
-    * Azure Key vault
+    * Service Bus Namespace
+    * Application Insights / Log Analytics Workspace
+    * Azure Key Vault
+    * Azure Front Door Standard *(if you opt in to the auto-provisioned edge)*
+    * Virtual Network + Private Endpoints (Storage blob/queue/table, Key Vault) + Private DNS Zones
 * An role to assign roles in Azure RBAC. To check if you have permission to do this, 
     * Goto the subscription page in Azure portal. Then, goto Access Control(IAM) and click on `View my access` button.
     * Click on your `role` and in search permissions text box, search for `Microsoft.Authorization/roleAssignments/Write`.
     * If your current role does not have the permission, then you can grant yourself the built in role `User Access Administrator` or create a custom role.
     * Please follow this [link](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles#steps-to-create-a-custom-role) to create a custom role. Use this action `Microsoft.Authorization/roleAssignments/Write` in the custom role to assign roles in Azure RBAC.
 * A team with the users who will be sending messages with this app. (You can add and remove team members later!)
-* A copy of the Company Communicator app GitHub repo ([https://github.com/OfficeDev/microsoft-teams-company-communicator-app](https://github.com/OfficeDev/microsoft-teams-company-communicator-app))
+* A copy of the Company Communicator app GitHub repo ([https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized))
 
-> NOTE:  If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Custom-domain-option) first.
+> NOTE:  If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](Custom-domain-option) first.
 
 ---
 
@@ -36,43 +38,25 @@ To begin, you will need:
 
 ## 1. Deploy to your Azure subscription
 
-  Please follow below steps to deploy app template:
+Follow these steps to deploy the modernized template:
 
-- Download the whole solution folder from [GitHub](https://github.com/OfficeDev/microsoft-teams-company-communicator-app)
-- Unzip the Content to a folder. (say companyCommunicator)
-- Open a PowerShell window in **administrator** mode and navigate to the folder where you unzipped the content.
-- Navigate to Deployment folder.
-    ```  
-    cd microsoft-teams-apps-company-communicator-master\Deployment
+- Download the whole solution folder from [GitHub](https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized) (use the green **Code → Download ZIP** button, or `git clone`).
+- Unzip the content to a folder (say `companyCommunicator`).
+- Open a **PowerShell 7+** window in **administrator** mode (Windows PowerShell 5.1 also works on the supported path) and navigate to the Deployment folder.
     ```
-
-- Run the below command to check if jq is installed or not.
-    ```
-    jq --version
+    cd microsoft-teams-apps-company-communicator-modernized-main\Deployment
     ```
 
-    If jq is not installed, you can install [jq](https://stedolan.github.io/jq/download/) using [chocolatey](https://chocolatey.org/install).
-    > jq is required to generate the User and Author application package.
+> **What `deploy.ps1` handles for you (you do NOT need to install these manually):**
+>
+> - **Azure CLI** — the script detects existing installs from PATH, winget, scoop, chocolatey, user-scope installs, the x64 MSI, and Azure Cloud Shell. If none is found, it installs the latest x64 MSI for you and asks you to restart the PowerShell session.
+> - **Az PowerShell modules** — the script verifies and installs `Az.Accounts`, `Az.Resources`, `Microsoft.Graph` automatically.
+> - **Manifest packaging** — the script generates `manifest/CC-authors.zip` and `manifest/CC-users.zip` itself using PowerShell's `Compress-Archive`. **`jq` and `chocolatey` are no longer required.**
+> - **AAD apps and admin consent** — the script registers (or updates) the three AAD apps and prompts to grant tenant-admin consent. The prompt has a 30-second timeout (default `N`); if you skip it, the script prints the consent URL at the end of the run for a tenant admin to complete.
+> - **Source-control sync** — the script wires the App Service / Function Apps to your fork repo (default: `https://github.com/rutrac/microsoft-teams-apps-company-communicator-modernized.git`, branch `main`). Because the React client is pre-built and `ClientApp/build/` is committed, Kudu does **not** run `npm install` / `npm run build` in the cloud.
+> - **Hardening pass** — after ARM completes, the script enforces `alwaysOn` + 64-bit worker on every site, enables Application Insights diagnostic settings, and attaches Proactive Auto-Heal rules.
 
-    Run the below command to install chocolatey
-
-    ```
-    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-    ```
-
-    Run the below command to install Jq
-
-    ```
-    chocolatey install jq
-    ```
-- Run the below command. This will allow you to run deploy.ps1. By default, the execution policy is restricted. You may change it to back restricted after deployment is completed.
-    ```
-    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
-    ```
-- Run the below command to unblock the deployment script.
-    ```
-    Unblock-File -Path .\deploy.ps1
-    ```
+> **One-off prerequisite:** if your machine has never run a remote PowerShell script, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` once. You do not need to `Unblock-File` the script — it ships unblocked from the GitHub ZIP.
 
 ---
 # 2. Update parameters file
@@ -102,13 +86,13 @@ To begin, you will need:
        You can change this list later by going to the `App Service > Configuration` blade.
 
     - `customDomainOption` - How the app will be hosted on a domain that is not \*.azurewebsites.net. Azure Front Door is an easy option that the template can set up automatically, but it comes with ongoing monthly costs.
-    > **NOTE**:  If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Custom-domain-option) first.
+    > **NOTE**:  If you plan to use a custom domain name instead of relying on Azure Front Door, read the instructions [here](Custom-domain-option) first.
     
     - `proactivelyInstallUserApp`: If proactive app installation should be enabled. Default is true. If enabled, the application will proactively install the User bot for recipients.
     - `userAppExternalId`: Default value is 6202129d-5e47-4e34-87f1-4b916b2d30f7. This is the external Id provided in the User app manifest.
     - `serviceBusWebAppRoleNameGuid`: Default value is `958380b3-630d-4823-b933-f59d92cdcada`. This **MUST** be the same `id` per app deployment.
    
-        > **Note:** Make sure to keep the same values for an upgrade. Please change the role name GUIDs in case of another Company Communicator Deployment in same subscription.
+        > **Note:** Change the role name GUIDs in case of another Company Communicator deployment in the same subscription.
 
     - `serviceBusPrepFuncRoleNameGuid`: Default value is `ce6ca916-08e9-4639-bfbe-9d098baf42ca`. This **MUST** be the same `id` per app deployment.
     - `serviceBusSendFuncRoleNameGuid`: Default value is `960365a2-c7bf-4ff3-8887-efa86fe4a163`. This **MUST** be the same `id` per app deployment.
@@ -116,17 +100,12 @@ To begin, you will need:
     - `storageAccountWebAppRoleNameGuid`: Default value is `edd0cc48-2cf7-490e-99e8-131311e42030`. This **MUST** be the same `id` per app deployment.
     - `storageAccountPrepFuncRoleNameGuid`: Default value is `9332a9e9-93f4-48d9-8121-d279f30a732e`. This **MUST** be the same `id` per app deployment.
     - `storageAccountDataFuncRoleNameGuid`: Default value is `5b67af51-4a98-47e1-9d22-745069f51a13`. This **MUST** be the same `id` per app deployment.
-    - `defaultCulture`:  By default the application uses `en-US` locale. You can choose another locale from the list [here](https://github.com/OfficeDev/microsoft-teams-company-communicator-app/wiki/Localization), if you wish to use the app in different locale.
-    - `hostingPlanSku`: The pricing tier for the hosting plan. Default value: Standard. You may choose between Basic, Standard and Premium.
-    - `hostingPlanSize`: The size of the hosting plan (small - 1, medium - 2, or large - 3). Default value: 2.
-    
-        > **Note:** The default value is 2 to minimize the chances of an error during app deployment. After deployment you can choose to change the size of the hosting plan.
+    - `defaultCulture`:  By default the application uses `en-US` locale. You can choose another locale from the list [here](Localization), if you wish to use the app in different locale.
+    - `hostingPlanSku`: The App Service Plan SKU. The modernized template only validates **Premium V3** — allowed values are `P0v3` (4 GB / ~1 vCPU, dev/test) or `P1v3` (8 GB / 2 vCPU, recommended for production). Default is **`P1v3`**. Lower SKUs are not supported.
 
-    - `gitRepoUrl` - The URL to the GitHub repository to deploy. Default value: [https://github.com/OfficeDev/microsoft-teams-company-communicator-app.git](https://github.com/OfficeDev/microsoft-teams-company-communicator-app.git)
-    - `gitBranch` - The branch of the GitHub repository to deploy. Default value: master
-    - `appDisplayName` - The app (and bot) display name. Default value:Company Communicator.
+    - `appDisplayName` - The app (and bot) display name. Default value: Company Communicator.
     - `appDescription` - The app (and bot) description. Default value: Broadcast messages to multiple teams and people in one go.
-    - `appIconUrl` - The link to the icon for the app. It must resolve to a PNG file. Default value [https://raw.githubusercontent.com/OfficeDev/microsoft-teams-company-communicator-app/master/Manifest/color.png](https://raw.githubusercontent.com/OfficeDev/microsoft-teams-company-communicator-app/master/Manifest/color.png)
+    - `appIconUrl` - The link to the icon for the app. It must resolve to a PNG file. Default value [https://raw.githubusercontent.com/rutrac/microsoft-teams-apps-company-communicator-modernized/main/Manifest/color.png](https://raw.githubusercontent.com/rutrac/microsoft-teams-apps-company-communicator-modernized/main/Manifest/color.png)
 
     - `companyName` - The display name for the company.
     - `websiteUrl` - The https:// URL to you company's website. This link should take users to your company or product-specific landing page.
@@ -138,8 +117,8 @@ To begin, you will need:
 # 3. Execute script
 
 - Open a PowerShell window in **administrator** mode and navigate to Deployment folder
-    ```  
-    cd microsoft-teams-apps-company-communicator-master\Deployment
+    ```
+    cd microsoft-teams-apps-company-communicator-modernized-main\Deployment
     ```
 - Execute the `deploy.ps1` script in the Powershell window:
     ```
@@ -155,7 +134,7 @@ To begin, you will need:
 - If the azure CLI application is already installed, the script will check if the following modules are installed.
   ![Powershell deployment guide](images/check_modules.png)
 
-> Note: The script requires Azure CLI `v.2.2` or later. The script will install Azure CLI if its not already installed. If it is already installed, make sure its `v2.2` or later.
+> **Note**: The script targets the **current** Azure CLI release (any 2.x). It auto-installs the latest x64 MSI if no install is found. There is no minimum-version check beyond "can run `az --version`".
 
 - The script will prompt *twice* for authentication during execution, once to get access to the Azure subscription, and the other to get access to Azure Active Directory. Please login using an account that has **contributor** role or higher.
 
@@ -185,9 +164,9 @@ To begin, you will need:
 
   ![Powershell deployment guide](images/warning_message.png)
 
-- The script will finally generate zip files for the User and author application.
-
-  ![Powershell deployment guide](images/manifest_folder.png)
+- The script will finally generate two manifest zip files in the `manifest/` folder of the unzipped solution:
+    - `manifest/CC-authors.zip` — install to the authors team
+    - `manifest/CC-users.zip` — upload to the tenant app catalog (or install per user)
 
 - After running the script. AD apps, Bot/Config Apps, and all required resources will be created.
 - If PowerShell script breaks during deployment, you may run the deployment again if there is no conflict (a resource name already exist in other resource group or another tenant) or refer to Troubleshooting page.
@@ -204,7 +183,7 @@ To begin, you will need:
 ## 4. Install the apps in Microsoft Teams
 
 
-1. Install the authors app (the `cc-authors.zip` package) to your team of message authors.
+1. Install the authors app (the `manifest/CC-authors.zip` package) to your team of message authors.
     * Note that even if non-authors install the app, the UPN list in the app configuration will prevent them from accessing the message authoring experience. Only the users in the sender UPN list will be able to compose and send messages. 
     * If your tenant has sideloading apps enabled, you can install your app by following the instructions [here](https://docs.microsoft.com/en-us/microsoftteams/platform/concepts/apps/apps-upload#load-your-package-into-teams).
 
@@ -215,10 +194,8 @@ To begin, you will need:
 3. [Upload](https://docs.microsoft.com/en-us/microsoftteams/tenant-apps-catalog-teams) the User app to your tenant's app catalog so that it is available for everyone in your tenant to install.
 > **IMPORTANT:** Proactive app installation will work only if you upload the User app to your tenant's app catalog.
 
-4. Install the User app (the `cc-users.zip` package) to the users and teams that will be the target audience. 
+4. Install the User app (the `manifest/CC-users.zip` package) to the users and teams that will be the target audience. 
 > If `proactiveAppInstallation` is enabled, you may skip this step. The service will install the app for all the recipients when authors send a message.
-
-> **NOTE:** If you are deploying a version of Company Communicator prior to version 4, do NOT use app permission policies to restrict the authors app to the members of the authors team. Microsoft Teams does not support applying different policies to the same bot via two different app packages. 
 
 ---
 

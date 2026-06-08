@@ -1,3 +1,5 @@
+> **Modernized v5.x fork.** Azure Front Door Standard is the **default** edge in the modernized template (`customDomainOption = "Azure Front Door"`). This page covers the **alternate** path: bringing your own custom domain bound directly to the App Service, bypassing AFD. AFD adds ongoing per-month and per-route costs (see [Cost estimate](Cost-estimate)); a custom domain on the App Service avoids those but requires you to manage the DNS record and SSL certificate yourself.
+
 As an alternative to using Azure Front Door, you can register a custom domain for your app.
 
 ## Fresh deployment

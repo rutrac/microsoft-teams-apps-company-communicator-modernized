@@ -99,7 +99,7 @@
       }
     },
     "SupportedCultures": {
-      "defaultValue": "ar-SA,de-DE,en-US,es-ES,fr-FR,he-IL,ja-JP,ko-KR,pt-BR,ru-RU,zh-CN,zh-TW",
+      "defaultValue": "ar-SA,de-DE,en-US,es-ES,fr-FR,he-IL,it-IT,ja-JP,ko-KR,pt-BR,ru-RU,zh-CN,zh-TW",
       "minLength": 1,
       "type": "String",
       "metadata": {
