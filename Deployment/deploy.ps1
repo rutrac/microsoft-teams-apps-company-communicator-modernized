@@ -1294,7 +1294,7 @@ function GenerateAppManifestPackage {
     copy-item -path $sourceManifestPath -destination $destManifestFilePath -Force
 
     # Replace merge fields with proper values in manifest file and save
-        $buildVersion = "5.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
+        $buildVersion = "6.$((Get-Date).ToString('yy')).$([int]((Get-Date).ToString('Mdd')))"
         # webApplicationInfo.resource must target the SSO/main app and contain the iframe host so Teams SSO can match it against the tab origin.
         # Form: api://<appDomain>/<mainAppId>
         if ($graphAppId) {
