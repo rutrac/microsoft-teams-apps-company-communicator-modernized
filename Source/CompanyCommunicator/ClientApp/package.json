@@ -46,7 +46,7 @@
     "@playwright/test": "^1.60.0",
     "@types/color-hash": "^1.0.4",
     "@types/faker": "^4.1.12",
-    "@types/history": "^4.7.11",
+    "@types/history": "^5.0.0",
     "@types/markdown-it": "^12.2.3",
     "@types/node": "^20.19.0",
     "@types/papaparse": "^5.3.14",
